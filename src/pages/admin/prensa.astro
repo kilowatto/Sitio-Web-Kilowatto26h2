@@ -1,0 +1,131 @@
+---
+import Base from "../../layouts/Base.astro";
+import { env } from "cloudflare:workers";
+
+const token = Astro.url.searchParams.get("token");
+const authorized = token && token === env.ADMIN_TOKEN;
+
+let pending: any[] = [];
+if (authorized && env?.DB) {
+  const res = await env.DB
+    .prepare("SELECT * FROM press_mentions WHERE status = 'pending' ORDER BY discovered_at DESC")
+    .all();
+  pending = res?.results ?? [];
+}
+---
+
+<Base title="Prensa — Admin">
+  <div class="container admin">
+    {
+      !authorized ? (
+        <p>No autorizado. Agrega <code>?token=...</code> a la URL.</p>
+      ) : (
+        <>
+          <h1>Menciones de prensa pendientes ({pending.length})</h1>
+          <form id="check-form">
+            <button type="submit">Buscar menciones nuevas ahora</button>
+          </form>
+          <div class="list">
+            {pending.map((m: any) => (
+              <div class={`press-card press-card--${m.identity_confidence}`}>
+                <p class="meta">
+                  {m.outlet} · {m.published_at} · confianza: <strong>{m.identity_confidence}</strong>
+                </p>
+                <h3>
+                  <a href={m.url} target="_blank" rel="noopener">
+                    {m.title}
+                  </a>
+                </h3>
+                {m.summary && <p>{m.summary}</p>}
+                <div class="actions">
+                  <button class="approve" data-id={m.id}>Publicar</button>
+                  <button class="reject" data-id={m.id}>Descartar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )
+    }
+  </div>
+
+  <script define:vars={{ token }}>
+    document.getElementById("check-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector("button");
+      btn.disabled = true;
+      btn.textContent = "Buscando…";
+      const res = await fetch(`/api/news/check?token=${encodeURIComponent(token)}`, { method: "POST" });
+      const data = await res.json();
+      alert(JSON.stringify(data.summary ?? data, null, 2));
+      location.reload();
+    });
+
+    document.querySelectorAll(".approve").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await fetch(`/api/press/${btn.dataset.id}/approve?token=${encodeURIComponent(token)}`, { method: "POST" });
+        btn.closest(".press-card")?.remove();
+      });
+    });
+    document.querySelectorAll(".reject").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await fetch(`/api/press/${btn.dataset.id}/reject?token=${encodeURIComponent(token)}`, { method: "POST" });
+        btn.closest(".press-card")?.remove();
+      });
+    });
+  </script>
+</Base>
+
+<style>
+  .admin {
+    padding-block: var(--space-4);
+  }
+  #check-form {
+    margin-block: var(--space-2) var(--space-3);
+  }
+  #check-form button {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+  }
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .press-card {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: var(--space-2);
+  }
+  .press-card--uncertain {
+    border-color: var(--rhino);
+    border-width: 2px;
+  }
+  .meta {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+  }
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.4rem;
+  }
+  .actions button {
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.35rem 0.8rem;
+    cursor: pointer;
+  }
+  .approve {
+    background: var(--rhino);
+    color: #fff;
+  }
+  .reject {
+    background: var(--mist);
+  }
+</style>
