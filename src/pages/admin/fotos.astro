@@ -1,0 +1,157 @@
+---
+import Base from "../../layouts/Base.astro";
+import { env } from "cloudflare:workers";
+
+const token = Astro.url.searchParams.get("token");
+const authorized = token && token === env.ADMIN_TOKEN;
+
+let pending: any[] = [];
+if (authorized && env?.DB) {
+  const res = await env.DB
+    .prepare("SELECT * FROM photos WHERE approval_status = 'pending' ORDER BY uploaded_at")
+    .all();
+  pending = res?.results ?? [];
+}
+---
+
+<Base title="Revisión de fotos — Admin">
+  <div class="container admin">
+    {
+      !authorized ? (
+        <p>No autorizado. Agrega <code>?token=...</code> a la URL.</p>
+      ) : (
+        <>
+          <h1>Fotos pendientes de aprobar ({pending.length})</h1>
+          <p class="hint">
+            Las marcadas <strong>"posible menor"</strong> necesitan una confirmación extra antes de aprobarse —
+            nunca se publican con un solo clic.
+          </p>
+          <div class="grid">
+            {pending.map((p: any) => (
+              <div class={`photo-card ${p.minor_flag === "flagged" ? "photo-card--flagged" : ""}`}>
+                <img src={`/media/${p.r2_key}`} alt="" loading="lazy" />
+                <p class="caption">{p.ai_caption || "(sin caption)"}</p>
+                <p class="meta">
+                  {p.taken_city ?? "ciudad desconocida"} · {p.taken_date ?? "fecha desconocida"}
+                </p>
+                <p class="flag">
+                  {p.minor_flag === "flagged" ? "⚠️ Posible menor / incierto" : "✅ Sin menores detectados"}
+                </p>
+                <div class="actions">
+                  <button
+                    class="approve"
+                    data-id={p.id}
+                    data-flagged={p.minor_flag === "flagged" ? "1" : "0"}
+                  >
+                    Aprobar
+                  </button>
+                  <button class="reject" data-id={p.id}>
+                    Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )
+    }
+  </div>
+
+  <script define:vars={{ token }}>
+    document.querySelectorAll(".approve").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const flagged = btn.dataset.flagged === "1";
+        let url = `/api/photos/${id}/approve?token=${encodeURIComponent(token)}`;
+        if (flagged) {
+          if (!confirm("Esta foto fue marcada como posible menor. ¿Confirmas que NO hay ningún menor de edad en la imagen?")) return;
+          url += "&confirm=si";
+        }
+        const res = await fetch(url, { method: "POST" });
+        if (res.ok) btn.closest(".photo-card")?.remove();
+        else alert("No se pudo aprobar: " + (await res.text()));
+      });
+    });
+
+    document.querySelectorAll(".reject").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        await fetch(`/api/photos/${id}/reject?token=${encodeURIComponent(token)}`, { method: "POST" });
+        btn.closest(".photo-card")?.remove();
+      });
+    });
+  </script>
+</Base>
+
+<style>
+  .admin {
+    padding-block: var(--space-4);
+  }
+
+  .hint {
+    color: var(--ink-soft);
+    max-width: var(--measure);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+
+  .photo-card {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    padding-bottom: var(--space-1);
+  }
+
+  .photo-card--flagged {
+    border-color: var(--rhino);
+    border-width: 2px;
+  }
+
+  .photo-card img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+  }
+
+  .caption,
+  .meta,
+  .flag {
+    margin: 0.3rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .meta {
+    color: var(--ink-soft);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+    margin: 0.5rem 0.6rem 0;
+  }
+
+  .actions button {
+    flex: 1;
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.4rem 0;
+    cursor: pointer;
+  }
+
+  .approve {
+    background: var(--rhino);
+    color: #fff;
+  }
+
+  .reject {
+    background: var(--mist);
+    color: var(--ink);
+  }
+</style>

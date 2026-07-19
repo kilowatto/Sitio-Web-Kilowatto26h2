@@ -1,0 +1,147 @@
+---
+import Site from "../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+let photos: any[] = [];
+if (env?.DB) {
+  const res = await env.DB
+    .prepare("SELECT * FROM photos WHERE approval_status = 'approved' ORDER BY taken_date DESC")
+    .all();
+  photos = res?.results ?? [];
+}
+
+const albums = [...new Set(photos.map((p: any) => p.album).filter(Boolean))];
+---
+
+<Site title="Galería — Esteban Rey" active="/galeria">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Galería</p>
+      <h1>Momentos, no solo hechos.</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      {
+        albums.length > 0 && (
+          <div class="filters">
+            <button class="filter active" data-album="all">
+              Todas
+            </button>
+            {albums.map((a: any) => (
+              <button class="filter" data-album={a}>
+                {a}
+              </button>
+            ))}
+          </div>
+        )
+      }
+
+      {
+        photos.length === 0 ? (
+          <p class="hero__sub">Todavía no hay fotos aprobadas para mostrar aquí.</p>
+        ) : (
+          <div class="masonry">
+            {photos.map((p: any) => (
+              <figure class="masonry__item" data-album={p.album ?? ""}>
+                <img src={`/media/${p.r2_key}`} alt={p.caption || p.ai_caption || ""} loading="lazy" />
+                {(p.caption || p.ai_caption) && (
+                  <figcaption>{p.caption || p.ai_caption}</figcaption>
+                )}
+              </figure>
+            ))}
+          </div>
+        )
+      }
+    </div>
+  </section>
+
+  <script>
+    const buttons = document.querySelectorAll<HTMLButtonElement>(".filter");
+    const items = document.querySelectorAll<HTMLElement>(".masonry__item");
+
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        buttons.forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        const album = btn.dataset.album;
+        items.forEach((item) => {
+          item.style.display = album === "all" || item.dataset.album === album ? "" : "none";
+        });
+      });
+    });
+  </script>
+</Site>
+
+<style>
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: var(--space-3);
+  }
+
+  .filter {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.3rem 0.85rem;
+    cursor: pointer;
+    color: var(--ink-soft);
+  }
+
+  .filter.active {
+    background: var(--rhino);
+    border-color: var(--rhino);
+    color: #fff;
+  }
+
+  .masonry {
+    columns: 1;
+    gap: var(--space-2);
+  }
+
+  @media (min-width: 640px) {
+    .masonry {
+      columns: 2;
+    }
+  }
+
+  @media (min-width: 960px) {
+    .masonry {
+      columns: 3;
+    }
+  }
+
+  .masonry__item {
+    margin: 0 0 var(--space-2);
+    break-inside: avoid;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.5rem;
+  }
+
+  .masonry__item img {
+    width: 100%;
+    display: block;
+  }
+
+  .masonry__item figcaption {
+    position: absolute;
+    inset: auto 0 0 0;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+    color: #fff;
+    font-size: 0.82rem;
+    padding: 1.5rem 0.75rem 0.5rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .masonry__item:hover figcaption,
+  .masonry__item:focus-within figcaption {
+    opacity: 1;
+  }
+</style>
