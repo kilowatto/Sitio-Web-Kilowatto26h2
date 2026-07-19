@@ -10,6 +10,14 @@ const VISION_PROMPT =
   "Luego en una segunda línea escribe exactamente MINOR: yes si aparece alguna persona que parezca ser menor de 18 años, " +
   "MINOR: unsure si no estás seguro, o MINOR: no si estás seguro de que no hay ningún menor.";
 
+// Safety net independent of the model following the MINOR: field format — the 2026-07-19
+// incident showed the model sometimes describes a minor in the caption sentence itself
+// (e.g. "que parece ser menor de 18 años") without a clean MINOR: line, which the old
+// regex-only parsing missed. Any of these words anywhere in the raw model output forces
+// "flagged", no matter what the MINOR: line says.
+const MINOR_KEYWORDS =
+  /\b(niñ[oa]s?|beb[eé]s?|infante|menor(?:es)?\s+de\s+edad|menor(?:es)?\b|adolescentes?|joven(?:cit[oa])?|ni[nñ]it[oa]s?|kids?|child(?:ren)?|toddlers?|infants?|teens?|minors?)\b/i;
+
 export const POST: APIRoute = async ({ request }) => {
   const body = await request.json<{
     r2_key: string;
@@ -41,7 +49,10 @@ export const POST: APIRoute = async ({ request }) => {
     const text: string = result.description ?? result.response ?? "";
     const minorMatch = text.match(/MINOR:\s*(yes|no|unsure)/i);
     const minorAnswer = minorMatch?.[1]?.toLowerCase();
-    minorFlag = minorAnswer === "no" ? "clear" : "flagged"; // "yes" or "unsure" or missing -> flagged, fail closed
+    const fieldSaysClear = minorAnswer === "no";
+    const captionMentionsMinor = MINOR_KEYWORDS.test(text);
+    // Both signals must agree it's clear — either one saying "possible minor" wins.
+    minorFlag = fieldSaysClear && !captionMentionsMinor ? "clear" : "flagged";
     aiCaption = text.replace(/MINOR:\s*(yes|no|unsure)/i, "").trim();
   } catch (err) {
     console.error("Vision model error:", err);

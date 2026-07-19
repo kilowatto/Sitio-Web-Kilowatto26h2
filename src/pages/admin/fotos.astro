@@ -26,11 +26,6 @@ if (authorized && env?.DB) {
             Las marcadas <strong>"posible menor"</strong> necesitan una confirmación extra antes de aprobarse —
             nunca se publican con un solo clic.
           </p>
-          {pending.length > 0 && (
-            <button id="approve-all" class="approve-all">
-              Aprobar todas las pendientes
-            </button>
-          )}
           <div class="grid">
             {pending.map((p: any) => (
               <div class={`photo-card ${p.minor_flag === "flagged" ? "photo-card--flagged" : ""}`}>
@@ -78,23 +73,6 @@ if (authorized && env?.DB) {
       });
     });
 
-    document.getElementById("approve-all")?.addEventListener("click", async () => {
-      const flaggedCount = document.querySelectorAll(".photo-card--flagged").length;
-      let confirmPhrase = "";
-      if (flaggedCount > 0) {
-        confirmPhrase = prompt(
-          `Hay ${flaggedCount} fotos marcadas como posible menor. Escribe exactamente APRUEBO TODAS para confirmar que revisaste cada una y ninguna tiene menores de edad:`
-        ) || "";
-      }
-      const url = `/api/photos/approve-all?token=${encodeURIComponent(token)}&confirmPhrase=${encodeURIComponent(confirmPhrase)}`;
-      const res = await fetch(url, { method: "POST" });
-      if (res.ok) {
-        location.reload();
-      } else {
-        alert("No se pudo aprobar: " + (await res.text()));
-      }
-    });
-
     document.querySelectorAll(".reject").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const id = btn.dataset.id;
@@ -113,16 +91,6 @@ if (authorized && env?.DB) {
   .hint {
     color: var(--ink-soft);
     max-width: var(--measure);
-  }
-
-  .approve-all {
-    background: var(--ink);
-    color: var(--paper);
-    border: none;
-    border-radius: 0.4rem;
-    padding: 0.6rem 1.2rem;
-    cursor: pointer;
-    margin-top: var(--space-2);
   }
 
   .grid {
