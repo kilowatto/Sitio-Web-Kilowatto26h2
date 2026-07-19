@@ -15,7 +15,8 @@ INSERT INTO companies (slug, name, role, start_date, end_date, is_current, summa
   ('prochemex', 'Prochemex', 'CTO / Project Manager', '2003', '2006', 0, 'Institución financiera mexicana de protección y respaldo de transacciones. Lideró la migración a Pivotal CRM ContactCenter sobre Microsoft .NET, mejorando el tiempo de respuesta del centro de contacto en más de 50% y logrando más de 10% de crecimiento mensual en tarjetahabientes.', NULL, 2),
   ('desici', 'DeSiCi (Desarrollo de Sistemas Corporativos en Internet)', 'Fundador', '2003', '2018', 0, 'Empresa de desarrollo a medida y consultoría de procesos. Partner autorizado de Zoho (CRM, Books). Operó más de 15 años como puente entre empresas latinoamericanas y software ágil de clase mundial.', 'https://desici.com', 3),
   ('oncloud', 'OnCloud (Súbete a la Nube S.A. de C.V.)', 'Fundador y CEO, luego CTO', '2014', NULL, 0, 'Pionera del cloud computing/IaaS en México. Modelo "Cero Inversión Inicial". Alianzas con Pure Storage, Rubrik y Acronis. Vendida con un retorno de 19x para los socios (104% anualizado).', NULL, 4),
-  ('octapus', 'Octapus', 'Co-fundador y CTO', NULL, NULL, 0, 'Evolución de OnCloud tras su venta, enfocada en ciberseguridad y cumplimiento regulatorio en LatAm. Adquirió 2Secure (Colombia y Perú). Esteban cortó toda relación accionaria y operativa por diferencias con la nueva dirección.', NULL, 5),
+  -- NOTA (2026-07-19): Esteban pidió expresamente quitar Octapus ("no tengo nada que ver con ellos", "eso es pasado").
+  -- No sembrar Octapus como company. Ver docs/bio-esteban-rey-ortega.md para la nota de corrección.
   ('ignia-cloud', 'Ignia Cloud', 'Fundador y CEO', NULL, NULL, 1, '"La Nube Naranja" — nube soberana e hiperpotente para México y LatAm, con arquitecturas híbridas/multicloud. 99.9% SLA, hasta 12M IOPS, tráfico ilimitado sin cargos ocultos.', NULL, 6);
 
 -- NOTA (2026-07-19): Esteban confirmó que NO es inversionista de Finsus — el informe de prensa original
