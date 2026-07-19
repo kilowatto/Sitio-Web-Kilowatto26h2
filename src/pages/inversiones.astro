@@ -1,0 +1,39 @@
+---
+import Site from "../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+let investments: any[] = [];
+if (env?.DB) {
+  const res = await env.DB.prepare("SELECT * FROM investments ORDER BY sort_order").all();
+  investments = res?.results ?? [];
+}
+
+const orangeRhino = investments.find((i: any) => i.slug === "orange-rhino-investments");
+const rest = investments.filter((i: any) => i.slug !== "orange-rhino-investments");
+---
+
+<Site title="Inversiones — Orange Rhino Investments" active="/inversiones">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Orange Rhino Investments</p>
+      <h1>Estrategia de mancuerna: tecnología y economía real.</h1>
+      {orangeRhino?.summary && <p class="hero__sub">{orangeRhino.summary}</p>}
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <ul class="cards">
+        {
+          rest.map((i: any) => (
+            <li class="card">
+              <p class="eyebrow">{i.category}</p>
+              <h3>{i.name}</h3>
+              {i.summary && <p>{i.summary}</p>}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+</Site>

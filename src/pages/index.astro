@@ -1,5 +1,5 @@
 ---
-import Base from "../layouts/Base.astro";
+import Site from "../layouts/Site.astro";
 import Spark from "../components/Spark.astro";
 import { env } from "cloudflare:workers";
 
@@ -17,247 +17,97 @@ if (env?.DB) {
   companies = companiesRes?.results ?? [];
   investments = investmentsRes?.results ?? [];
 }
+
+const latestCompanies = companies.slice(-3).reverse();
+const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rhino-investments").slice(0, 2);
 ---
 
-<Base title="Esteban Rey — Kilowatto">
-  <header class="topbar">
-    <div class="container topbar__inner">
-      <a href="/" class="wordmark">Kilowatto</a>
-      <nav class="nav" aria-label="Principal">
-        <a href="#trayectoria">Trayectoria</a>
-        <a href="#empresas">Empresas</a>
-        <a href="#inversiones">Inversiones</a>
-        <a href="#yucatech">Yucatech</a>
-        <a href="#prensa">Prensa</a>
-      </nav>
-      <button class="lang-switch" type="button" aria-label="Cambiar idioma">ES</button>
+<Site title="Esteban Rey — Kilowatto">
+  <section class="hero">
+    <div class="container">
+      <p class="eyebrow">Esteban Rey · CEO, Ignia Cloud</p>
+      <h1>Serio.<br />Pero no solemne.</h1>
+      <Spark />
+      <p class="hero__sub">
+        {profile?.bio_short ??
+          "25+ años construyendo tecnología, empresas y equipos en América Latina."}
+      </p>
     </div>
-  </header>
+  </section>
 
-  <main>
-    <section class="hero">
-      <div class="container">
-        <p class="eyebrow">Esteban Rey · CEO, Ignia Cloud</p>
-        <h1>Serio.<br />Pero no solemne.</h1>
-        <Spark />
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">Trayectoria</p>
+      <h2>De configurar firewalls a los 16, a fundar la nube naranja.</h2>
+      <ol class="rows">
+        {
+          latestCompanies.map((c: any) => (
+            <li class="row">
+              <span class="row__range">
+                {c.start_date ?? ""}
+                {c.end_date ? `–${c.end_date}` : c.is_current ? "–hoy" : ""}
+              </span>
+              <div>
+                <h3>{c.name}</h3>
+                {c.role && <p class="row__role">{c.role}</p>}
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+      <p class="see-more"><a href="/trayectoria">Ver toda la trayectoria →</a></p>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist">
+    <div class="container">
+      <p class="eyebrow">Orange Rhino Investments</p>
+      <h2>Estrategia de mancuerna: tecnología y economía real.</h2>
+      <ul class="cards">
+        {
+          featuredInvestments.map((i: any) => (
+            <li class="card">
+              <p class="eyebrow">{i.category}</p>
+              <h3>{i.name}</h3>
+              {i.summary && <p>{i.summary}</p>}
+            </li>
+          ))
+        }
+      </ul>
+      <p class="see-more"><a href="/inversiones">Ver todas las inversiones →</a></p>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container chapter--split">
+      <div>
+        <p class="eyebrow">Mérida, Yucatán</p>
+        <h2>Yucatech Festival</h2>
+        <p>
+          El evento que apuesta a que el sur-sureste de México sea el próximo hub
+          tecnológico de América Latina.
+        </p>
+        <p class="see-more"><a href="/yucatech">Conocer el festival →</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist larry-intro">
+    <div class="container larry-intro__inner">
+      <img src="/larry/larry-dev.png" alt="" width="220" height="220" loading="lazy" />
+      <div>
+        <p class="eyebrow">Tu copiloto en el sitio</p>
+        <h2>Larry</h2>
         <p class="hero__sub">
-          {profile?.bio_short ??
-            "25+ años construyendo tecnología, empresas y equipos en América Latina."}
+          Serio, pero no solemne — como su jefe. Pregúntale lo que quieras sobre
+          la trayectoria, las empresas o las inversiones.
         </p>
       </div>
-    </section>
-
-    <section id="trayectoria" class="chapter">
-      <div class="container">
-        <p class="eyebrow">Trayectoria</p>
-        <h2>De configurar firewalls a los 16, a fundar la nube naranja.</h2>
-        <ol class="rows">
-          {
-            companies.map((c: any) => (
-              <li class="row">
-                <span class="row__range">
-                  {c.start_date ?? ""}
-                  {c.end_date ? `–${c.end_date}` : c.is_current ? "–hoy" : ""}
-                </span>
-                <div>
-                  <h3>{c.name}</h3>
-                  {c.role && <p class="row__role">{c.role}</p>}
-                  {c.summary && <p class="row__summary">{c.summary}</p>}
-                </div>
-              </li>
-            ))
-          }
-        </ol>
-      </div>
-    </section>
-
-    <section id="inversiones" class="chapter chapter--mist">
-      <div class="container">
-        <p class="eyebrow">Orange Rhino Investments</p>
-        <h2>Estrategia de mancuerna: tecnología y economía real.</h2>
-        <ul class="cards">
-          {
-            investments
-              .filter((i: any) => i.slug !== "orange-rhino-investments")
-              .map((i: any) => (
-                <li class="card">
-                  <p class="eyebrow">{i.category}</p>
-                  <h3>{i.name}</h3>
-                  {i.summary && <p>{i.summary}</p>}
-                </li>
-              ))
-          }
-        </ul>
-      </div>
-    </section>
-
-    <section id="yucatech" class="chapter">
-      <div class="container chapter--split">
-        <div>
-          <p class="eyebrow">Mérida, Yucatán</p>
-          <h2>Yucatech Festival</h2>
-          <p>
-            El evento que apuesta a que el sur-sureste de México sea el próximo hub
-            tecnológico de América Latina. Inteligencia artificial, ciberseguridad,
-            nube y negocios — con capital real detrás de cada pitch.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <section id="prensa" class="chapter chapter--mist">
-      <div class="container">
-        <p class="eyebrow">Prensa</p>
-        <h2>Lo que se ha escrito sobre Kilowatto</h2>
-        <p class="row__summary">Próximamente — el pipeline de noticias se activa en la siguiente fase.</p>
-      </div>
-    </section>
-
-    <section class="chapter larry-intro">
-      <div class="container larry-intro__inner">
-        <img src="/larry/larry-dev.png" alt="" width="220" height="220" loading="lazy" />
-        <div>
-          <p class="eyebrow">Tu copiloto en el sitio</p>
-          <h2>Larry</h2>
-          <p class="hero__sub">
-            Serio, pero no solemne — como su jefe. Pregúntale lo que quieras sobre
-            la trayectoria, las empresas o las inversiones.
-          </p>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="site-footer">
-    <div class="container">
-      <p>Diseñado y potenciado por <strong>Ignia Cloud</strong>.</p>
     </div>
-  </footer>
-
-  <button class="larry" type="button" id="larry-toggle" aria-label="Hablar con Larry" aria-expanded="false">
-    <img src="/larry/larry-avatar.webp" alt="" width="44" height="44" />
-  </button>
-
-  <div class="larry-panel" id="larry-panel" hidden>
-    <header class="larry-panel__head">
-      <img src="/larry/larry-avatar.webp" alt="" width="28" height="28" />
-      <strong>Larry</strong>
-      <button type="button" id="larry-close" aria-label="Cerrar">✕</button>
-    </header>
-    <div class="larry-panel__log" id="larry-log">
-      <p class="larry-msg larry-msg--bot">¡Qué onda! Pregúntame lo que quieras sobre Esteban, sus empresas o sus inversiones.</p>
-    </div>
-    <form class="larry-panel__form" id="larry-form">
-      <input type="text" id="larry-input" placeholder="Escribe tu pregunta…" autocomplete="off" />
-      <button type="submit">Enviar</button>
-    </form>
-  </div>
-
-  <script>
-    const toggle = document.getElementById("larry-toggle");
-    const panel = document.getElementById("larry-panel");
-    const closeBtn = document.getElementById("larry-close");
-    const form = document.getElementById("larry-form") as HTMLFormElement;
-    const input = document.getElementById("larry-input") as HTMLInputElement;
-    const log = document.getElementById("larry-log");
-
-    function addMessage(text: string, who: "user" | "bot") {
-      const p = document.createElement("p");
-      p.className = `larry-msg larry-msg--${who}`;
-      p.textContent = text;
-      log?.appendChild(p);
-      log?.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
-    }
-
-    toggle?.addEventListener("click", () => {
-      const isHidden = panel?.hasAttribute("hidden");
-      if (isHidden) {
-        panel?.removeAttribute("hidden");
-        toggle.setAttribute("aria-expanded", "true");
-        input?.focus();
-      } else {
-        panel?.setAttribute("hidden", "");
-        toggle.setAttribute("aria-expanded", "false");
-      }
-    });
-
-    closeBtn?.addEventListener("click", () => {
-      panel?.setAttribute("hidden", "");
-      toggle?.setAttribute("aria-expanded", "false");
-    });
-
-    form?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const message = input.value.trim();
-      if (!message) return;
-      addMessage(message, "user");
-      input.value = "";
-      addMessage("…", "bot");
-      try {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ message }),
-        });
-        const data = (await res.json()) as { reply?: string };
-        log?.lastElementChild?.remove();
-        addMessage(data.reply || "Se me cruzaron los cables, intenta de nuevo.", "bot");
-      } catch {
-        log?.lastElementChild?.remove();
-        addMessage("Se me cruzaron los cables, intenta de nuevo.", "bot");
-      }
-    });
-  </script>
-</Base>
+  </section>
+</Site>
 
 <style>
-  .topbar {
-    border-bottom: 1px solid var(--line);
-  }
-
-  .topbar__inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    padding-block: var(--space-2);
-  }
-
-  .wordmark {
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 1.15rem;
-    text-decoration: none;
-    color: var(--ink);
-  }
-
-  .nav {
-    display: none;
-    gap: var(--space-3);
-    font-size: 0.92rem;
-  }
-
-  .nav a {
-    text-decoration: none;
-  }
-
-  @media (min-width: 780px) {
-    .nav {
-      display: flex;
-    }
-  }
-
-  .lang-switch {
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    background: none;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 0.3rem 0.75rem;
-    color: var(--ink);
-    cursor: pointer;
-  }
-
   .hero {
     padding-block: var(--space-5) var(--space-4);
   }
@@ -282,108 +132,14 @@ if (env?.DB) {
     color: var(--ink-soft);
   }
 
-  .chapter {
-    padding-block: var(--space-4);
-    border-top: 1px solid var(--line);
+  .see-more {
+    margin-top: var(--space-2);
   }
 
-  .chapter--mist {
-    background: var(--mist);
-  }
-
-  .chapter h2 {
-    font-family: var(--font-display);
-    font-weight: 600;
-    font-size: clamp(1.5rem, 4.5vw, 2.2rem);
-    max-width: 30rem;
-    margin: 0.2em 0 var(--space-3);
-  }
-
-  .rows {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  .row {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.35rem;
-    padding-block: var(--space-2);
-    border-top: 1px solid var(--line);
-  }
-
-  .row:first-child {
-    border-top: none;
-  }
-
-  .row__range {
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
+  .see-more a {
     color: var(--ember);
-  }
-
-  .row h3 {
-    margin: 0.15em 0 0;
-    font-size: 1.15rem;
-  }
-
-  .row__role {
-    margin: 0.1em 0;
-    color: var(--ink-soft);
-    font-size: 0.92rem;
-  }
-
-  .row__summary {
-    margin: 0.3em 0 0;
-    color: var(--ink-soft);
-    max-width: var(--measure);
-  }
-
-  @media (min-width: 720px) {
-    .row {
-      grid-template-columns: 8rem 1fr;
-    }
-  }
-
-  .cards {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: var(--space-2);
-    grid-template-columns: 1fr;
-  }
-
-  @media (min-width: 640px) {
-    .cards {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-
-  .card {
-    background: var(--paper);
-    border: 1px solid var(--line);
-    padding: var(--space-2);
-  }
-
-  .card h3 {
-    margin: 0.2em 0;
-  }
-
-  .chapter--split p {
-    max-width: var(--measure);
-    color: var(--ink-soft);
-  }
-
-  .site-footer {
-    padding-block: var(--space-3);
-    border-top: 1px solid var(--line);
-    font-size: 0.88rem;
-    color: var(--ink-soft);
+    font-weight: 600;
+    text-decoration: none;
   }
 
   .larry-intro__inner {
@@ -413,125 +169,5 @@ if (env?.DB) {
       flex-direction: row;
       text-align: left;
     }
-  }
-
-  .larry {
-    position: fixed;
-    right: var(--space-2);
-    bottom: var(--space-2);
-    width: 3.5rem;
-    height: 3.5rem;
-    border-radius: 999px;
-    background: var(--rhino);
-    border: none;
-    padding: 3px;
-    box-shadow: 0 6px 18px rgba(200, 66, 10, 0.35);
-    cursor: pointer;
-  }
-
-  .larry img {
-    width: 100%;
-    height: 100%;
-    border-radius: 999px;
-    object-fit: cover;
-    display: block;
-  }
-
-  .larry-panel[hidden] {
-    display: none;
-  }
-
-  .larry-panel {
-    position: fixed;
-    right: var(--space-2);
-    bottom: calc(var(--space-2) + 4.25rem);
-    width: min(22rem, calc(100vw - 2 * var(--space-2)));
-    max-height: 60vh;
-    background: var(--paper);
-    border: 1px solid var(--line);
-    border-radius: 1rem;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .larry-panel__head {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: var(--space-1) var(--space-2);
-    border-bottom: 1px solid var(--line);
-  }
-
-  .larry-panel__head img {
-    border-radius: 999px;
-  }
-
-  .larry-panel__head strong {
-    font-family: var(--font-display);
-  }
-
-  .larry-panel__head button {
-    margin-left: auto;
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 1rem;
-    color: var(--ink-soft);
-  }
-
-  .larry-panel__log {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--space-2);
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-  }
-
-  .larry-msg {
-    margin: 0;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.7rem;
-    font-size: 0.92rem;
-    max-width: 85%;
-  }
-
-  .larry-msg--bot {
-    background: var(--mist);
-    align-self: flex-start;
-  }
-
-  .larry-msg--user {
-    background: var(--rhino);
-    color: #fff;
-    align-self: flex-end;
-  }
-
-  .larry-panel__form {
-    display: flex;
-    gap: 0.5rem;
-    padding: var(--space-1) var(--space-2) var(--space-2);
-    border-top: 1px solid var(--line);
-  }
-
-  .larry-panel__form input {
-    flex: 1;
-    border: 1px solid var(--line);
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.6rem;
-    font-family: var(--font-body);
-    font-size: 0.92rem;
-  }
-
-  .larry-panel__form button {
-    background: var(--rhino);
-    color: #fff;
-    border: none;
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.9rem;
-    font-size: 0.85rem;
-    cursor: pointer;
   }
 </style>

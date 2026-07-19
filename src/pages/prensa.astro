@@ -1,0 +1,52 @@
+---
+import Site from "../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+let mentions: any[] = [];
+if (env?.DB) {
+  const res = await env.DB
+    .prepare("SELECT * FROM press_mentions WHERE status = 'published' ORDER BY published_at DESC")
+    .all();
+  mentions = res?.results ?? [];
+}
+---
+
+<Site title="Prensa — Esteban Rey" active="/prensa">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Prensa</p>
+      <h1>Lo que se ha escrito sobre Kilowatto</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      {
+        mentions.length === 0 ? (
+          <p class="hero__sub">
+            Próximamente — el Workflow que revisa la prensa cada 6 horas todavía no está
+            activo. Cuando lo esté, cada mención nueva aparecerá aquí con su resumen y su
+            fuente original.
+          </p>
+        ) : (
+          <ol class="rows">
+            {mentions.map((m: any) => (
+              <li class="row">
+                <span class="row__range">{m.published_at}</span>
+                <div>
+                  <h3>{m.title}</h3>
+                  {m.summary && <p class="row__summary">{m.summary}</p>}
+                  <p class="row__summary">
+                    <a href={m.url} target="_blank" rel="noopener">
+                      {m.outlet}
+                    </a>
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )
+      }
+    </div>
+  </section>
+</Site>

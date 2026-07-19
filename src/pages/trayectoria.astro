@@ -1,0 +1,37 @@
+---
+import Site from "../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+let timeline: any[] = [];
+if (env?.DB) {
+  const res = await env.DB.prepare("SELECT * FROM timeline_events ORDER BY event_date").all();
+  timeline = res?.results ?? [];
+}
+---
+
+<Site title="Trayectoria — Esteban Rey" active="/trayectoria">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Trayectoria</p>
+      <h1>De los 5 años con una Atari, a fundar la nube naranja.</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <ol class="rows">
+        {
+          timeline.map((t: any) => (
+            <li class="row">
+              <span class="row__range">{t.event_date}</span>
+              <div>
+                <h3>{t.title}</h3>
+                {t.description && <p class="row__summary">{t.description}</p>}
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+</Site>

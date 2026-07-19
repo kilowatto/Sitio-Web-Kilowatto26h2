@@ -1,0 +1,123 @@
+---
+import Base from "./Base.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+  active?: string;
+}
+
+const { title, description, active } = Astro.props;
+
+const links = [
+  { href: "/trayectoria", label: "Trayectoria" },
+  { href: "/empresas", label: "Empresas" },
+  { href: "/inversiones", label: "Inversiones" },
+  { href: "/yucatech", label: "Yucatech" },
+  { href: "/prensa", label: "Prensa" },
+  { href: "/familia", label: "Familia" },
+];
+---
+
+<Base title={title} description={description}>
+  <header class="topbar">
+    <div class="container topbar__inner">
+      <a href="/" class="wordmark">Kilowatto</a>
+      <nav class="nav" aria-label="Principal">
+        {
+          links.map((l) => (
+            <a href={l.href} aria-current={active === l.href ? "page" : undefined}>
+              {l.label}
+            </a>
+          ))
+        }
+      </nav>
+      <button class="lang-switch" type="button" aria-label="Cambiar idioma">ES</button>
+    </div>
+  </header>
+
+  <main>
+    <slot />
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Diseñado y potenciado por <strong>Ignia Cloud</strong>.</p>
+    </div>
+  </footer>
+
+  <button class="larry" type="button" id="larry-toggle" aria-label="Hablar con Larry" aria-expanded="false">
+    <img src="/larry/larry-avatar.webp" alt="" width="44" height="44" />
+  </button>
+
+  <div class="larry-panel" id="larry-panel" hidden>
+    <header class="larry-panel__head">
+      <img src="/larry/larry-avatar.webp" alt="" width="28" height="28" />
+      <strong>Larry</strong>
+      <button type="button" id="larry-close" aria-label="Cerrar">✕</button>
+    </header>
+    <div class="larry-panel__log" id="larry-log">
+      <p class="larry-msg larry-msg--bot">¡Qué onda! Pregúntame lo que quieras sobre Esteban, sus empresas o sus inversiones.</p>
+    </div>
+    <form class="larry-panel__form" id="larry-form">
+      <input type="text" id="larry-input" placeholder="Escribe tu pregunta…" autocomplete="off" />
+      <button type="submit">Enviar</button>
+    </form>
+  </div>
+
+  <script>
+    const toggle = document.getElementById("larry-toggle");
+    const panel = document.getElementById("larry-panel");
+    const closeBtn = document.getElementById("larry-close");
+    const form = document.getElementById("larry-form") as HTMLFormElement;
+    const input = document.getElementById("larry-input") as HTMLInputElement;
+    const log = document.getElementById("larry-log");
+
+    function addMessage(text: string, who: "user" | "bot") {
+      const p = document.createElement("p");
+      p.className = `larry-msg larry-msg--${who}`;
+      p.textContent = text;
+      log?.appendChild(p);
+      log?.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+    }
+
+    toggle?.addEventListener("click", () => {
+      const isHidden = panel?.hasAttribute("hidden");
+      if (isHidden) {
+        panel?.removeAttribute("hidden");
+        toggle.setAttribute("aria-expanded", "true");
+        input?.focus();
+      } else {
+        panel?.setAttribute("hidden", "");
+        toggle.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    closeBtn?.addEventListener("click", () => {
+      panel?.setAttribute("hidden", "");
+      toggle?.setAttribute("aria-expanded", "false");
+    });
+
+    form?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+      addMessage(message, "user");
+      input.value = "";
+      addMessage("…", "bot");
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ message }),
+        });
+        const data = (await res.json()) as { reply?: string };
+        log?.lastElementChild?.remove();
+        addMessage(data.reply || "Se me cruzaron los cables, intenta de nuevo.", "bot");
+      } catch {
+        log?.lastElementChild?.remove();
+        addMessage("Se me cruzaron los cables, intenta de nuevo.", "bot");
+      }
+    });
+  </script>
+</Base>

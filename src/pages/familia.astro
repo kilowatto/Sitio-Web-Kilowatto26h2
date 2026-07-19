@@ -1,0 +1,44 @@
+---
+import Site from "../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+let family: any[] = [];
+if (env?.DB) {
+  const res = await env.DB.prepare("SELECT * FROM family_members ORDER BY sort_order").all();
+  family = res?.results ?? [];
+}
+
+function formatDates(f: any) {
+  if (!f.birth_date && !f.death_date) return null;
+  return `${f.birth_date ?? "?"}${f.death_date ? ` – ${f.death_date}` : ""}`;
+}
+---
+
+<Site title="Familia — Esteban Rey" active="/familia">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Raíces</p>
+      <h1>De dónde viene Kilowatto.</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <ul class="cards">
+        {
+          family.map((f: any) => (
+            <li class="card">
+              <p class="eyebrow">{f.relationship}</p>
+              <h3>
+                {f.full_name}
+                {f.nickname && ` "${f.nickname}"`}
+              </h3>
+              {formatDates(f) && <p class="row__range">{formatDates(f)}</p>}
+              {f.bio && <p>{f.bio}</p>}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+</Site>

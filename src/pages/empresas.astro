@@ -1,0 +1,48 @@
+---
+import Site from "../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+let companies: any[] = [];
+if (env?.DB) {
+  const res = await env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all();
+  companies = res?.results ?? [];
+}
+---
+
+<Site title="Empresas — Esteban Rey" active="/empresas">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Empresas</p>
+      <h1>Seis organizaciones, veinticinco años.</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <ol class="rows">
+        {
+          companies.map((c: any) => (
+            <li class="row">
+              <span class="row__range">
+                {c.start_date ?? ""}
+                {c.end_date ? `–${c.end_date}` : c.is_current ? "–hoy" : ""}
+              </span>
+              <div>
+                <h3>{c.name}</h3>
+                {c.role && <p class="row__role">{c.role}</p>}
+                {c.summary && <p class="row__summary">{c.summary}</p>}
+                {c.website_url && (
+                  <p class="row__summary">
+                    <a href={c.website_url} target="_blank" rel="noopener">
+                      {c.website_url}
+                    </a>
+                  </p>
+                )}
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+</Site>
