@@ -199,6 +199,10 @@ a {
   }
 }
 
+.lang-switch-wrap {
+  position: relative;
+}
+
 .lang-switch {
   font-family: var(--font-mono);
   font-size: 0.78rem;
@@ -208,6 +212,43 @@ a {
   padding: 0.3rem 0.75rem;
   color: var(--ink);
   cursor: pointer;
+}
+
+.lang-menu[hidden] {
+  display: none;
+}
+
+.lang-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0.3rem;
+  min-width: 11rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 50;
+}
+
+.lang-menu a {
+  display: block;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.35rem;
+  text-decoration: none;
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+
+.lang-menu a:hover {
+  background: var(--mist);
+}
+
+.lang-menu a[aria-current="true"] {
+  color: var(--ember);
+  font-weight: 600;
 }
 
 .chapter {

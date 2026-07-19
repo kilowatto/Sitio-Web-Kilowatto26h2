@@ -1,22 +1,46 @@
 ---
 import "../styles/global.css";
+import { LOCALES } from "../lib/locales";
 
 interface Props {
   title: string;
   description?: string;
+  locale?: string;
+  dir?: "ltr" | "rtl";
 }
 
-const { title, description = "Esteban Rey — Kilowatto. Trayectoria, empresas e inversiones." } = Astro.props;
+const {
+  title,
+  description = "Esteban Rey — Kilowatto. Trayectoria, empresas e inversiones.",
+  locale = "es-MX",
+  dir = "ltr",
+} = Astro.props;
+
+const path = Astro.url.pathname;
+const localeCodes = LOCALES.map((l) => l.code);
+const currentPrefix = localeCodes.find((c) => path === `/${c}` || path.startsWith(`/${c}/`));
+const pathWithoutLocale = currentPrefix ? path.slice(currentPrefix.length + 1) || "/" : path;
 ---
 
 <!doctype html>
-<html lang="es-MX">
+<html lang={locale} dir={dir}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="canonical" href={`https://kilowatto.com${path}`} />
+    <link rel="alternate" hreflang="x-default" href={`https://kilowatto.com${pathWithoutLocale}`} />
+    {
+      LOCALES.map((l) => (
+        <link
+          rel="alternate"
+          hreflang={l.code}
+          href={`https://kilowatto.com${l.canonical ? "" : `/${l.code}`}${pathWithoutLocale === "/" ? "" : pathWithoutLocale}`}
+        />
+      ))
+    }
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

@@ -1,15 +1,19 @@
 ---
 import Base from "./Base.astro";
+import { LOCALES } from "../lib/locales";
 
 interface Props {
   title: string;
   description?: string;
   active?: string;
+  locale?: string;
+  dir?: "ltr" | "rtl";
 }
 
-const { title, description, active } = Astro.props;
+const { title, description, active, locale = "es-MX", dir = "ltr" } = Astro.props;
+const prefix = locale === "es-MX" ? "" : `/${locale}`;
 
-const links = [
+const baseLinks = [
   { href: "/trayectoria", label: "Trayectoria" },
   { href: "/empresas", label: "Empresas" },
   { href: "/inversiones", label: "Inversiones" },
@@ -18,12 +22,15 @@ const links = [
   { href: "/familia", label: "Familia" },
   { href: "/galeria", label: "Galería" },
 ];
+
+const links = baseLinks.map((l) => ({ ...l, href: `${prefix}${l.href}` }));
+const currentLocale = LOCALES.find((l) => l.code === locale) ?? LOCALES[0];
 ---
 
-<Base title={title} description={description}>
+<Base title={title} description={description} locale={locale} dir={dir}>
   <header class="topbar">
     <div class="container topbar__inner">
-      <a href="/" class="wordmark">Kilowatto</a>
+      <a href={prefix || "/"} class="wordmark">Kilowatto</a>
       <nav class="nav" aria-label="Principal">
         {
           links.map((l) => (
@@ -33,7 +40,22 @@ const links = [
           ))
         }
       </nav>
-      <button class="lang-switch" type="button" aria-label="Cambiar idioma">ES</button>
+      <div class="lang-switch-wrap">
+        <button class="lang-switch" type="button" id="lang-toggle" aria-haspopup="listbox" aria-expanded="false">
+          {currentLocale.code}
+        </button>
+        <ul class="lang-menu" id="lang-menu" hidden role="listbox">
+          {
+            LOCALES.map((l) => (
+              <li>
+                <a href={l.code === "es-MX" ? "/" : `/${l.code}/`} aria-current={l.code === locale ? "true" : undefined}>
+                  {l.name}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
     </div>
   </header>
 
@@ -67,6 +89,26 @@ const links = [
   </div>
 
   <script>
+    const langToggle = document.getElementById("lang-toggle");
+    const langMenu = document.getElementById("lang-menu");
+    langToggle?.addEventListener("click", () => {
+      const isHidden = langMenu?.hasAttribute("hidden");
+      if (isHidden) {
+        langMenu?.removeAttribute("hidden");
+        langToggle.setAttribute("aria-expanded", "true");
+      } else {
+        langMenu?.setAttribute("hidden", "");
+        langToggle.setAttribute("aria-expanded", "false");
+      }
+    });
+    document.addEventListener("click", (e) => {
+      if (!(e.target instanceof Node)) return;
+      if (!langMenu?.contains(e.target) && e.target !== langToggle) {
+        langMenu?.setAttribute("hidden", "");
+        langToggle?.setAttribute("aria-expanded", "false");
+      }
+    });
+
     const toggle = document.getElementById("larry-toggle");
     const panel = document.getElementById("larry-panel");
     const closeBtn = document.getElementById("larry-close");

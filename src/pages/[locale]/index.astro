@@ -1,0 +1,117 @@
+---
+import Site from "../../layouts/Site.astro";
+import Spark from "../../components/Spark.astro";
+import { env } from "cloudflare:workers";
+import { localeFromParam } from "../../lib/locales";
+import { loadTranslations, t } from "../../lib/i18n";
+
+const locale = localeFromParam(Astro.params.locale);
+if (!locale || locale.canonical) return Astro.redirect("/", 302);
+
+let profile: any = null;
+let companies: any[] = [];
+let investments: any[] = [];
+let profileTr = new Map<string, string>();
+let companiesTr = new Map<string, string>();
+let investmentsTr = new Map<string, string>();
+
+if (env?.DB) {
+  const [profileRes, companiesRes, investmentsRes] = await Promise.all([
+    env.DB.prepare("SELECT * FROM profile WHERE id = 1").first(),
+    env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all(),
+    env.DB.prepare("SELECT * FROM investments ORDER BY sort_order").all(),
+  ]);
+  profile = profileRes;
+  companies = companiesRes?.results ?? [];
+  investments = investmentsRes?.results ?? [];
+  [profileTr, companiesTr, investmentsTr] = await Promise.all([
+    loadTranslations(env.DB, "profile", locale.code),
+    loadTranslations(env.DB, "companies", locale.code),
+    loadTranslations(env.DB, "investments", locale.code),
+  ]);
+}
+
+const latestCompanies = companies.slice(-3).reverse();
+const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rhino-investments").slice(0, 2);
+const bio = t(profileTr, 1, "bio_short", profile?.bio_short) ?? "25+ years building technology, companies, and teams across Latin America.";
+---
+
+<Site title="Esteban Rey — Kilowatto" active={`/${locale.code}`} locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
+  <section class="hero">
+    <div class="container">
+      <p class="eyebrow">Esteban Rey · CEO, Ignia Cloud</p>
+      <h1>Serio.<br />Pero no solemne.</h1>
+      <Spark />
+      <p class="hero__sub">{bio}</p>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">Kilowatto</p>
+      <h2>{t(companiesTr, latestCompanies[0]?.id, "role", latestCompanies[0]?.role)}</h2>
+      <ol class="rows">
+        {
+          latestCompanies.map((c: any) => (
+            <li class="row">
+              <span class="row__range">
+                {c.start_date ?? ""}
+                {c.end_date ? `–${c.end_date}` : c.is_current ? "–now" : ""}
+              </span>
+              <div>
+                <h3>{c.name}</h3>
+                {c.role && <p class="row__role">{t(companiesTr, c.id, "role", c.role)}</p>}
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+      <p class="see-more"><a href={`/${locale.code}/trayectoria`}>→</a></p>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist">
+    <div class="container">
+      <p class="eyebrow">Orange Rhino Investments</p>
+      <ul class="cards">
+        {
+          featuredInvestments.map((i: any) => (
+            <li class="card">
+              <h3>{i.name}</h3>
+              {i.summary && <p>{t(investmentsTr, i.id, "summary", i.summary)}</p>}
+            </li>
+          ))
+        }
+      </ul>
+      <p class="see-more"><a href={`/${locale.code}/inversiones`}>→</a></p>
+    </div>
+  </section>
+</Site>
+
+<style>
+  .hero {
+    padding-block: var(--space-5) var(--space-4);
+  }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2.4rem, 9vw, 4.6rem);
+    line-height: 1.02;
+    letter-spacing: -0.01em;
+    margin: 0.3em 0 0;
+  }
+  .hero .spark {
+    margin: var(--space-2) 0;
+    max-width: 20rem;
+  }
+  .hero__sub {
+    max-width: var(--measure);
+    font-size: 1.15rem;
+    color: var(--ink-soft);
+  }
+  .see-more a {
+    color: var(--ember);
+    font-weight: 600;
+    text-decoration: none;
+  }
+</style>

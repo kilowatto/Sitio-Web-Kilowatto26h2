@@ -1,0 +1,47 @@
+---
+import Site from "../../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+import { localeFromParam } from "../../lib/locales";
+import { loadTranslations, t } from "../../lib/i18n";
+
+const locale = localeFromParam(Astro.params.locale);
+if (!locale || locale.canonical) return Astro.redirect("/empresas", 302);
+
+let companies: any[] = [];
+let tr = new Map<string, string>();
+if (env?.DB) {
+  const res = await env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all();
+  companies = res?.results ?? [];
+  tr = await loadTranslations(env.DB, "companies", locale.code);
+}
+---
+
+<Site title="Empresas — Esteban Rey" active="/empresas" locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Empresas</p>
+      <h1>Kilowatto</h1>
+    </div>
+  </section>
+  <section class="chapter">
+    <div class="container">
+      <ol class="rows">
+        {
+          companies.map((c: any) => (
+            <li class="row">
+              <span class="row__range">
+                {c.start_date ?? ""}
+                {c.end_date ? `–${c.end_date}` : c.is_current ? "–" : ""}
+              </span>
+              <div>
+                <h3>{c.name}</h3>
+                {c.role && <p class="row__role">{t(tr, c.id, "role", c.role)}</p>}
+                {c.summary && <p class="row__summary">{t(tr, c.id, "summary", c.summary)}</p>}
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+</Site>
