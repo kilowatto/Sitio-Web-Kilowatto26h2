@@ -22,7 +22,22 @@ const latestCompanies = companies.slice(-3).reverse();
 const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rhino-investments").slice(0, 2);
 ---
 
-<Site title="Esteban Rey — Kilowatto">
+<Site
+  title="Esteban Rey — Kilowatto"
+  description="Esteban Rey (Kilowatto) — arquitecto de sistemas, CEO de Ignia Cloud, fundador del Yucatech Festival e inversionista serial en Orange Rhino Investments."
+>
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "Esteban Rey",
+    "alternateName": ["Kilowatto", "Esteban Rey Ortega"],
+    "url": "https://kilowatto.com",
+    "jobTitle": "CEO",
+    "worksFor": { "@type": "Organization", "name": "Ignia Cloud" },
+    "sameAs": ["https://x.com/kilowatto"],
+    "description": profile?.bio_short ?? undefined,
+  })} />
+
   <section class="hero">
     <div class="container">
       <p class="eyebrow">Esteban Rey · CEO, Ignia Cloud</p>
