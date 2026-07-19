@@ -1,0 +1,41 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kilowatto-com",
+  "compatibility_date": "2026-07-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kilowatto-db",
+      "database_id": "329e214b-e162-4955-ab8a-ccb257a81ea7"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "kilowatto-media"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KILOWATTO_KV",
+      "id": "aac7c9dd450b4290adb5ab2a8264a9ae"
+    },
+    {
+      "binding": "SESSION",
+      "id": "1b7577c9bd244263883d8320e6020ecf"
+    }
+  ],
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "kilowatto-embeddings"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  }
+}
