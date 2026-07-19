@@ -1,6 +1,7 @@
 ---
 import Base from "./Base.astro";
 import { LOCALES } from "../lib/locales";
+import { navLabels } from "../lib/nav-labels";
 
 interface Props {
   title: string;
@@ -13,14 +14,15 @@ interface Props {
 const { title, description, active, locale = "es-MX", dir = "ltr" } = Astro.props;
 const prefix = locale === "es-MX" ? "" : `/${locale}`;
 
+const nl = navLabels(locale);
 const baseLinks = [
-  { href: "/trayectoria", label: "Trayectoria" },
-  { href: "/empresas", label: "Empresas" },
-  { href: "/inversiones", label: "Inversiones" },
-  { href: "/yucatech", label: "Yucatech" },
-  { href: "/prensa", label: "Prensa" },
-  { href: "/familia", label: "Familia" },
-  { href: "/galeria", label: "Galería" },
+  { href: "/trayectoria", label: nl.trayectoria },
+  { href: "/empresas", label: nl.empresas },
+  { href: "/inversiones", label: nl.inversiones },
+  { href: "/yucatech", label: nl.yucatech },
+  { href: "/prensa", label: nl.prensa },
+  { href: "/familia", label: nl.familia },
+  { href: "/galeria", label: nl.galeria },
 ];
 
 const links = baseLinks.map((l) => ({ ...l, href: `${prefix}${l.href}` }));
