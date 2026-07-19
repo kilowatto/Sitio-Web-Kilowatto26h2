@@ -1,0 +1,153 @@
+---
+import Base from "../../layouts/Base.astro";
+import { env } from "cloudflare:workers";
+
+const token = Astro.url.searchParams.get("token");
+const authorized = token && token === env.ADMIN_TOKEN;
+
+let pending: any[] = [];
+let approved: any[] = [];
+if (authorized && env?.DB) {
+  const [p, a] = await Promise.all([
+    env.DB.prepare("SELECT * FROM entities WHERE approval_status = 'pending' ORDER BY created_at").all(),
+    env.DB.prepare("SELECT * FROM entities WHERE approval_status = 'approved' ORDER BY name").all(),
+  ]);
+  pending = p?.results ?? [];
+  approved = a?.results ?? [];
+}
+---
+
+<Base title="Entidades — Admin">
+  <div class="container admin">
+    {
+      !authorized ? (
+        <p>No autorizado. Agrega <code>?token=...</code> a la URL.</p>
+      ) : (
+        <>
+          <h1>Entidades pendientes ({pending.length})</h1>
+          <form id="fetch-form">
+            <input type="text" id="fetch-name" placeholder="Nombre exacto tal como aparece en el sitio" />
+            <button type="submit">Buscar en Wikidata</button>
+          </form>
+          <div class="list">
+            {pending.map((e: any) => (
+              <div class="entity-card">
+                {e.image_url && <img src={e.image_url} alt="" loading="lazy" />}
+                <div>
+                  <h3>{e.name}</h3>
+                  <p>{e.description}</p>
+                  <p class="meta">
+                    {e.link_type} · <a href={e.link_url} target="_blank" rel="noopener">{e.link_url}</a>
+                  </p>
+                  <div class="actions">
+                    <button class="approve" data-id={e.id}>Aprobar</button>
+                    <button class="reject" data-id={e.id}>Rechazar</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <h2>Aprobadas ({approved.length})</h2>
+          <ul class="approved-list">
+            {approved.map((e: any) => (
+              <li>
+                <strong>{e.name}</strong> — {e.link_type} {e.internal_path ?? e.link_url}
+              </li>
+            ))}
+          </ul>
+        </>
+      )
+    }
+  </div>
+
+  <script define:vars={{ token }}>
+    document.getElementById("fetch-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("fetch-name").value.trim();
+      if (!name) return;
+      const res = await fetch(`/api/entities/fetch?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) location.reload();
+      else alert("No se encontró: " + (await res.text()));
+    });
+
+    document.querySelectorAll(".approve").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await fetch(`/api/entities/${btn.dataset.id}/approve?token=${encodeURIComponent(token)}`, { method: "POST" });
+        location.reload();
+      });
+    });
+    document.querySelectorAll(".reject").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await fetch(`/api/entities/${btn.dataset.id}/reject?token=${encodeURIComponent(token)}`, { method: "POST" });
+        btn.closest(".entity-card")?.remove();
+      });
+    });
+  </script>
+</Base>
+
+<style>
+  .admin {
+    padding-block: var(--space-4);
+  }
+  #fetch-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-block: var(--space-2) var(--space-3);
+  }
+  #fetch-name {
+    flex: 1;
+    max-width: 24rem;
+    padding: 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+  }
+  .list {
+    display: grid;
+    gap: var(--space-2);
+  }
+  .entity-card {
+    display: flex;
+    gap: var(--space-2);
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: var(--space-2);
+  }
+  .entity-card img {
+    width: 6rem;
+    height: 6rem;
+    object-fit: cover;
+    border-radius: 0.4rem;
+  }
+  .meta {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--ink-soft);
+  }
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.4rem;
+  }
+  .actions button {
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.35rem 0.8rem;
+    cursor: pointer;
+  }
+  .approve {
+    background: var(--rhino);
+    color: #fff;
+  }
+  .reject {
+    background: var(--mist);
+  }
+  .approved-list {
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+</style>

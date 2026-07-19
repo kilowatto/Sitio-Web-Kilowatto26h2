@@ -152,6 +152,54 @@ a {
   white-space: nowrap;
 }
 
+/* Entity tooltips — auto-inserted by src/middleware.ts around approved entity names. */
+.kw-tt {
+  position: relative;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--rhino);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+  cursor: help;
+}
+
+.kw-tt-card {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.5rem);
+  width: 16rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+  padding: 0.6rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--ink);
+  text-decoration: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 60;
+}
+
+.kw-tt-card img {
+  width: 100%;
+  max-height: 8rem;
+  object-fit: cover;
+  border-radius: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.kw-tt:hover .kw-tt-card,
+.kw-tt:focus .kw-tt-card,
+.kw-tt:focus-within .kw-tt-card {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
 :focus-visible {
   outline: 3px solid var(--rhino);
   outline-offset: 3px;
