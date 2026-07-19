@@ -1,0 +1,52 @@
+---
+import Site from "../layouts/Site.astro";
+
+const items = [
+  { name: "Workers", use: "Cómputo — sirve cada página, cada API, el chat de Larry." },
+  { name: "D1", use: "Base de datos — perfil, empresas, inversiones, trayectoria, familia, prensa." },
+  { name: "R2", use: "Almacenamiento de fotos, sin cargos por transferencia de salida." },
+  { name: "Vectorize", use: "Búsqueda semántica — el cerebro de Larry para responder con contexto real." },
+  { name: "Workers AI", use: "Generación de texto, traducciones, descripciones de fotos, detección de contenido." },
+  { name: "KV", use: "Caché de entidades y sesiones." },
+  { name: "Cron Triggers", use: "Revisión automática de prensa cada 6 horas." },
+  { name: "HTMLRewriter", use: "Los tooltips que aparecen sobre nombres y lugares en el sitio." },
+];
+---
+
+<Site title="Stack técnico — Kilowatto" active="/stack">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Detrás de cámaras</p>
+      <h1>Diseñado por Ignia Cloud. Desplegado sobre Cloudflare.</h1>
+      <p class="hero__sub">
+        Este sitio lo diseñó y orquestó Ignia Cloud — pero el motor que corre por debajo,
+        de punta a punta, es 100% Cloudflare. Sin mezclar mensajes: así es como está hecho.
+      </p>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <ol class="rows">
+        {
+          items.map((i) => (
+            <li class="row">
+              <span class="row__range">{i.name}</span>
+              <div>
+                <p class="row__summary">{i.use}</p>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+</Site>
+
+<style>
+  .hero__sub {
+    max-width: var(--measure);
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+  }
+</style>

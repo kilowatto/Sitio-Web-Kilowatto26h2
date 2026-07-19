@@ -1,6 +1,11 @@
 ---
 import "../styles/global.css";
 import { LOCALES } from "../lib/locales";
+import { env } from "cloudflare:workers";
+
+// Set via `wrangler secret put GTM_ID` (or a plain var — GTM container ids aren't secret)
+// once Esteban creates a container at tagmanager.google.com. Renders nothing until then.
+const gtmId = env?.GTM_ID;
 
 interface Props {
   title: string;
@@ -47,8 +52,29 @@ const pathWithoutLocale = currentPrefix ? path.slice(currentPrefix.length + 1) |
       href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
+    {
+      gtmId && (
+        <script
+          is:inline
+          define:vars={{ gtmId }}
+          set:html={`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtmId}');`}
+        />
+      )
+    }
   </head>
   <body>
+    {
+      gtmId && (
+        <noscript>
+          <iframe
+            src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
+            height="0"
+            width="0"
+            style="display:none;visibility:hidden"
+          />
+        </noscript>
+      )
+    }
     <slot />
     <script is:inline>
       (function () {
