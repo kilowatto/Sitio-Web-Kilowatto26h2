@@ -108,7 +108,9 @@ La culminación de la trayectoria ejecutiva de Esteban Rey Ortega se observa en 
 
 ### Incursión en el Ecosistema Fintech
 
-Uno de los vectores más agresivos de su cartera de inversiones es el sector tecnológico financiero (Fintech). A través de asociaciones estratégicas e inversiones conjuntas, Rey mantiene una estrecha relación con Finsus, una de las Sociedades Financieras Populares (SOFIPOS) líderes en México enfocada en la democratización del acceso al crédito e inversión. Esta apuesta responde a un profundo entendimiento de la economía regional, donde el acceso a financiamiento ágil, apalancado por infraestructura en la nube (el área de expertise de Rey), es la llave maestra para escalar a las PyMEs latinoamericanas.
+> **Corrección (2026-07-19):** Esteban confirmó directamente que **no es inversionista de Finsus**. El informe de prensa original asumía una inversión a partir de su cercanía con Carlos Marmolejo (CEO de Finsus, ponente en el Yucatech Festival — ese dato sigue siendo válido como relación/evento, no como inversión). Este párrafo se conserva tachado como registro de la corrección, pero **no debe usarse como fuente para el sitio ni para Larry**.
+>
+> ~~Uno de los vectores más agresivos de su cartera de inversiones es el sector tecnológico financiero (Fintech). A través de asociaciones estratégicas e inversiones conjuntas, Rey mantiene una estrecha relación con Finsus, una de las Sociedades Financieras Populares (SOFIPOS) líderes en México enfocada en la democratización del acceso al crédito e inversión. Esta apuesta responde a un profundo entendimiento de la economía regional, donde el acceso a financiamiento ágil, apalancado por infraestructura en la nube (el área de expertise de Rey), es la llave maestra para escalar a las PyMEs latinoamericanas.~~
 
 ### Desarrollo de Activos Físicos: Bienes Raíces y Franquicias Deportivas en EE. UU.
 

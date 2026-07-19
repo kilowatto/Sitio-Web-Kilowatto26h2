@@ -126,7 +126,7 @@
 
 **Q54 (qué extraña de OnCloud/Octapus):** Nada en particular — prefiere donde está ahora.
 
-**Q58 (inversión de Orange Rhino que dio más miedo):** Finsus/fintech — por ser un terreno nuevo para él. *(Nota: respuesta ambigua en la redacción original — "no invertir en finsus... porque era algo nuevo" — podría referirse al miedo de invertir en fintech por ser nuevo para él, o al miedo de NO invertir y perderse la oportunidad. Aclarar con Esteban antes de publicar textual.)*
+**Q58 (inversión de Orange Rhino que dio más miedo):** *(Aclarado 2026-07-19: la respuesta original era ambigua y se interpretó erróneamente como una inversión en Finsus. Esteban confirmó que NO es inversionista de Finsus — se retira esta entrada del sitio y de la lista de inversiones. Su relación con Carlos Marmolejo/Finsus es únicamente por ser ponente del Yucatech Festival.)*
 
 **Q59 (peor decisión de inversión):** Más que una decisión puntual, fue no diversificar a tiempo.
 

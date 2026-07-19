@@ -6,6 +6,10 @@
   "observability": {
     "enabled": true
   },
+  "routes": [
+    { "pattern": "kilowatto.com", "custom_domain": true },
+    { "pattern": "www.kilowatto.com", "custom_domain": true }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

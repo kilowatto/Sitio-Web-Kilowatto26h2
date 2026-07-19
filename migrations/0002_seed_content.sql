@@ -18,9 +18,11 @@ INSERT INTO companies (slug, name, role, start_date, end_date, is_current, summa
   ('octapus', 'Octapus', 'Co-fundador y CTO', NULL, NULL, 0, 'Evolución de OnCloud tras su venta, enfocada en ciberseguridad y cumplimiento regulatorio en LatAm. Adquirió 2Secure (Colombia y Perú). Esteban cortó toda relación accionaria y operativa por diferencias con la nueva dirección.', NULL, 5),
   ('ignia-cloud', 'Ignia Cloud', 'Fundador y CEO', NULL, NULL, 1, '"La Nube Naranja" — nube soberana e hiperpotente para México y LatAm, con arquitecturas híbridas/multicloud. 99.9% SLA, hasta 12M IOPS, tráfico ilimitado sin cargos ocultos.', NULL, 6);
 
+-- NOTA (2026-07-19): Esteban confirmó que NO es inversionista de Finsus — el informe de prensa original
+-- lo daba por hecho (relación/cercanía con Carlos Marmolejo, CEO de Finsus, ponente en Yucatech) pero no es una inversión.
+-- No sembrar Finsus como investment. La relación con Marmolejo/Yucatech sigue siendo válida como dato de evento, no de inversión.
 INSERT INTO investments (slug, name, category, summary, website_url, sort_order) VALUES
   ('orange-rhino-investments', 'Orange Rhino Investments', 'holding', 'Vehículo de inversión con estrategia "mancuerna": tecnología financiera de alto crecimiento combinada con activos físicos generadores de flujo de caja.', NULL, 1),
-  ('finsus', 'Finsus', 'fintech', 'SOFIPO líder en México enfocada en democratizar el acceso al crédito e inversión.', NULL, 2),
   ('academias-futbol-eeuu', 'Academias de fútbol en EE. UU.', 'sports', 'Inversión en infraestructura de desarrollo de talento deportivo juvenil (modelo pay-to-play) en Estados Unidos.', NULL, 3),
   ('frida-cafe', 'Frida Café', 'fmcg', 'Café 100% orgánico de especialidad mexicano, modelo omnicanal con presencia física y comercio D2C.', NULL, 4);
 
