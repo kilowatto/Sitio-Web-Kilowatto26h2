@@ -10,7 +10,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "deploy": "astro build && wrangler deploy",
+    "deploy": "astro build && node scripts/make-scheduled-entry.mjs && wrangler deploy --config dist/server/wrangler.json",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
