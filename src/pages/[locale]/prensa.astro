@@ -1,0 +1,62 @@
+---
+import Site from "../../layouts/Site.astro";
+import { localeFromParam } from "../../lib/locales";
+import { env } from "cloudflare:workers";
+
+const locale = localeFromParam(Astro.params.locale);
+if (!locale || locale.canonical) return Astro.redirect("/prensa", 302);
+
+let mentions: any[] = [];
+if (env?.DB) {
+  const res = await env.DB
+    .prepare("SELECT * FROM press_mentions WHERE status = 'published' ORDER BY published_at DESC")
+    .all();
+  mentions = res?.results ?? [];
+}
+
+const EMPTY_STATE: Record<string, string> = {
+  en: "Coming soon — the Workflow that checks the press every 6 hours isn't active yet. Once it is, every new mention will appear here with a summary and the original source.",
+  "pt-BR": "Em breve — o Workflow que verifica a imprensa a cada 6 horas ainda não está ativo. Quando estiver, cada nova menção aparecerá aqui com um resumo e a fonte original.",
+  fr: "Bientôt disponible — le Workflow qui vérifie la presse toutes les 6 heures n'est pas encore actif. Une fois actif, chaque nouvelle mention apparaîtra ici avec un résumé et la source originale.",
+  de: "Demnächst — der Workflow, der alle 6 Stunden die Presse prüft, ist noch nicht aktiv. Sobald er es ist, erscheint hier jede neue Erwähnung mit einer Zusammenfassung und der Originalquelle.",
+  ar: "قريباً — سير العمل الذي يتحقق من الصحافة كل 6 ساعات لم يتم تفعيله بعد. بمجرد تفعيله، سيظهر هنا كل ذكر جديد مع ملخص والمصدر الأصلي.",
+  "zh-Hans": "即将推出 — 每6小时检查新闻的自动化流程尚未激活。激活后，每条新提及都会在此显示摘要和原始来源。",
+  ja: "近日公開 — 6時間ごとにプレスをチェックするワークフローはまだ有効になっていません。有効になると、新しい言及が要約と元のソースとともにここに表示されます。",
+};
+const emptyState = EMPTY_STATE[locale.code] ?? "Próximamente — el pipeline de noticias se activa en la siguiente fase.";
+---
+
+<Site title="Prensa — Kilowatto" active="/prensa" locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Kilowatto</p>
+      <h1>Prensa</h1>
+    </div>
+  </section>
+  <section class="chapter">
+    <div class="container">
+      {
+        mentions.length === 0 ? (
+          <p class="hero__sub">{emptyState}</p>
+        ) : (
+          <ol class="rows">
+            {mentions.map((m: any) => (
+              <li class="row">
+                <span class="row__range">{m.published_at}</span>
+                <div>
+                  <h3>{m.title}</h3>
+                  {m.summary && <p class="row__summary">{m.summary}</p>}
+                  <p class="row__summary">
+                    <a href={m.url} target="_blank" rel="noopener">
+                      {m.outlet}
+                    </a>
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )
+      }
+    </div>
+  </section>
+</Site>

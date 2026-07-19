@@ -1,0 +1,58 @@
+---
+import Site from "../../layouts/Site.astro";
+import { localeFromParam, VOICE_INSTRUCTIONS } from "../../lib/locales";
+import { env } from "cloudflare:workers";
+
+const locale = localeFromParam(Astro.params.locale);
+if (!locale || locale.canonical) return Astro.redirect("/yucatech", 302);
+
+const ES_PARAGRAPHS = [
+  'El evento que apuesta a que el sur-sureste de México sea el próximo hub tecnológico de América Latina — inteligencia artificial, ciberseguridad, nube y negocios, con capital real detrás de cada pitch en la "Elevator Pitch Hour".',
+  "La primera edición se realizó el 16 de abril de 2026 en el Centro Internacional de Congresos de Yucatán, con más de 500 asistentes y ponentes como Uri Levine (cofundador de Waze). La startup ganadora del Elevator Pitch Hour fue Creare Ride.",
+  "No es un negocio — Esteban lo financia de su bolsillo porque cree que Mérida puede ser el próximo hub tecnológico de la región. Se realizará cada año.",
+];
+
+const CACHE_KEY = `kw:static:yucatech:${locale.code}`;
+let paragraphs: string[] = ES_PARAGRAPHS;
+
+if (env?.KILOWATTO_KV) {
+  const cached = await env.KILOWATTO_KV.get(CACHE_KEY, "json");
+  if (cached) {
+    paragraphs = cached as string[];
+  } else if (env?.AI) {
+    try {
+      const voice = VOICE_INSTRUCTIONS[locale.code] ?? `Translate to ${locale.code}.`;
+      const result: any = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+        messages: [
+          {
+            role: "user",
+            content: `${voice}\n\nTraduce este arreglo JSON de párrafos (español mexicano) a ${locale.code}. Devuelve SOLO un arreglo JSON de strings en el mismo orden, sin texto adicional:\n\n${JSON.stringify(ES_PARAGRAPHS)}`,
+          },
+        ],
+        max_tokens: 1000,
+      });
+      const parsed = typeof result?.response === "object" ? result.response : JSON.parse(result?.response?.match(/\[[\s\S]*\]/)?.[0] ?? "null");
+      if (Array.isArray(parsed) && parsed.length === ES_PARAGRAPHS.length) {
+        paragraphs = parsed;
+        await env.KILOWATTO_KV.put(CACHE_KEY, JSON.stringify(parsed), { expirationTtl: 60 * 60 * 24 * 30 });
+      }
+    } catch {
+      // fall back to Spanish silently
+    }
+  }
+}
+---
+
+<Site title="Yucatech Festival — Kilowatto" active="/yucatech" locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Mérida, Yucatán</p>
+      <h1>Yucatech Festival</h1>
+    </div>
+  </section>
+  <section class="chapter">
+    <div class="container">
+      {paragraphs.map((p) => <p class="hero__sub">{p}</p>)}
+    </div>
+  </section>
+</Site>
