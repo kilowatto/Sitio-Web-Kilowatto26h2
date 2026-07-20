@@ -12,6 +12,7 @@ interface Props {
   description?: string;
   locale?: string;
   dir?: "ltr" | "rtl";
+  image?: string;
 }
 
 const {
@@ -19,7 +20,9 @@ const {
   description = "Esteban Rey — Kilowatto. Trayectoria, empresas e inversiones.",
   locale = "es-MX",
   dir = "ltr",
+  image = "/larry/larry-avatar.png",
 } = Astro.props;
+const absoluteImage = image.startsWith("http") ? image : `https://kilowatto.com${image}`;
 
 const path = Astro.url.pathname;
 const localeCodes = LOCALES.map((l) => l.code);
@@ -34,6 +37,19 @@ const pathWithoutLocale = currentPrefix ? path.slice(currentPrefix.length + 1) |
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
+
+    <meta property="og:type" content="profile" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={`https://kilowatto.com${path}`} />
+    <meta property="og:image" content={absoluteImage} />
+    <meta property="og:locale" content={locale.replace("-", "_")} />
+    <meta property="og:site_name" content="Kilowatto" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={absoluteImage} />
+
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="canonical" href={`https://kilowatto.com${path}`} />
     <link rel="alternate" hreflang="x-default" href={`https://kilowatto.com${pathWithoutLocale}`} />
