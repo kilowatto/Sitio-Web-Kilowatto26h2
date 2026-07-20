@@ -1,0 +1,39 @@
+---
+// Plain GET form — no JS needed. Submitting redirects to the same page with ?token=,
+// checkAdminAuth() picks it up and sets the cookie, so this only has to happen once.
+---
+
+<div class="admin-login">
+  <p>Ingresa el token de administrador. Solo lo pides una vez — después queda guardado.</p>
+  <form method="GET">
+    <input type="password" name="token" placeholder="Token" autofocus />
+    <button type="submit">Entrar</button>
+  </form>
+</div>
+
+<style>
+  .admin-login {
+    max-width: 24rem;
+    margin: var(--space-4) auto;
+    text-align: center;
+  }
+  .admin-login form {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: var(--space-2);
+  }
+  .admin-login input {
+    flex: 1;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+  }
+  .admin-login button {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+  }
+</style>

@@ -1,9 +1,11 @@
 ---
 import Base from "../../layouts/Base.astro";
+import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
+import { checkAdminAuth } from "../../lib/admin-auth";
 
-const token = Astro.url.searchParams.get("token");
-const authorized = token && token === env.ADMIN_TOKEN;
+const token = checkAdminAuth(Astro, env);
+const authorized = !!token;
 
 let pending: any[] = [];
 if (authorized && env?.DB) {
@@ -18,9 +20,10 @@ if (authorized && env?.DB) {
   <div class="container admin">
     {
       !authorized ? (
-        <p>No autorizado. Agrega <code>?token=...</code> a la URL.</p>
+        <AdminLogin />
       ) : (
         <>
+          <p class="admin-nav"><a href="/admin">← Panel de administración</a></p>
           <h1>Menciones de prensa pendientes ({pending.length})</h1>
           <form id="check-form">
             <button type="submit">Buscar menciones nuevas ahora</button>
@@ -79,6 +82,10 @@ if (authorized && env?.DB) {
 <style>
   .admin {
     padding-block: var(--space-4);
+  }
+  .admin-nav {
+    margin-bottom: var(--space-2);
+    font-size: 0.85rem;
   }
   #check-form {
     margin-block: var(--space-2) var(--space-3);

@@ -1,0 +1,137 @@
+---
+import { t } from "../lib/i18n";
+import FamilyTreeNode from "./FamilyTreeNode.astro";
+
+interface Props {
+  node: any;
+  byId: Map<number, any>;
+  tr: Map<string, string>;
+}
+
+const { node, byId, tr } = Astro.props;
+
+const parents = [node.parent_1_id, node.parent_2_id]
+  .map((id) => (id ? byId.get(id) : null))
+  .filter(Boolean);
+
+function formatDates(f: any) {
+  if (!f.birth_date && !f.death_date) return null;
+  return `${f.birth_date ?? "?"}${f.death_date ? ` – ${f.death_date}` : ""}`;
+}
+---
+
+<li>
+  <div class="node">
+    <p class="eyebrow">{t(tr, node.id, "relationship", node.relationship)}</p>
+    <h3>
+      {node.full_name}
+      {node.nickname && ` "${node.nickname}"`}
+    </h3>
+    {formatDates(node) && <p class="node__dates">{formatDates(node)}</p>}
+    {node.bio && <p class="node__bio">{t(tr, node.id, "bio", node.bio)}</p>}
+  </div>
+  {
+    parents.length > 0 && (
+      <ul>
+        {parents.map((p: any) => (
+          <FamilyTreeNode node={p} byId={byId} tr={tr} />
+        ))}
+      </ul>
+    )
+  }
+</li>
+
+<style is:global>
+  .tree-wrap {
+    overflow-x: auto;
+    padding-block: var(--space-3);
+  }
+
+  .tree,
+  .tree ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  .tree li {
+    position: relative;
+    padding: 2rem 0.75rem 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .tree li::before,
+  .tree li::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 50%;
+    border-top: 1px solid var(--line);
+    width: 50%;
+    height: 2rem;
+  }
+
+  .tree li::after {
+    right: auto;
+    left: 50%;
+    border-left: 1px solid var(--line);
+  }
+
+  .tree li:only-child::before,
+  .tree li:only-child::after {
+    display: none;
+  }
+
+  .tree li:only-child {
+    padding-top: 0;
+  }
+
+  .tree > li {
+    padding-top: 0;
+  }
+
+  .tree > li::before,
+  .tree > li::after {
+    display: none;
+  }
+
+  .tree li:first-child::before,
+  .tree li:last-child::after {
+    border: 0 none;
+  }
+
+  .tree li:last-child::before {
+    border-right: 1px solid var(--line);
+  }
+
+  .tree .node {
+    width: 13rem;
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    padding: var(--space-2);
+    background: var(--paper);
+    text-align: center;
+  }
+
+  .tree .node h3 {
+    margin: 0.2rem 0;
+    font-size: 1rem;
+  }
+
+  .tree .node__dates {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  .tree .node__bio {
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    margin: 0.4rem 0 0;
+  }
+</style>

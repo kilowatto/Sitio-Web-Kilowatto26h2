@@ -1,5 +1,6 @@
 ---
 import Site from "../layouts/Site.astro";
+import FamilyTreeNode from "../components/FamilyTreeNode.astro";
 import { env } from "cloudflare:workers";
 
 let family: any[] = [];
@@ -8,10 +9,10 @@ if (env?.DB) {
   family = res?.results ?? [];
 }
 
-function formatDates(f: any) {
-  if (!f.birth_date && !f.death_date) return null;
-  return `${f.birth_date ?? "?"}${f.death_date ? ` – ${f.death_date}` : ""}`;
-}
+const byId = new Map(family.map((f: any) => [f.id, f]));
+const parentIds = new Set(family.flatMap((f: any) => [f.parent_1_id, f.parent_2_id]).filter(Boolean));
+const roots = family.filter((f: any) => !parentIds.has(f.id));
+const emptyTr = new Map<string, string>();
 ---
 
 <Site title="Familia — Esteban Rey" active="/familia">
@@ -23,21 +24,9 @@ function formatDates(f: any) {
   </section>
 
   <section class="chapter">
-    <div class="container">
-      <ul class="cards">
-        {
-          family.map((f: any) => (
-            <li class="card">
-              <p class="eyebrow">{f.relationship}</p>
-              <h3>
-                {f.full_name}
-                {f.nickname && ` "${f.nickname}"`}
-              </h3>
-              {formatDates(f) && <p class="row__range">{formatDates(f)}</p>}
-              {f.bio && <p>{f.bio}</p>}
-            </li>
-          ))
-        }
+    <div class="container tree-wrap">
+      <ul class="tree">
+        {roots.map((r: any) => <FamilyTreeNode node={r} byId={byId} tr={emptyTr} />)}
       </ul>
     </div>
   </section>
