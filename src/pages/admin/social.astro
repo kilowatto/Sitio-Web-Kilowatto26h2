@@ -70,7 +70,14 @@ if (authorized && env?.DB) {
                       {p.platform.toUpperCase()} · variante {p.variant_style ?? "?"}
                       {p.rejection_reason && <span class="warn"> ⚠️ {p.rejection_reason}</span>}
                     </p>
-                    {p.image_r2_key && <img class="draft-image" src={`/media/${p.image_r2_key}`} alt="" loading="lazy" />}
+                    {p.image_r2_key && (
+                      <>
+                        <img class="draft-image" data-id={p.id} src={`/media/${p.image_r2_key}`} alt="" loading="lazy" />
+                        <button class="reject-image" data-id={p.id} type="button">
+                          🖼️ Rechazar imagen (buscar otra)
+                        </button>
+                      </>
+                    )}
                     <textarea class="content-box" data-id={p.id}>{p.content}</textarea>
                     <input
                       type="text"
@@ -114,6 +121,18 @@ if (authorized && env?.DB) {
               </li>
             ))}
           </ul>
+
+          <div class="topic-brainstorm">
+            <p class="hint">Dale un par de ideas o palabras y Larry piensa temas relacionados — los revisas, quitas los que no quieras, y guardas el resto.</p>
+            <div class="brainstorm-input-row">
+              <input type="text" id="brainstorm-seed" placeholder="Ideas o palabras (ej: cloud computing, Yucatán, IA)" />
+              <button id="brainstorm-btn" type="button">✨ Generar temas</button>
+            </div>
+            <p id="brainstorm-status" class="hint"></p>
+            <div id="brainstorm-chips" class="brainstorm-chips"></div>
+            <button id="brainstorm-save" type="button" style="display:none">Guardar seleccionados</button>
+          </div>
+
           <form id="topic-form" class="topic-form">
             <input type="text" id="topic-label" placeholder="Nuevo tema (ej: Cine y series)" required />
             <input type="text" id="topic-desc" placeholder="Descripción breve" />
@@ -195,6 +214,84 @@ if (authorized && env?.DB) {
         body: JSON.stringify({ label, description }),
       });
       location.reload();
+    });
+
+    let brainstormSuggestions = [];
+
+    function renderBrainstormChips() {
+      const container = document.getElementById("brainstorm-chips");
+      container.innerHTML = "";
+      brainstormSuggestions.forEach((s, i) => {
+        const chip = document.createElement("div");
+        chip.className = "brainstorm-chip";
+        chip.innerHTML = `
+          <button type="button" class="chip-remove" data-i="${i}">×</button>
+          <strong>${s.label}</strong>
+          <p>${s.description ?? ""}</p>
+        `;
+        chip.querySelector(".chip-remove").addEventListener("click", () => {
+          brainstormSuggestions.splice(i, 1);
+          renderBrainstormChips();
+        });
+        container.appendChild(chip);
+      });
+      document.getElementById("brainstorm-save").style.display = brainstormSuggestions.length ? "block" : "none";
+    }
+
+    document.getElementById("brainstorm-btn")?.addEventListener("click", async () => {
+      const seed = document.getElementById("brainstorm-seed").value.trim();
+      const status = document.getElementById("brainstorm-status");
+      if (!seed) {
+        status.textContent = "Escribe una idea o palabra primero.";
+        return;
+      }
+      status.textContent = "Pensando temas…";
+      const res = await fetch(`/api/brand/topics/suggest?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ seed }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.suggestions?.length) {
+        status.textContent = "No se pudieron generar temas, intenta de nuevo.";
+        return;
+      }
+      brainstormSuggestions = data.suggestions;
+      status.textContent = `${brainstormSuggestions.length} temas sugeridos — quita los que no quieras, luego guarda.`;
+      renderBrainstormChips();
+    });
+
+    document.getElementById("brainstorm-save")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.textContent = "Guardando…";
+      for (const s of brainstormSuggestions) {
+        await fetch(`/api/brand/topics?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ label: s.label, description: s.description }),
+        });
+      }
+      location.reload();
+    });
+
+    document.querySelectorAll(".reject-image").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const img = document.querySelector(`.draft-image[data-id="${id}"]`);
+        btn.disabled = true;
+        btn.textContent = "Buscando otra imagen…";
+        const res = await fetch(`/api/brand/${id}/reject-image?token=${encodeURIComponent(token)}`, { method: "POST" });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.textContent = "🖼️ Rechazar imagen (buscar otra)";
+        if (res.ok && data.imageKey && img) {
+          img.src = `/media/${data.imageKey}?t=${Date.now()}`;
+        } else if (!data.imageKey) {
+          img?.remove();
+          btn.remove();
+        }
+      });
     });
   </script>
 </Base>
@@ -287,6 +384,98 @@ if (authorized && env?.DB) {
     border-radius: 0.4rem;
   }
   .topic-form button {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+  }
+
+  .reject-image {
+    display: block;
+    width: 100%;
+    margin: 0.3rem 0 0.5rem;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    padding: 0.35rem 0;
+    font-size: 0.75rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+
+  .topic-brainstorm {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+
+  .brainstorm-input-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.4rem;
+  }
+
+  .brainstorm-input-row input {
+    flex: 1;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+  }
+
+  .brainstorm-input-row button {
+    background: var(--rhino);
+    color: #fff;
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .brainstorm-chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+  }
+
+  .brainstorm-chip {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.82rem;
+  }
+
+  .brainstorm-chip strong {
+    display: block;
+    margin-bottom: 0.2rem;
+    padding-right: 1.2rem;
+  }
+
+  .brainstorm-chip p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 0.75rem;
+  }
+
+  .chip-remove {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.4rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+    line-height: 1;
+  }
+
+  #brainstorm-save {
+    margin-top: 0.6rem;
     background: var(--ink);
     color: var(--paper);
     border: none;

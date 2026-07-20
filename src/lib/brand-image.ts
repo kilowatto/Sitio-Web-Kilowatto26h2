@@ -10,7 +10,9 @@ const IMAGE_MODEL = "@cf/stabilityai/stable-diffusion-xl-base-1.0";
 
 // Tries an approved real photo whose caption loosely matches the topic first (cheaper,
 // more authentic than a generated image); falls back to AI generation only if nothing fits.
-export async function proposeImage(topicLabel: string, postContent: string): Promise<string | null> {
+// excludeKey lets "reject this image, find another" (reject-image.ts) avoid re-proposing
+// the exact same gallery photo it just rejected — AI generation is always fresh anyway.
+export async function proposeImage(topicLabel: string, postContent: string, excludeKey?: string): Promise<string | null> {
   const keywords = topicLabel
     .toLowerCase()
     .split(/\s+/)
@@ -18,9 +20,9 @@ export async function proposeImage(topicLabel: string, postContent: string): Pro
 
   for (const kw of keywords) {
     const match = await env.DB.prepare(
-      `SELECT r2_key FROM photos WHERE approval_status = 'approved' AND lower(ai_caption) LIKE ? ORDER BY RANDOM() LIMIT 1`
+      `SELECT r2_key FROM photos WHERE approval_status = 'approved' AND lower(ai_caption) LIKE ? AND r2_key != ? ORDER BY RANDOM() LIMIT 1`
     )
-      .bind(`%${kw}%`)
+      .bind(`%${kw}%`, excludeKey ?? "")
       .first<any>();
     if (match?.r2_key) return match.r2_key;
   }
