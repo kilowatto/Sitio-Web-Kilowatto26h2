@@ -8,11 +8,14 @@ const token = await checkAdminAuth(Astro, env);
 const authorized = !!token;
 
 let pending: any[] = [];
+let approved: any[] = [];
 if (authorized && env?.DB) {
-  const res = await env.DB
-    .prepare("SELECT * FROM photos WHERE approval_status = 'pending' ORDER BY uploaded_at")
-    .all();
-  pending = res?.results ?? [];
+  const [pendingRes, approvedRes] = await Promise.all([
+    env.DB.prepare("SELECT * FROM photos WHERE approval_status = 'pending' ORDER BY uploaded_at").all(),
+    env.DB.prepare("SELECT * FROM photos WHERE approval_status = 'approved' ORDER BY approved_at DESC").all(),
+  ]);
+  pending = pendingRes?.results ?? [];
+  approved = approvedRes?.results ?? [];
 }
 
 const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length;
@@ -83,6 +86,31 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
                 </div>
               );
             })}
+          </div>
+
+          <h2>Fotos aprobadas ({approved.length})</h2>
+          <p class="hint">
+            Ya están o pudieron estar públicas en la galería. "Desaprobar" las regresa a pendientes (reversible).
+            "Borrar" las elimina para siempre — el archivo y el registro, sin vuelta atrás.
+          </p>
+          <div class="grid">
+            {approved.map((p: any) => (
+              <div class="photo-card" data-id={p.id}>
+                <img src={`/media/${p.r2_key}`} alt="" loading="lazy" />
+                <p class="caption">{p.ai_caption || "(sin caption)"}</p>
+                <p class="meta">
+                  {p.taken_city ?? "ciudad desconocida"} · {p.taken_date ?? "fecha desconocida"}
+                </p>
+                <div class="actions">
+                  <button class="unapprove" data-id={p.id}>
+                    Desaprobar
+                  </button>
+                  <button class="delete-photo" data-id={p.id} data-step="1">
+                    Borrar
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </>
       )
@@ -159,6 +187,31 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
         const id = btn.dataset.id;
         await fetch(`/api/photos/${id}/reject?token=${encodeURIComponent(token)}`, { method: "POST" });
         removeCard(id);
+      });
+    });
+
+    document.querySelectorAll(".unapprove").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        await fetch(`/api/photos/${id}/unapprove?token=${encodeURIComponent(token)}`, { method: "POST" });
+        removeCard(id);
+      });
+    });
+
+    // Permanent deletion: same two-click "arm" pattern as the flagged-photo approval —
+    // never a single click for something irreversible.
+    document.querySelectorAll(".delete-photo").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (btn.dataset.step === "1") {
+          btn.dataset.step = "2";
+          btn.textContent = "¿Seguro? Borrar para siempre";
+          btn.classList.add("armed");
+          return;
+        }
+        const id = btn.dataset.id;
+        const res = await fetch(`/api/photos/${id}/delete?token=${encodeURIComponent(token)}`, { method: "POST" });
+        if (res.ok) removeCard(id);
+        else alert("No se pudo borrar: " + (await res.text()));
       });
     });
 
@@ -341,8 +394,21 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
     font-size: 0.78rem;
   }
 
-  .reject {
+  .reject,
+  .unapprove {
     background: var(--mist);
     color: var(--ink);
+  }
+
+  .delete-photo {
+    background: transparent;
+    color: #b91c1c;
+    border: 1px solid #b91c1c;
+  }
+
+  .delete-photo.armed {
+    background: #b91c1c;
+    color: #fff;
+    font-size: 0.78rem;
   }
 </style>
