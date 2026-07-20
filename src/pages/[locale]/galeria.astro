@@ -1,17 +1,20 @@
 ---
 import Site from "../../layouts/Site.astro";
 import { localeFromParam } from "../../lib/locales";
+import { loadTranslations, t } from "../../lib/i18n";
 import { env } from "cloudflare:workers";
 
 const locale = localeFromParam(Astro.params.locale);
 if (!locale || locale.canonical) return Astro.redirect("/galeria", 302);
 
 let photos: any[] = [];
+let photosTr = new Map<string, string>();
 if (env?.DB) {
   const res = await env.DB
     .prepare("SELECT * FROM photos WHERE approval_status = 'approved' ORDER BY taken_date DESC")
     .all();
   photos = res?.results ?? [];
+  photosTr = await loadTranslations(env.DB, "photos", locale.code);
 }
 const albums = [...new Set(photos.map((p: any) => p.album).filter(Boolean))];
 
@@ -55,12 +58,15 @@ const [title, heading, allLabel] = TITLES[locale.code] ?? ["Galería", "Momentos
           <p class="hero__sub">—</p>
         ) : (
           <div class="masonry">
-            {photos.map((p: any) => (
-              <figure class="masonry__item" data-album={p.album ?? ""}>
-                <img src={`/media/${p.r2_key}`} alt={p.caption || p.ai_caption || ""} loading="lazy" />
-                {(p.caption || p.ai_caption) && <figcaption>{p.caption || p.ai_caption}</figcaption>}
-              </figure>
-            ))}
+            {photos.map((p: any) => {
+              const caption = t(photosTr, p.id, "caption", p.caption) || p.ai_caption;
+              return (
+                <figure class="masonry__item" data-album={p.album ?? ""}>
+                  <img src={`/media/${p.r2_key}`} alt={caption || ""} loading="lazy" />
+                  {caption && <figcaption>{caption}</figcaption>}
+                </figure>
+              );
+            })}
           </div>
         )
       }

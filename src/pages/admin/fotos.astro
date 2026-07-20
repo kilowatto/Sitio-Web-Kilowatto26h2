@@ -9,13 +9,24 @@ const authorized = !!token;
 
 let pending: any[] = [];
 let approved: any[] = [];
+let allPeopleNames: string[] = [];
+let photoPeopleMap = new Map<number, any[]>();
 if (authorized && env?.DB) {
-  const [pendingRes, approvedRes] = await Promise.all([
+  const [pendingRes, approvedRes, peopleRes, photoPeopleRes] = await Promise.all([
     env.DB.prepare("SELECT * FROM photos WHERE approval_status = 'pending' ORDER BY uploaded_at").all(),
     env.DB.prepare("SELECT * FROM photos WHERE approval_status = 'approved' ORDER BY approved_at DESC").all(),
+    env.DB.prepare("SELECT name FROM people ORDER BY name").all(),
+    env.DB.prepare(
+      `SELECT pp.photo_id, p.id, p.name FROM photo_people pp JOIN people p ON p.id = pp.person_id`
+    ).all(),
   ]);
   pending = pendingRes?.results ?? [];
   approved = approvedRes?.results ?? [];
+  allPeopleNames = (peopleRes?.results ?? []).map((r: any) => r.name);
+  for (const row of (photoPeopleRes?.results ?? []) as any[]) {
+    if (!photoPeopleMap.has(row.photo_id)) photoPeopleMap.set(row.photo_id, []);
+    photoPeopleMap.get(row.photo_id)!.push({ id: row.id, name: row.name });
+  }
 }
 
 const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length;
@@ -91,16 +102,57 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
           <h2>Fotos aprobadas ({approved.length})</h2>
           <p class="hint">
             Ya están o pudieron estar públicas en la galería. "Desaprobar" las regresa a pendientes (reversible).
-            "Borrar" las elimina para siempre — el archivo y el registro, sin vuelta atrás.
+            "Borrar" las elimina para siempre — el archivo y el registro, sin vuelta atrás. "Foto de perfil" la suma
+            al grupo que rota en el home (junto con las que la IA ya detectó solas).
           </p>
+
+          <datalist id="people-datalist">
+            {allPeopleNames.map((n: string) => <option value={n} />)}
+          </datalist>
+
           <div class="grid">
             {approved.map((p: any) => (
               <div class="photo-card" data-id={p.id}>
                 <img src={`/media/${p.r2_key}`} alt="" loading="lazy" />
-                <p class="caption">{p.ai_caption || "(sin caption)"}</p>
+
+                <label class="profile-check">
+                  <input type="checkbox" class="profile-toggle" data-id={p.id} checked={!!p.is_profile_photo} />
+                  Foto de perfil (home)
+                </label>
+
+                <textarea class="caption-edit" data-id={p.id} rows="2">{p.caption ?? ""}</textarea>
+                <button class="polish-caption" data-id={p.id} type="button">
+                  ✨ Pulir y traducir
+                </button>
+                <p class="polish-status" data-id={p.id} />
+
                 <p class="meta">
                   {p.taken_city ?? "ciudad desconocida"} · {p.taken_date ?? "fecha desconocida"}
                 </p>
+
+                <div class="people-tags" data-id={p.id}>
+                  {(photoPeopleMap.get(p.id) ?? []).map((person: any) => (
+                    <span class="person-chip" data-person-id={person.id}>
+                      {person.name}
+                      <button class="untag-person" data-id={p.id} data-person-id={person.id} type="button">
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div class="tag-input-row">
+                  <input
+                    type="text"
+                    class="tag-input"
+                    data-id={p.id}
+                    list="people-datalist"
+                    placeholder="Nombre de la persona…"
+                  />
+                  <button class="tag-person" data-id={p.id} type="button">
+                    + Marcar
+                  </button>
+                </div>
+
                 <div class="actions">
                   <button class="unapprove" data-id={p.id}>
                     Desaprobar
@@ -212,6 +264,102 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
         const res = await fetch(`/api/photos/${id}/delete?token=${encodeURIComponent(token)}`, { method: "POST" });
         if (res.ok) removeCard(id);
         else alert("No se pudo borrar: " + (await res.text()));
+      });
+    });
+
+    document.querySelectorAll(".profile-toggle").forEach((box) => {
+      box.addEventListener("change", async () => {
+        const id = box.dataset.id;
+        await fetch(`/api/photos/${id}/set-profile?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ isProfilePhoto: box.checked }),
+        });
+      });
+    });
+
+    document.querySelectorAll(".polish-caption").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const textarea = document.querySelector(`.caption-edit[data-id="${id}"]`);
+        const statusEl = document.querySelector(`.polish-status[data-id="${id}"]`);
+        const caption = textarea?.value?.trim();
+        if (!caption) {
+          statusEl.textContent = "Escribe algo primero.";
+          return;
+        }
+        btn.disabled = true;
+        statusEl.textContent = "Puliendo y traduciendo a 11 idiomas…";
+        const res = await fetch(`/api/photos/${id}/polish-caption?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ caption }),
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        if (!res.ok) {
+          statusEl.textContent = "Error: " + (data.error ?? "desconocido");
+          return;
+        }
+        textarea.value = data.polished;
+        statusEl.textContent = "Listo — pulido y traducido.";
+      });
+    });
+
+    function renderPersonChip(container, id, personId, name) {
+      const chip = document.createElement("span");
+      chip.className = "person-chip";
+      chip.dataset.personId = personId;
+      chip.textContent = name + " ";
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "untag-person";
+      removeBtn.type = "button";
+      removeBtn.dataset.id = id;
+      removeBtn.dataset.personId = personId;
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", async () => {
+        await fetch(`/api/photos/${id}/people?token=${encodeURIComponent(token)}&personId=${personId}`, {
+          method: "DELETE",
+        });
+        chip.remove();
+      });
+      chip.appendChild(removeBtn);
+      container.appendChild(chip);
+    }
+
+    document.querySelectorAll(".tag-person").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const input = document.querySelector(`.tag-input[data-id="${id}"]`);
+        const name = input?.value?.trim();
+        if (!name) return;
+        const res = await fetch(`/api/photos/${id}/people?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          renderPersonChip(document.querySelector(`.people-tags[data-id="${id}"]`), id, data.personId, data.name);
+          input.value = "";
+          const datalist = document.getElementById("people-datalist");
+          if (datalist && ![...datalist.options].some((o) => o.value === data.name)) {
+            const opt = document.createElement("option");
+            opt.value = data.name;
+            datalist.appendChild(opt);
+          }
+        }
+      });
+    });
+
+    document.querySelectorAll(".untag-person").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const personId = btn.dataset.personId;
+        await fetch(`/api/photos/${id}/people?token=${encodeURIComponent(token)}&personId=${personId}`, {
+          method: "DELETE",
+        });
+        btn.closest(".person-chip")?.remove();
       });
     });
 
@@ -410,5 +558,94 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
     background: #b91c1c;
     color: #fff;
     font-size: 0.78rem;
+  }
+
+  .profile-check {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    margin: 0.4rem 0.6rem 0;
+  }
+
+  .caption-edit {
+    width: calc(100% - 1.2rem);
+    margin: 0.4rem 0.6rem 0;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    resize: vertical;
+  }
+
+  .polish-caption {
+    margin: 0.3rem 0.6rem 0;
+    background: var(--rhino);
+    color: #fff;
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+
+  .polish-status {
+    margin: 0.2rem 0.6rem 0;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    min-height: 1em;
+  }
+
+  .people-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin: 0.4rem 0.6rem 0;
+  }
+
+  .person-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    background: var(--mist);
+    border-radius: 999px;
+    padding: 0.15rem 0.3rem 0.15rem 0.6rem;
+    font-size: 0.75rem;
+  }
+
+  .untag-person {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+    color: var(--ink-soft);
+    padding: 0.1rem 0.3rem;
+  }
+
+  .tag-input-row {
+    display: flex;
+    gap: 0.3rem;
+    margin: 0.4rem 0.6rem 0;
+  }
+
+  .tag-input {
+    flex: 1;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    font-size: 0.8rem;
+  }
+
+  .tag-person {
+    background: var(--mist);
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    white-space: nowrap;
   }
 </style>

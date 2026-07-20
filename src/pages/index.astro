@@ -14,7 +14,7 @@ if (env?.DB) {
     env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all(),
     env.DB.prepare("SELECT * FROM investments ORDER BY sort_order").all(),
     env.DB.prepare(
-      "SELECT r2_key FROM photos WHERE approval_status = 'approved' AND solo_subject = 1 ORDER BY RANDOM() LIMIT 1"
+      "SELECT r2_key FROM photos WHERE approval_status = 'approved' AND (solo_subject = 1 OR is_profile_photo = 1) ORDER BY RANDOM() LIMIT 1"
     ).first(),
   ]);
   profile = profileRes;
