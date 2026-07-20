@@ -71,7 +71,10 @@ export const POST: APIRoute = async ({ request }) => {
       .first<any>();
     if (!next) continue;
 
-    const result = await publishPost(env, platform, next.content);
+    const fixedHashtags = (await env.KILOWATTO_KV.get("brand_fixed_hashtags")) ?? "";
+    const finalContent = [next.content, next.hashtags, fixedHashtags].filter(Boolean).join("\n\n");
+
+    const result = await publishPost(env, platform, finalContent);
     if (result.ok) {
       await env.DB.prepare(
         `UPDATE brand_posts SET status = 'posted', posted_at = datetime('now'), external_post_id = ?, external_url = ? WHERE id = ?`

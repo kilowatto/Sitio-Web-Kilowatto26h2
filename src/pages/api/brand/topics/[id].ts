@@ -8,7 +8,12 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
     return new Response("unauthorized", { status: 401 });
   }
-  const body = await request.json<{ active?: boolean; label?: string; description?: string }>();
+  const body = await request.json<{
+    active?: boolean;
+    label?: string;
+    description?: string;
+    imageStyle?: "illustration" | "infographic" | "real_photo" | "photorealistic";
+  }>();
 
   if (typeof body.active === "boolean") {
     await env.DB.prepare("UPDATE brand_topics SET active = ? WHERE id = ?").bind(body.active ? 1 : 0, params.id).run();
@@ -17,6 +22,9 @@ export const POST: APIRoute = async ({ params, request }) => {
     await env.DB.prepare("UPDATE brand_topics SET label = COALESCE(?, label), description = COALESCE(?, description) WHERE id = ?")
       .bind(body.label ?? null, body.description ?? null, params.id)
       .run();
+  }
+  if (body.imageStyle) {
+    await env.DB.prepare("UPDATE brand_topics SET image_style = ? WHERE id = ?").bind(body.imageStyle, params.id).run();
   }
 
   return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });

@@ -29,7 +29,11 @@ Temas que YA existen (no los repitas): ${existingLabels || "ninguno todavía"}
 
 ${FORBIDDEN_TOPICS_NOTE}
 
-A partir de las ideas semilla, genera 8 temas/pilares de contenido relacionados y específicos (no genéricos) que Larry podría usar para redactar posts. Cada uno con una etiqueta corta (label) y una descripción de una oración (description) explicando de qué trataría el contenido. Responde SOLO un JSON:
+A partir de las ideas semilla, genera 8 temas/pilares de contenido relacionados y específicos (no genéricos) que Larry podría usar para redactar posts. Cada uno con una etiqueta corta (label) y una descripción de una oración (description) explicando de qué trataría el contenido.
+
+MUY IMPORTANTE: "label" debe ser texto normal en español, con espacios entre las palabras, tal como se leería en voz alta — por ejemplo "Curling como metáfora de negocio", NUNCA "CurlingComoMetafora" ni ninguna otra forma pegada tipo PascalCase o snake_case.
+
+Responde SOLO un JSON:
 {"suggestions": [{"label": "...", "description": "..."}, ...]}`;
 
   const result: any = await env.AI.run(MODEL, { messages: [{ role: "user", content: prompt }], max_tokens: 900 });
@@ -46,6 +50,14 @@ A partir de las ideas semilla, genera 8 temas/pilares de contenido relacionados 
       }
     }
   }
+
+  // Safety net independent of the prompt instruction — seen live (2026-07-20) generating
+  // "FotónicaAvanzada" style labels with zero spaces despite being told not to. Insert a
+  // space before every capital letter that follows a lowercase one (PascalCase -> words).
+  suggestions = suggestions.map((s: any) => ({
+    ...s,
+    label: typeof s?.label === "string" ? s.label.replace(/([a-záéíóúñ])([A-ZÁÉÍÓÚÑ])/g, "$1 $2") : s?.label,
+  }));
 
   return new Response(JSON.stringify({ ok: true, suggestions }), { headers: { "content-type": "application/json" } });
 };

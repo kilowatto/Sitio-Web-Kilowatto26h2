@@ -536,3 +536,14 @@ a {
   font-size: 0.85rem;
   cursor: pointer;
 }
+
+/* iOS Safari auto-zooms into any focused input/textarea/select whose font-size is under
+   16px, and doesn't zoom back out — the site-wide fix is a floor on mobile only, so
+   compact desktop sizing (admin forms, the Larry chat input, etc.) is untouched. */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}

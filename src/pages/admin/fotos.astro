@@ -288,14 +288,22 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
           statusEl.textContent = "Escribe algo primero.";
           return;
         }
+        if (btn.disabled) return;
         btn.disabled = true;
-        statusEl.textContent = "Puliendo y traduciendo a 11 idiomas…";
-        const res = await fetch(`/api/photos/${id}/polish-caption?token=${encodeURIComponent(token)}`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ caption }),
-        });
-        const data = await res.json();
+        statusEl.textContent = "Puliendo y traduciendo a 11 idiomas… (puede tardar 20-30 segundos)";
+        let res, data;
+        try {
+          res = await fetch(`/api/photos/${id}/polish-caption?token=${encodeURIComponent(token)}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ caption }),
+          });
+          data = await res.json();
+        } catch (err) {
+          btn.disabled = false;
+          statusEl.textContent = "Se perdió la conexión — intenta de nuevo.";
+          return;
+        }
         btn.disabled = false;
         if (!res.ok) {
           statusEl.textContent = "Error: " + (data.error ?? "desconocido");

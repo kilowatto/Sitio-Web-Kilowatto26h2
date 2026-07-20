@@ -11,7 +11,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   }
 
   const id = params.id;
-  const body = await request.json<{ content?: string }>().catch(() => ({}) as any);
+  const body = await request.json<{ content?: string; hashtags?: string }>().catch(() => ({}) as any);
 
   const current = await env.DB.prepare("SELECT content, original_content, topic_id, platform FROM brand_posts WHERE id = ?")
     .bind(id)
@@ -22,13 +22,13 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   if (wasEdited) {
     await env.DB.prepare(
-      `UPDATE brand_posts SET original_content = ?, content = ?, status = 'approved', approved_at = datetime('now') WHERE id = ?`
+      `UPDATE brand_posts SET original_content = ?, content = ?, hashtags = ?, status = 'approved', approved_at = datetime('now') WHERE id = ?`
     )
-      .bind(current.original_content ?? current.content, body.content, id)
+      .bind(current.original_content ?? current.content, body.content, body.hashtags ?? null, id)
       .run();
   } else {
-    await env.DB.prepare(`UPDATE brand_posts SET status = 'approved', approved_at = datetime('now') WHERE id = ?`)
-      .bind(id)
+    await env.DB.prepare(`UPDATE brand_posts SET hashtags = ?, status = 'approved', approved_at = datetime('now') WHERE id = ?`)
+      .bind(body.hashtags ?? null, id)
       .run();
   }
 

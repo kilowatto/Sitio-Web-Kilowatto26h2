@@ -12,9 +12,10 @@ let recentPosted: any[] = [];
 let recentFailed: any[] = [];
 let topics: any[] = [];
 let paused = false;
+let fixedHashtags = "";
 
 if (authorized && env?.DB) {
-  const [pending, posted, failed, pauseState, topicsRes] = await Promise.all([
+  const [pending, posted, failed, pauseState, topicsRes, fixedHashtagsRes] = await Promise.all([
     env.DB.prepare(
       `SELECT * FROM brand_posts WHERE status = 'pending_approval' ORDER BY variant_group, created_at`
     ).all(),
@@ -26,11 +27,13 @@ if (authorized && env?.DB) {
     ).all(),
     env.KILOWATTO_KV.get("brand_autopilot_paused"),
     env.DB.prepare(`SELECT * FROM brand_topics ORDER BY sort_order`).all(),
+    env.KILOWATTO_KV.get("brand_fixed_hashtags"),
   ]);
   paused = pauseState === "true";
   recentPosted = posted?.results ?? [];
   recentFailed = failed?.results ?? [];
   topics = topicsRes?.results ?? [];
+  fixedHashtags = fixedHashtagsRes ?? "";
 
   const rows = pending?.results ?? [];
   const groups = new Map<string, any[]>();
@@ -81,6 +84,14 @@ if (authorized && env?.DB) {
                     <textarea class="content-box" data-id={p.id}>{p.content}</textarea>
                     <input
                       type="text"
+                      class="hashtags-box"
+                      data-id={p.id}
+                      value={p.hashtags ?? ""}
+                      placeholder="Hashtags de este post (generados por Larry)"
+                    />
+                    <p class="hint hashtags-fixed-hint">+ fijos: {fixedHashtags || "(ninguno configurado)"}</p>
+                    <input
+                      type="text"
                       class="reason-box"
                       data-id={p.id}
                       placeholder="Razón del rechazo (opcional)"
@@ -118,6 +129,12 @@ if (authorized && env?.DB) {
                   <strong>{t.label}</strong>
                 </label>
                 <p class="topic-desc">{t.description}</p>
+                <select class="image-style-select" data-id={t.id}>
+                  <option value="illustration" selected={t.image_style === "illustration"}>🎨 Ilustración abstracta</option>
+                  <option value="infographic" selected={t.image_style === "infographic"}>📊 Infografía</option>
+                  <option value="real_photo" selected={t.image_style === "real_photo"}>📷 Foto real (galería)</option>
+                  <option value="photorealistic" selected={t.image_style === "photorealistic"}>🖼️ Fotorrealista IA</option>
+                </select>
               </li>
             ))}
           </ul>
@@ -132,6 +149,14 @@ if (authorized && env?.DB) {
             <div id="brainstorm-chips" class="brainstorm-chips"></div>
             <button id="brainstorm-save" type="button" style="display:none">Guardar seleccionados</button>
           </div>
+
+          <h2>Hashtags fijos</h2>
+          <p class="hint">Se agregan automáticamente a TODOS los posts al publicar, además de los que Larry genera por post.</p>
+          <div class="brainstorm-input-row">
+            <input type="text" id="fixed-hashtags-input" value={fixedHashtags} placeholder="#Kilowatto #IgniaCloud" />
+            <button id="fixed-hashtags-save" type="button">Guardar</button>
+          </div>
+          <p id="fixed-hashtags-status" class="hint"></p>
 
           <form id="topic-form" class="topic-form">
             <input type="text" id="topic-label" placeholder="Nuevo tema (ej: Cine y series)" required />
@@ -169,10 +194,11 @@ if (authorized && env?.DB) {
       btn.addEventListener("click", async () => {
         const id = btn.dataset.id;
         const textarea = document.querySelector(`.content-box[data-id="${id}"]`);
+        const hashtagsInput = document.querySelector(`.hashtags-box[data-id="${id}"]`);
         await fetch(`/api/brand/${id}/approve?token=${encodeURIComponent(token)}`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ content: textarea?.value }),
+          body: JSON.stringify({ content: textarea?.value, hashtags: hashtagsInput?.value || null }),
         });
         btn.closest(".draft")?.remove();
       });
@@ -203,6 +229,17 @@ if (authorized && env?.DB) {
       });
     });
 
+    document.querySelectorAll(".image-style-select").forEach((sel) => {
+      sel.addEventListener("change", async () => {
+        const id = sel.dataset.id;
+        await fetch(`/api/brand/topics/${id}?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ imageStyle: sel.value }),
+        });
+      });
+    });
+
     document.getElementById("topic-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const label = document.getElementById("topic-label").value.trim();
@@ -214,6 +251,17 @@ if (authorized && env?.DB) {
         body: JSON.stringify({ label, description }),
       });
       location.reload();
+    });
+
+    document.getElementById("fixed-hashtags-save")?.addEventListener("click", async () => {
+      const value = document.getElementById("fixed-hashtags-input").value.trim();
+      const status = document.getElementById("fixed-hashtags-status");
+      await fetch(`/api/brand/fixed-hashtags?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ hashtags: value }),
+      });
+      status.textContent = "Guardado.";
     });
 
     let brainstormSuggestions = [];
@@ -238,26 +286,37 @@ if (authorized && env?.DB) {
       document.getElementById("brainstorm-save").style.display = brainstormSuggestions.length ? "block" : "none";
     }
 
-    document.getElementById("brainstorm-btn")?.addEventListener("click", async () => {
+    document.getElementById("brainstorm-btn")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
       const seed = document.getElementById("brainstorm-seed").value.trim();
       const status = document.getElementById("brainstorm-status");
       if (!seed) {
         status.textContent = "Escribe una idea o palabra primero.";
         return;
       }
-      status.textContent = "Pensando temas…";
-      const res = await fetch(`/api/brand/topics/suggest?token=${encodeURIComponent(token)}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ seed }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.suggestions?.length) {
-        status.textContent = "No se pudieron generar temas, intenta de nuevo.";
-        return;
+      if (btn.disabled) return; // already running, ignore a second tap
+      btn.disabled = true;
+      status.textContent = "Pensando temas… (puede tardar hasta 15 segundos)";
+      try {
+        const res = await fetch(`/api/brand/topics/suggest?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ seed }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.suggestions?.length) {
+          status.textContent = "No se pudieron generar temas, intenta de nuevo.";
+          return;
+        }
+        brainstormSuggestions = data.suggestions;
+        status.textContent = `${brainstormSuggestions.length} temas sugeridos — quita los que no quieras, luego guarda.`;
+      } catch (err) {
+        // A dropped mobile connection or timeout used to leave this stuck on "Pensando
+        // temas…" forever with no way to tell it had failed — now it says so and can retry.
+        status.textContent = "Se perdió la conexión — intenta de nuevo.";
+      } finally {
+        btn.disabled = false;
       }
-      brainstormSuggestions = data.suggestions;
-      status.textContent = `${brainstormSuggestions.length} temas sugeridos — quita los que no quieras, luego guarda.`;
       renderBrainstormChips();
     });
 
@@ -279,10 +338,18 @@ if (authorized && env?.DB) {
       btn.addEventListener("click", async () => {
         const id = btn.dataset.id;
         const img = document.querySelector(`.draft-image[data-id="${id}"]`);
+        if (btn.disabled) return;
         btn.disabled = true;
         btn.textContent = "Buscando otra imagen…";
-        const res = await fetch(`/api/brand/${id}/reject-image?token=${encodeURIComponent(token)}`, { method: "POST" });
-        const data = await res.json();
+        let res, data;
+        try {
+          res = await fetch(`/api/brand/${id}/reject-image?token=${encodeURIComponent(token)}`, { method: "POST" });
+          data = await res.json();
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = "Se perdió la conexión — intenta de nuevo";
+          return;
+        }
         btn.disabled = false;
         btn.textContent = "🖼️ Rechazar imagen (buscar otra)";
         if (res.ok && data.imageKey && img) {
@@ -347,13 +414,23 @@ if (authorized && env?.DB) {
     font-family: inherit;
     resize: vertical;
   }
-  .reason-box {
+  .reason-box,
+  .hashtags-box {
     width: 100%;
     margin-top: 0.4rem;
     padding: 0.4rem 0.6rem;
     border: 1px solid var(--line);
     border-radius: 0.4rem;
     font-size: 0.8rem;
+  }
+
+  .hashtags-box {
+    color: var(--rhino);
+  }
+
+  .hashtags-fixed-hint {
+    margin: 0.2rem 0 0;
+    font-size: 0.72rem;
   }
   .actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
   .actions button { flex: 1; border: none; border-radius: 0.4rem; padding: 0.4rem 0; cursor: pointer; }
@@ -370,6 +447,15 @@ if (authorized && env?.DB) {
   }
   .topic-row label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
   .topic-desc { margin: 0.2rem 0 0 1.6rem; font-size: 0.8rem; color: var(--ink-soft); }
+  .image-style-select {
+    margin: 0.4rem 0 0 1.6rem;
+    font-size: 0.78rem;
+    padding: 0.25rem 0.4rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    background: var(--paper);
+    color: var(--ink);
+  }
   .topic-form {
     display: flex;
     flex-wrap: wrap;

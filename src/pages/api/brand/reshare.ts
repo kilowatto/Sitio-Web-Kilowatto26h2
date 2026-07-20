@@ -7,6 +7,12 @@ export const prerender = false;
 
 const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
+// Same safety net as generate.ts — the model sometimes duplicates hashtags inline at the
+// end of content even when told they belong only in the separate field.
+function stripTrailingHashtags(text: string): string {
+  return text.replace(/(\s*#[\wÀ-ÿ]+)+\s*$/u, "").trim();
+}
+
 // Reshares of already-published press mentions skip human approval (per Esteban's
 // explicit call) — the underlying news item already went through /admin/prensa review,
 // this only adds a short reaction on top of something a human already vetted.
@@ -35,6 +41,7 @@ export const POST: APIRoute = async ({ request }) => {
   for (const m of mentions) {
     for (const platform of ["x", "linkedin"] as const) {
       const limit = platform === "x" ? "máximo ~250 caracteres" : "300-600 caracteres, 1-2 párrafos";
+      const hashtagLimit = platform === "x" ? 2 : 3;
       const prompt = `${voiceBlock}
 
 Esta mención de prensa ya fue revisada y aprobada por Esteban:
@@ -43,33 +50,39 @@ Medio: ${m.outlet}
 Resumen: ${m.summary}
 URL: ${m.url}
 
-Escribe un post breve para ${platform} compartiendo/reaccionando a esta nota, en primera persona, con el tono real de Esteban. ${limit}. No repitas el título literal, agrega una reflexión o contexto propio breve. Responde SOLO un JSON: {"content": "texto del post"}`;
+Escribe un post breve para ${platform} compartiendo/reaccionando a esta nota, en primera persona, con el tono real de Esteban. ${limit}. No repitas el título literal, agrega una reflexión o contexto propio breve.
+
+Los hashtags van SOLO en el campo "hashtags", nunca escritos dentro de "content". Incluye hasta ${hashtagLimit} hashtags contextuales específicos (no genéricos, no de marca — esos se agregan aparte). Responde SOLO un JSON: {"content": "texto del post SIN hashtags", "hashtags": ["#Ejemplo1"]}`;
 
       const result: any = await env.AI.run(MODEL, { messages: [{ role: "user", content: prompt }], max_tokens: 400 });
       const raw = typeof result?.response === "object" ? result.response : null;
       let content: string | null = raw?.content ?? null;
+      let hashtags: string[] = raw?.hashtags ?? [];
       if (!content && typeof result?.response === "string") {
         const match = result.response.match(/\{[\s\S]*\}/);
         if (match) {
           try {
-            content = JSON.parse(match[0])?.content ?? null;
+            const parsed = JSON.parse(match[0]);
+            content = parsed?.content ?? null;
+            hashtags = parsed?.hashtags ?? [];
           } catch {
             content = null;
           }
         }
       }
       if (!content) continue;
+      const cleanContent = stripTrailingHashtags(content);
 
-      const imageKey = await proposeImage(m.title ?? "", content);
+      const imageKey = await proposeImage(m.title ?? "", cleanContent);
 
       const res = await env.DB.prepare(
-        `INSERT INTO brand_posts (platform, kind, language, content, source_url, status, image_r2_key)
-         VALUES (?, 'news_reshare', 'es', ?, ?, 'approved', ?)`
+        `INSERT INTO brand_posts (platform, kind, language, content, source_url, status, image_r2_key, hashtags)
+         VALUES (?, 'news_reshare', 'es', ?, ?, 'approved', ?, ?)`
       )
-        .bind(platform, content, m.url, imageKey)
+        .bind(platform, cleanContent, m.url, imageKey, hashtags.join(" ") || null)
         .run();
 
-      created.push({ id: res.meta.last_row_id, platform, content, source: m.url, imageKey });
+      created.push({ id: res.meta.last_row_id, platform, content: cleanContent, source: m.url, imageKey });
     }
   }
 

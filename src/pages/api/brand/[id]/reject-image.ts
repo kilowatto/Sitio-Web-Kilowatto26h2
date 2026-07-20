@@ -14,7 +14,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   }
 
   const post = await env.DB.prepare(
-    `SELECT bp.content, bp.image_r2_key, bp.topic_id, bt.label AS topic_label
+    `SELECT bp.content, bp.image_r2_key, bp.topic_id, bt.label AS topic_label, bt.image_style
      FROM brand_posts bp LEFT JOIN brand_topics bt ON bt.id = bp.topic_id
      WHERE bp.id = ?`
   )
@@ -22,7 +22,12 @@ export const POST: APIRoute = async ({ params, request }) => {
     .first<any>();
   if (!post) return new Response("not found", { status: 404 });
 
-  const newKey = await proposeImage(post.topic_label ?? "", post.content, post.image_r2_key ?? undefined);
+  const newKey = await proposeImage(
+    post.topic_label ?? "",
+    post.content,
+    post.image_r2_key ?? undefined,
+    post.image_style ?? "illustration"
+  );
 
   await env.DB.prepare("UPDATE brand_posts SET image_r2_key = ? WHERE id = ?").bind(newKey, params.id).run();
 
