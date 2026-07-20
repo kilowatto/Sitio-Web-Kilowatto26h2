@@ -1,5 +1,7 @@
-// Actual posting to X/LinkedIn — inert until Esteban provisions credentials, same
-// pattern as GTM_ID/Turnstile elsewhere in this project: scaffolded, not skipped.
+// Actual posting to X/LinkedIn — inert until Esteban configures credentials at
+// /admin/settings (stored AES-GCM encrypted in D1, not Wrangler secrets — a Worker
+// can't call `wrangler secret put` on itself, so a web-form-editable credential can't
+// live there).
 //
 // X: needs X_BEARER_TOKEN (OAuth2 user-context token with write scope, from a Developer
 //    Portal app on Esteban's own account — posting is pay-per-use now, ~$0.015/post).
@@ -7,6 +9,7 @@
 //    product) + LINKEDIN_PERSON_URN (the numeric member URN, from /v2/userinfo once
 //    authorized). Token expires every 60 days — needs a refresh-token flow before this
 //    can run unattended for long.
+import { decryptSetting } from "./crypto";
 
 interface PublishResult {
   ok: boolean;
@@ -15,14 +18,21 @@ interface PublishResult {
   error?: string;
 }
 
+export async function getSetting(env: any, key: string): Promise<string | null> {
+  const row = await env.DB.prepare("SELECT encrypted_value FROM brand_api_settings WHERE key = ?").bind(key).first<any>();
+  if (!row) return null;
+  return decryptSetting(env, row.encrypted_value);
+}
+
 export async function postToX(env: any, content: string): Promise<PublishResult> {
-  if (!env.X_BEARER_TOKEN) {
-    return { ok: false, error: "X_BEARER_TOKEN no configurado — falta crear la app en developer.x.com" };
+  const bearerToken = await getSetting(env, "X_BEARER_TOKEN");
+  if (!bearerToken) {
+    return { ok: false, error: "X_BEARER_TOKEN no configurado — agrégalo en /admin/settings" };
   }
   const res = await fetch("https://api.x.com/2/tweets", {
     method: "POST",
     headers: {
-      authorization: `Bearer ${env.X_BEARER_TOKEN}`,
+      authorization: `Bearer ${bearerToken}`,
       "content-type": "application/json",
     },
     body: JSON.stringify({ text: content }),
@@ -36,19 +46,23 @@ export async function postToX(env: any, content: string): Promise<PublishResult>
 }
 
 export async function postToLinkedIn(env: any, content: string): Promise<PublishResult> {
-  if (!env.LINKEDIN_ACCESS_TOKEN || !env.LINKEDIN_PERSON_URN) {
-    return { ok: false, error: "LINKEDIN_ACCESS_TOKEN/LINKEDIN_PERSON_URN no configurados — falta registrar la app en LinkedIn Developer Portal" };
+  const [accessToken, personUrn] = await Promise.all([
+    getSetting(env, "LINKEDIN_ACCESS_TOKEN"),
+    getSetting(env, "LINKEDIN_PERSON_URN"),
+  ]);
+  if (!accessToken || !personUrn) {
+    return { ok: false, error: "LINKEDIN_ACCESS_TOKEN/LINKEDIN_PERSON_URN no configurados — agrégalos en /admin/settings" };
   }
   const res = await fetch("https://api.linkedin.com/rest/posts", {
     method: "POST",
     headers: {
-      authorization: `Bearer ${env.LINKEDIN_ACCESS_TOKEN}`,
+      authorization: `Bearer ${accessToken}`,
       "content-type": "application/json",
       "LinkedIn-Version": "202601",
       "X-Restli-Protocol-Version": "2.0.0",
     },
     body: JSON.stringify({
-      author: env.LINKEDIN_PERSON_URN,
+      author: personUrn,
       commentary: content,
       visibility: "PUBLIC",
       distribution: { feedDistribution: "MAIN_FEED", targetEntities: [], thirdPartyDistributionChannels: [] },

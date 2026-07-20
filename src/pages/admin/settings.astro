@@ -1,0 +1,224 @@
+---
+import Base from "../../layouts/Base.astro";
+import AdminLogin from "../../components/AdminLogin.astro";
+import { env } from "cloudflare:workers";
+import { checkAdminAuth } from "../../lib/admin-auth";
+import { getSessionUserId } from "../../lib/session";
+
+const token = await checkAdminAuth(Astro, env);
+const authorized = !!token;
+
+let mustChangePassword = false;
+let passkeys: any[] = [];
+let apiKeyStatus: any[] = [];
+
+if (authorized) {
+  const userId = await getSessionUserId(Astro.cookies, env);
+  const user = await env.DB.prepare("SELECT must_change_password FROM users WHERE id = ?").bind(userId).first<any>();
+  mustChangePassword = !!user?.must_change_password;
+
+  const pk = await env.DB.prepare(
+    "SELECT id, nickname, device_type, created_at, last_used_at FROM webauthn_credentials WHERE user_id = ? ORDER BY created_at"
+  )
+    .bind(userId)
+    .all();
+  passkeys = pk?.results ?? [];
+
+  const settings = await env.DB.prepare("SELECT key, updated_at FROM brand_api_settings").all<any>();
+  const set = new Map((settings?.results ?? []).map((r: any) => [r.key, r.updated_at]));
+  apiKeyStatus = ["X_BEARER_TOKEN", "LINKEDIN_ACCESS_TOKEN", "LINKEDIN_PERSON_URN"].map((k) => ({
+    key: k,
+    configured: set.has(k),
+    updatedAt: set.get(k) ?? null,
+  }));
+}
+---
+
+<Base title="Configuración — Admin">
+  <div class="container admin">
+    {
+      !authorized ? (
+        <AdminLogin />
+      ) : (
+        <>
+          <p class="admin-nav"><a href="/admin">← Panel de administración</a></p>
+          <h1>Configuración</h1>
+
+          {mustChangePassword && (
+            <p class="banner">Tienes que cambiar tu contraseña temporal antes de seguir.</p>
+          )}
+
+          <section>
+            <h2>Contraseña</h2>
+            <form id="password-form">
+              <label for="current-password">Contraseña actual</label>
+              <input
+                type="password"
+                id="current-password"
+                name="current-password"
+                autocomplete="current-password"
+                required
+              />
+
+              <label for="new-password">Nueva contraseña</label>
+              <input
+                type="password"
+                id="new-password"
+                name="new-password"
+                autocomplete="new-password"
+                minlength="12"
+                required
+              />
+
+              <label for="confirm-password">Confirma la nueva contraseña</label>
+              <input
+                type="password"
+                id="confirm-password"
+                name="confirm-password"
+                autocomplete="new-password"
+                minlength="12"
+                required
+              />
+
+              <button type="submit">Cambiar contraseña</button>
+              <p id="password-msg" class="msg" role="alert" />
+            </form>
+          </section>
+
+          <section>
+            <h2>Passkeys</h2>
+            <ul class="passkey-list">
+              {passkeys.map((p: any) => (
+                <li>
+                  {p.nickname ?? p.device_type ?? "Passkey"} — creado {p.created_at}
+                  {p.last_used_at && ` · usado por última vez ${p.last_used_at}`}
+                </li>
+              ))}
+            </ul>
+            <button id="add-passkey" type="button">+ Agregar passkey</button>
+            <p id="passkey-msg" class="msg" role="alert" />
+          </section>
+
+          <section>
+            <h2>Claves de API para redes sociales</h2>
+            <p class="hint">
+              Se guardan cifradas (AES-GCM). Deja un campo vacío para no cambiarlo.
+            </p>
+            <form id="api-keys-form">
+              {apiKeyStatus.map((s: any) => (
+                <div class="key-row">
+                  <label for={s.key}>
+                    {s.key} {s.configured ? <span class="ok">✓ configurado</span> : <span class="missing">sin configurar</span>}
+                  </label>
+                  <input type="password" id={s.key} name={s.key} autocomplete="off" placeholder="•••••••••••••" />
+                </div>
+              ))}
+              <button type="submit">Guardar claves</button>
+              <p id="api-keys-msg" class="msg" role="alert" />
+            </form>
+          </section>
+        </>
+      )
+    }
+  </div>
+
+  <script>
+    import { startRegistration } from "@simplewebauthn/browser";
+
+    document.getElementById("password-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById("password-msg");
+      const currentPassword = document.getElementById("current-password").value;
+      const newPassword = document.getElementById("new-password").value;
+      const confirmPassword = document.getElementById("confirm-password").value;
+      if (newPassword !== confirmPassword) {
+        msg.textContent = "Las contraseñas nuevas no coinciden.";
+        return;
+      }
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      msg.textContent = res.ok ? "Contraseña actualizada." : data.error ?? "Error al cambiar la contraseña.";
+      if (res.ok) setTimeout(() => location.reload(), 1000);
+    });
+
+    document.getElementById("add-passkey")?.addEventListener("click", async () => {
+      const msg = document.getElementById("passkey-msg");
+      try {
+        const options = await fetch("/api/auth/passkey/register-options").then((r) => r.json());
+        const nickname = prompt("Nombre para este passkey (ej: iPhone, 1Password):") || undefined;
+        const attResp = await startRegistration({ optionsJSON: options });
+        const res = await fetch("/api/auth/passkey/register-verify", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ response: attResp, nickname }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          msg.textContent = data.error ?? "No se pudo registrar el passkey.";
+          return;
+        }
+        location.reload();
+      } catch (err) {
+        msg.textContent = err?.message ?? "Cancelado.";
+      }
+    });
+
+    document.getElementById("api-keys-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById("api-keys-msg");
+      const form = e.target;
+      const body = {};
+      for (const key of ["X_BEARER_TOKEN", "LINKEDIN_ACCESS_TOKEN", "LINKEDIN_PERSON_URN"]) {
+        const val = form.querySelector(`#${key}`)?.value;
+        if (val) body[key] = val;
+      }
+      const res = await fetch("/api/settings/api-keys", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      msg.textContent = res.ok ? "Guardado." : "Error al guardar.";
+      if (res.ok) setTimeout(() => location.reload(), 1000);
+    });
+  </script>
+</Base>
+
+<style>
+  .admin { padding-block: var(--space-4); max-width: 32rem; }
+  .admin-nav { margin-bottom: var(--space-2); font-size: 0.85rem; }
+  .banner {
+    background: #b91c1c;
+    color: #fff;
+    padding: 0.6rem 1rem;
+    border-radius: 0.4rem;
+    margin-bottom: var(--space-2);
+  }
+  section { margin-bottom: var(--space-4); }
+  section h2 { margin-bottom: var(--space-2); }
+  form { display: flex; flex-direction: column; gap: 0.5rem; }
+  label { font-size: 0.85rem; color: var(--ink-soft); }
+  input {
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+  }
+  button[type="submit"], #add-passkey {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+    margin-top: 0.4rem;
+  }
+  .msg { font-size: 0.85rem; color: var(--ink-soft); min-height: 1.2em; }
+  .passkey-list { list-style: none; padding: 0; font-size: 0.9rem; color: var(--ink-soft); margin-bottom: 0.6rem; }
+  .key-row { margin-bottom: 0.6rem; }
+  .ok { color: var(--rhino); font-size: 0.75rem; }
+  .missing { color: #b91c1c; font-size: 0.75rem; }
+  .hint { color: var(--ink-soft); font-size: 0.85rem; }
+</style>

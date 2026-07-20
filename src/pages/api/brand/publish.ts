@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { publishPost } from "../../../lib/social-publish";
+import { publishPost, getSetting } from "../../../lib/social-publish";
 
 export const prerender = false;
 
@@ -17,10 +17,12 @@ async function countPostedToday(platform: string) {
 }
 
 async function recordMetrics(brandPostId: number, platform: string, externalId: string) {
-  if (platform !== "x" || !env.X_BEARER_TOKEN) return; // LinkedIn metrics endpoint not wired yet
+  if (platform !== "x") return; // LinkedIn metrics endpoint not wired yet
+  const bearerToken = await getSetting(env, "X_BEARER_TOKEN");
+  if (!bearerToken) return;
   try {
     const res = await fetch(`https://api.x.com/2/tweets/${externalId}?tweet.fields=public_metrics`, {
-      headers: { authorization: `Bearer ${env.X_BEARER_TOKEN}` },
+      headers: { authorization: `Bearer ${bearerToken}` },
     });
     if (!res.ok) return;
     const data: any = await res.json();

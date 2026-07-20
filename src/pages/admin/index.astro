@@ -4,7 +4,7 @@ import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
 import { checkAdminAuth } from "../../lib/admin-auth";
 
-const token = checkAdminAuth(Astro, env);
+const token = await checkAdminAuth(Astro, env);
 const authorized = !!token;
 
 let fotosCount = 0;
@@ -39,7 +39,13 @@ const sections = [
         <AdminLogin />
       ) : (
         <>
-          <h1>Panel de administración</h1>
+          <div class="top-row">
+            <h1>Panel de administración</h1>
+            <div class="top-actions">
+              <a href="/admin/settings">Configuración</a>
+              <button id="logout-btn" type="button">Cerrar sesión</button>
+            </div>
+          </div>
           <div class="sections">
             {sections.map((s) => (
               <a href={s.href} class="section-card">
@@ -53,11 +59,39 @@ const sections = [
       )
     }
   </div>
+
+  <script>
+    document.getElementById("logout-btn")?.addEventListener("click", async () => {
+      await fetch("/api/auth/logout", { method: "POST" });
+      location.reload();
+    });
+  </script>
 </Base>
 
 <style>
   .admin-hub {
     padding-block: var(--space-4);
+  }
+  .top-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.85rem;
+  }
+  .top-actions button {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    padding: 0.35rem 0.8rem;
+    cursor: pointer;
+    color: inherit;
   }
   .sections {
     display: grid;

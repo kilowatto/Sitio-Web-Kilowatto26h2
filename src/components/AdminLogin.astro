@@ -1,15 +1,113 @@
 ---
-// Plain GET form — no JS needed. Submitting redirects to the same page with ?token=,
-// checkAdminAuth() picks it up and sets the cookie, so this only has to happen once.
+// Real auth: email + password, or a passkey. Field structure follows 1Password's
+// published compatibility guidance (developer.1password.com/docs/web/compatible-website-design):
+// stable unique ids/names, fields wrapped in one <form>, explicit <label for>,
+// autocomplete="username"/"current-password", and the WebAuthn "webauthn" autocomplete
+// token (must be last in the attribute value) on the username field to enable
+// conditional-UI passkey autofill.
 ---
 
 <div class="admin-login">
-  <p>Ingresa el token de administrador. Solo lo pides una vez — después queda guardado.</p>
-  <form method="GET">
-    <input type="password" name="token" placeholder="Token" autofocus />
+  <h1>Iniciar sesión</h1>
+
+  <form id="login-form" method="post">
+    <label for="login-email">Correo</label>
+    <input
+      type="email"
+      id="login-email"
+      name="email"
+      autocomplete="username webauthn"
+      value="esteban.rey.ortega@gmail.com"
+      required
+    />
+
+    <label for="login-password">Contraseña</label>
+    <input type="password" id="login-password" name="password" autocomplete="current-password" required />
+
     <button type="submit">Entrar</button>
+    <p id="login-error" class="error" role="alert"></p>
   </form>
+
+  <button type="button" id="passkey-btn" class="passkey-btn">🔑 Entrar con passkey</button>
 </div>
+
+<script>
+  import { startAuthentication } from "@simplewebauthn/browser";
+
+  const form = document.getElementById("login-form") as HTMLFormElement;
+  const errorEl = document.getElementById("login-error")!;
+  const passkeyBtn = document.getElementById("passkey-btn") as HTMLButtonElement;
+
+  function showError(msg: string) {
+    errorEl.textContent = msg;
+  }
+
+  async function finishLogin(mustChangePassword: boolean) {
+    if (mustChangePassword) {
+      location.href = "/admin/settings";
+    } else {
+      location.reload();
+    }
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showError("");
+    const email = (document.getElementById("login-email") as HTMLInputElement).value;
+    const password = (document.getElementById("login-password") as HTMLInputElement).value;
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showError(data.error ?? "No se pudo iniciar sesión.");
+      return;
+    }
+    await finishLogin(data.mustChangePassword);
+  });
+
+  passkeyBtn.addEventListener("click", async () => {
+    showError("");
+    try {
+      const options = await fetch("/api/auth/passkey/login-options").then((r) => r.json());
+      const authResponse = await startAuthentication({ optionsJSON: options });
+      const verifyRes = await fetch("/api/auth/passkey/login-verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ response: authResponse }),
+      });
+      const data = await verifyRes.json();
+      if (!verifyRes.ok) {
+        showError(data.error ?? "No se pudo verificar el passkey.");
+        return;
+      }
+      await finishLogin(false);
+    } catch (err: any) {
+      showError(err?.message ?? "Passkey cancelado.");
+    }
+  });
+
+  // Conditional UI: silently offer the passkey the moment the email field is focused,
+  // without waiting for a button click — this is what 1Password/iCloud Keychain hook into.
+  (async () => {
+    if (!(await PublicKeyCredential.isConditionalMediationAvailable?.())) return;
+    try {
+      const options = await fetch("/api/auth/passkey/login-options").then((r) => r.json());
+      const authResponse = await startAuthentication({ optionsJSON: options, useBrowserAutofill: true });
+      const verifyRes = await fetch("/api/auth/passkey/login-verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ response: authResponse }),
+      });
+      const data = await verifyRes.json();
+      if (verifyRes.ok) await finishLogin(false);
+    } catch {
+      // silent — conditional UI failing/cancelling is normal, the password field still works
+    }
+  })();
+</script>
 
 <style>
   .admin-login {
@@ -19,21 +117,42 @@
   }
   .admin-login form {
     display: flex;
+    flex-direction: column;
     gap: 0.5rem;
     margin-top: var(--space-2);
+    text-align: left;
+  }
+  .admin-login label {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
   }
   .admin-login input {
-    flex: 1;
     padding: 0.6rem 0.8rem;
     border: 1px solid var(--line);
     border-radius: 0.4rem;
   }
-  .admin-login button {
+  .admin-login button[type="submit"] {
     background: var(--ink);
     color: var(--paper);
     border: none;
     border-radius: 0.4rem;
     padding: 0.6rem 1.2rem;
     cursor: pointer;
+    margin-top: 0.4rem;
+  }
+  .passkey-btn {
+    margin-top: var(--space-2);
+    background: var(--rhino);
+    color: #fff;
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+    width: 100%;
+  }
+  .error {
+    color: #b91c1c;
+    font-size: 0.85rem;
+    min-height: 1.2em;
   }
 </style>

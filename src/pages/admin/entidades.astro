@@ -4,7 +4,7 @@ import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
 import { checkAdminAuth } from "../../lib/admin-auth";
 
-const token = checkAdminAuth(Astro, env);
+const token = await checkAdminAuth(Astro, env);
 const authorized = !!token;
 
 let pending: any[] = [];
