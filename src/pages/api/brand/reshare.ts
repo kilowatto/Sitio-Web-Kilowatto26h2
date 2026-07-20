@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { buildVoiceContext, voicePromptBlock } from "../../../lib/brand-voice";
+import { proposeImage } from "../../../lib/brand-image";
 
 export const prerender = false;
 
@@ -59,14 +60,16 @@ Escribe un post breve para ${platform} compartiendo/reaccionando a esta nota, en
       }
       if (!content) continue;
 
+      const imageKey = await proposeImage(m.title ?? "", content);
+
       const res = await env.DB.prepare(
-        `INSERT INTO brand_posts (platform, kind, language, content, source_url, status)
-         VALUES (?, 'news_reshare', 'es', ?, ?, 'approved')`
+        `INSERT INTO brand_posts (platform, kind, language, content, source_url, status, image_r2_key)
+         VALUES (?, 'news_reshare', 'es', ?, ?, 'approved', ?)`
       )
-        .bind(platform, content, m.url)
+        .bind(platform, content, m.url, imageKey)
         .run();
 
-      created.push({ id: res.meta.last_row_id, platform, content, source: m.url });
+      created.push({ id: res.meta.last_row_id, platform, content, source: m.url, imageKey });
     }
   }
 

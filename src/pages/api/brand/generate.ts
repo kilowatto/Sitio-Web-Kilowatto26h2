@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { buildVoiceContext, voicePromptBlock } from "../../../lib/brand-voice";
+import { buildVoiceContext, voicePromptBlock, buildLearningContext } from "../../../lib/brand-voice";
+import { proposeImage } from "../../../lib/brand-image";
 
 export const prerender = false;
 
@@ -56,8 +57,11 @@ export const POST: APIRoute = async ({ request }) => {
 
   const { voiceSamples, bioFacts } = await buildVoiceContext(env.DB);
   const voiceBlock = voicePromptBlock(voiceSamples, bioFacts);
+  const learningBlock = await buildLearningContext(env.DB);
 
   const prompt = `${voiceBlock}
+
+${learningBlock}
 
 Tema para este post: "${topic.label}" — ${topic.description}
 Plataforma: ${body.platform}. ${PLATFORM_GUIDANCE[body.platform]}
@@ -74,6 +78,9 @@ Genera EXACTAMENTE 2 variantes distintas del mismo post (para prueba A/B), cada 
 
   const variantGroup = crypto.randomUUID();
   const inserted: any[] = [];
+  // One shared image per variant group (A/B tests the copy, not the picture) — tries an
+  // approved real photo matching the topic first, only generates via AI if nothing fits.
+  const imageKey = await proposeImage(topic.label, variants[0]?.content ?? topic.label);
 
   for (const v of variants) {
     if (!v?.content) continue;
@@ -81,13 +88,13 @@ Genera EXACTAMENTE 2 variantes distintas del mismo post (para prueba A/B), cada 
     const rejectionNote = check.grounded === false ? `fact-check: ${check.issue}` : null;
 
     const res = await env.DB.prepare(
-      `INSERT INTO brand_posts (platform, kind, topic_id, language, content, variant_group, variant_style, status, rejection_reason)
-       VALUES (?, 'idea', ?, ?, ?, ?, ?, 'pending_approval', ?)`
+      `INSERT INTO brand_posts (platform, kind, topic_id, language, content, variant_group, variant_style, status, rejection_reason, image_r2_key)
+       VALUES (?, 'idea', ?, ?, ?, ?, ?, 'pending_approval', ?, ?)`
     )
-      .bind(body.platform, topic.id, body.language, v.content, variantGroup, v.style ?? null, rejectionNote)
+      .bind(body.platform, topic.id, body.language, v.content, variantGroup, v.style ?? null, rejectionNote, imageKey)
       .run();
 
-    inserted.push({ id: res.meta.last_row_id, style: v.style, content: v.content, flagged: !!rejectionNote });
+    inserted.push({ id: res.meta.last_row_id, style: v.style, content: v.content, flagged: !!rejectionNote, imageKey });
   }
 
   return new Response(JSON.stringify({ ok: true, topic: topic.label, variantGroup, inserted }), {

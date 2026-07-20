@@ -67,7 +67,14 @@ if (authorized && env?.DB) {
                       {p.platform.toUpperCase()} · variante {p.variant_style ?? "?"}
                       {p.rejection_reason && <span class="warn"> ⚠️ {p.rejection_reason}</span>}
                     </p>
+                    {p.image_r2_key && <img class="draft-image" src={`/media/${p.image_r2_key}`} alt="" loading="lazy" />}
                     <textarea class="content-box" data-id={p.id}>{p.content}</textarea>
+                    <input
+                      type="text"
+                      class="reason-box"
+                      data-id={p.id}
+                      placeholder="Razón del rechazo (opcional)"
+                    />
                     <div class="actions">
                       <button class="approve" data-id={p.id}>Aprobar</button>
                       <button class="reject" data-id={p.id}>Rechazar</button>
@@ -133,7 +140,13 @@ if (authorized && env?.DB) {
     document.querySelectorAll(".reject").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const id = btn.dataset.id;
-        await fetch(`/api/brand/${id}/reject?token=${encodeURIComponent(token)}`, { method: "POST" });
+        const reasonBox = document.querySelector(`.reason-box[data-id="${id}"]`);
+        const reason = reasonBox?.value?.trim() || undefined;
+        await fetch(`/api/brand/${id}/reject?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ reason }),
+        });
         btn.closest(".draft")?.remove();
       });
     });
@@ -175,6 +188,13 @@ if (authorized && env?.DB) {
   .draft--flagged { border-color: #b91c1c; }
   .meta { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-soft); margin: 0 0 0.4rem; }
   .warn { color: #b91c1c; }
+  .draft-image {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    border-radius: 0.4rem;
+    margin-bottom: 0.5rem;
+  }
   .content-box {
     width: 100%;
     min-height: 6rem;
@@ -183,6 +203,14 @@ if (authorized && env?.DB) {
     padding: 0.5rem;
     font-family: inherit;
     resize: vertical;
+  }
+  .reason-box {
+    width: 100%;
+    margin-top: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    font-size: 0.8rem;
   }
   .actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
   .actions button { flex: 1; border: none; border-radius: 0.4rem; padding: 0.4rem 0; cursor: pointer; }

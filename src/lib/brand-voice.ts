@@ -39,3 +39,36 @@ ${JSON.stringify(bioFacts, null, 2)}
 
 ${FORBIDDEN_TOPICS_NOTE}`;
 }
+
+// Feeds Esteban's own edits and rejection reasons back into future generation — this is
+// the actual learning loop, not just storage: without reading this back into the prompt,
+// recording original_content/rejection_reason in D1 would just be a dead audit log.
+export async function buildLearningContext(DB: any): Promise<string> {
+  const [rejected, edited] = await Promise.all([
+    DB.prepare(
+      `SELECT content, rejection_reason FROM brand_posts
+       WHERE status = 'rejected' AND rejection_reason IS NOT NULL AND rejection_reason != ''
+       ORDER BY created_at DESC LIMIT 8`
+    ).all<any>(),
+    DB.prepare(
+      `SELECT original_content, content FROM brand_posts
+       WHERE original_content IS NOT NULL
+       ORDER BY approved_at DESC LIMIT 8`
+    ).all<any>(),
+  ]);
+
+  const rejectedRows = rejected?.results ?? [];
+  const editedRows = edited?.results ?? [];
+  if (rejectedRows.length === 0 && editedRows.length === 0) return "";
+
+  const rejectedBlock = rejectedRows
+    .map((r: any) => `- Rechazado: "${r.content.slice(0, 120)}" — razón: ${r.rejection_reason}`)
+    .join("\n");
+  const editedBlock = editedRows
+    .map((r: any) => `- Original: "${r.original_content.slice(0, 100)}" → Esteban lo cambió a: "${r.content.slice(0, 100)}"`)
+    .join("\n");
+
+  return `Aprende de esto — patrones reales de lo que Esteban ha rechazado o corregido antes, para NO repetir los mismos errores de tono, palabras, datos inventados, etc.:
+${rejectedBlock}
+${editedBlock}`;
+}
