@@ -6,16 +6,21 @@ import { env } from "cloudflare:workers";
 let profile = null;
 let companies: any[] = [];
 let investments: any[] = [];
+let heroPhoto: any = null;
 
 if (env?.DB) {
-  const [profileRes, companiesRes, investmentsRes] = await Promise.all([
+  const [profileRes, companiesRes, investmentsRes, heroPhotoRes] = await Promise.all([
     env.DB.prepare("SELECT * FROM profile WHERE id = 1").first(),
     env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all(),
     env.DB.prepare("SELECT * FROM investments ORDER BY sort_order").all(),
+    env.DB.prepare(
+      "SELECT r2_key FROM photos WHERE approval_status = 'approved' AND solo_subject = 1 ORDER BY RANDOM() LIMIT 1"
+    ).first(),
   ]);
   profile = profileRes;
   companies = companiesRes?.results ?? [];
   investments = investmentsRes?.results ?? [];
+  heroPhoto = heroPhotoRes;
 }
 
 const latestCompanies = companies.slice(-3).reverse();
@@ -39,14 +44,17 @@ const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rh
   })} />
 
   <section class="hero">
-    <div class="container">
-      <p class="eyebrow">Esteban Rey · CEO, Ignia Cloud</p>
-      <h1>Serio.<br />Pero no solemne.</h1>
-      <Spark />
-      <p class="hero__sub">
-        {profile?.bio_short ??
-          "25+ años construyendo tecnología, empresas y equipos en América Latina."}
-      </p>
+    <div class="container hero__inner">
+      <div>
+        <p class="eyebrow">Esteban Rey · CEO, Ignia Cloud</p>
+        <h1>Serio.<br />Pero no solemne.</h1>
+        <Spark />
+        <p class="hero__sub">
+          {profile?.bio_short ??
+            "25+ años construyendo tecnología, empresas y equipos en América Latina."}
+        </p>
+      </div>
+      {heroPhoto && <img class="hero__photo" src={`/media/${heroPhoto.r2_key}`} alt="Esteban Rey" />}
     </div>
   </section>
 
@@ -125,6 +133,31 @@ const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rh
 <style>
   .hero {
     padding-block: var(--space-5) var(--space-4);
+  }
+
+  .hero__inner {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: var(--space-3);
+  }
+
+  .hero__photo {
+    width: 100%;
+    max-width: 22rem;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+    border-radius: 0.75rem;
+  }
+
+  @media (min-width: 900px) {
+    .hero__inner {
+      flex-direction: row;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+    .hero__photo {
+      flex-shrink: 0;
+    }
   }
 
   .hero h1 {

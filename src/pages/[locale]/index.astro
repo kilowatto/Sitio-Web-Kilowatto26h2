@@ -11,19 +11,24 @@ if (!locale || locale.canonical) return Astro.redirect("/", 302);
 let profile: any = null;
 let companies: any[] = [];
 let investments: any[] = [];
+let heroPhoto: any = null;
 let profileTr = new Map<string, string>();
 let companiesTr = new Map<string, string>();
 let investmentsTr = new Map<string, string>();
 
 if (env?.DB) {
-  const [profileRes, companiesRes, investmentsRes] = await Promise.all([
+  const [profileRes, companiesRes, investmentsRes, heroPhotoRes] = await Promise.all([
     env.DB.prepare("SELECT * FROM profile WHERE id = 1").first(),
     env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all(),
     env.DB.prepare("SELECT * FROM investments ORDER BY sort_order").all(),
+    env.DB.prepare(
+      "SELECT r2_key FROM photos WHERE approval_status = 'approved' AND solo_subject = 1 ORDER BY RANDOM() LIMIT 1"
+    ).first(),
   ]);
   profile = profileRes;
   companies = companiesRes?.results ?? [];
   investments = investmentsRes?.results ?? [];
+  heroPhoto = heroPhotoRes;
   [profileTr, companiesTr, investmentsTr] = await Promise.all([
     loadTranslations(env.DB, "profile", locale.code),
     loadTranslations(env.DB, "companies", locale.code),
@@ -38,11 +43,14 @@ const bio = t(profileTr, 1, "bio_short", profile?.bio_short) ?? "25+ years build
 
 <Site title="Esteban Rey — Kilowatto" active={`/${locale.code}`} locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
   <section class="hero">
-    <div class="container">
-      <p class="eyebrow">Esteban Rey · CEO, Ignia Cloud</p>
-      <h1>Serio.<br />Pero no solemne.</h1>
-      <Spark />
-      <p class="hero__sub">{bio}</p>
+    <div class="container hero__inner">
+      <div>
+        <p class="eyebrow">Esteban Rey · CEO, Ignia Cloud</p>
+        <h1>Serio.<br />Pero no solemne.</h1>
+        <Spark />
+        <p class="hero__sub">{bio}</p>
+      </div>
+      {heroPhoto && <img class="hero__photo" src={`/media/${heroPhoto.r2_key}`} alt="Esteban Rey" />}
     </div>
   </section>
 
@@ -91,6 +99,28 @@ const bio = t(profileTr, 1, "bio_short", profile?.bio_short) ?? "25+ years build
 <style>
   .hero {
     padding-block: var(--space-5) var(--space-4);
+  }
+  .hero__inner {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: var(--space-3);
+  }
+  .hero__photo {
+    width: 100%;
+    max-width: 22rem;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+    border-radius: 0.75rem;
+  }
+  @media (min-width: 900px) {
+    .hero__inner {
+      flex-direction: row;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+    .hero__photo {
+      flex-shrink: 0;
+    }
   }
   .hero h1 {
     font-family: var(--font-display);

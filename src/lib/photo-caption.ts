@@ -11,6 +11,11 @@ const CAPTION_PROMPT = "Describe esta foto en una sola oración breve en españo
 const SAFETY_PROMPT =
   "Responde con SOLO una palabra, sin explicación: yes si aparece alguna persona que parezca ser menor de 18 años en esta imagen, " +
   "no si estás seguro de que todas las personas son adultas, o unsure si no estás seguro.";
+const SOLO_PROMPT =
+  "Esta foto ¿tiene a una sola persona como protagonista claro y foco de la imagen? Cuenta como YES aunque haya una audiencia, público, u otras " +
+  "personas borrosas o lejanas de fondo — lo que importa es si hay UN protagonista en primer plano/foco (ej: alguien dando un discurso en un podio " +
+  "cuenta como YES aunque se vea gente detrás o abajo). Responde NO solo si hay dos o más personas igual de prominentes en primer plano compartiendo el foco. " +
+  "Responde con SOLO una palabra: yes o no.";
 
 // Independent of the model's own answer — the 2026-07-19 incident showed the model can
 // describe a minor in the caption sentence itself even when its safety answer says "no".
@@ -32,24 +37,30 @@ async function runVision(bytes: Uint8Array, prompt: string, maxTokens: number): 
   }
 }
 
-export async function captionAndFlag(bytes: Uint8Array): Promise<{ caption: string; minorFlag: "clear" | "flagged" }> {
-  const [captionResult, safetyResult] = await Promise.all([
+export async function captionAndFlag(
+  bytes: Uint8Array
+): Promise<{ caption: string; minorFlag: "clear" | "flagged"; soloSubject: boolean }> {
+  const [captionResult, safetyResult, soloResult] = await Promise.all([
     runVision(bytes, CAPTION_PROMPT, 100),
     runVision(bytes, SAFETY_PROMPT, 10),
+    runVision(bytes, SOLO_PROMPT, 10),
   ]);
 
   if (captionResult === null && safetyResult === null) {
     // Both calls failed outright (e.g. "Request is too large") — fail closed, but say why
     // instead of silently flagging with no explanation.
-    return { caption: "(no se pudo analizar automáticamente — revisar manualmente)", minorFlag: "flagged" };
+    return { caption: "(no se pudo analizar automáticamente — revisar manualmente)", minorFlag: "flagged", soloSubject: false };
   }
 
   const caption = captionResult ?? "(sin descripción — falló el análisis automático)";
   const safetyAnswer = safetyResult?.toLowerCase().match(/\b(yes|no|unsure)\b/)?.[1];
   const modelSaysClear = safetyAnswer === "no";
   const captionMentionsMinor = MINOR_KEYWORDS.test(caption);
+  // The model sometimes answers in Spanish ("sí") despite the yes/no instruction wording —
+  // same class of bug as the MINOR field being missed entirely. Accept both.
+  const soloSubject = soloResult?.toLowerCase().match(/\b(yes|s[ií])\b/) != null;
 
   // A failed/ambiguous safety call is treated the same as "unsure" — fail closed.
   const minorFlag = modelSaysClear && !captionMentionsMinor ? "clear" : "flagged";
-  return { caption, minorFlag };
+  return { caption, minorFlag, soloSubject };
 }

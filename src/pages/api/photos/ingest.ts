@@ -22,16 +22,16 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const bytes = new Uint8Array(await object.arrayBuffer());
-  const { caption, minorFlag } = await captionAndFlag(bytes);
+  const { caption, minorFlag, soloSubject } = await captionAndFlag(bytes);
 
   await env.DB.prepare(
-    `INSERT INTO photos (r2_key, ai_caption, album, taken_date, taken_city, minor_flag, approval_status)
-     VALUES (?, ?, ?, ?, ?, ?, 'pending')`
+    `INSERT INTO photos (r2_key, ai_caption, album, taken_date, taken_city, minor_flag, solo_subject, approval_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`
   )
-    .bind(body.r2_key, caption, body.album ?? null, body.taken_date ?? null, body.taken_city ?? null, minorFlag)
+    .bind(body.r2_key, caption, body.album ?? null, body.taken_date ?? null, body.taken_city ?? null, minorFlag, soloSubject ? 1 : 0)
     .run();
 
-  return new Response(JSON.stringify({ ok: true, ai_caption: caption, minor_flag: minorFlag }), {
+  return new Response(JSON.stringify({ ok: true, ai_caption: caption, minor_flag: minorFlag, solo_subject: soloSubject }), {
     headers: { "content-type": "application/json" },
   });
 };

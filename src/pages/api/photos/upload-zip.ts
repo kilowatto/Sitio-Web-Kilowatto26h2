@@ -66,13 +66,13 @@ export const POST: APIRoute = async ({ request }) => {
         httpMetadata: { contentType: ext === "png" ? "image/png" : "image/jpeg" },
       });
 
-      const { caption, minorFlag } = await captionAndFlag(cleaned);
+      const { caption, minorFlag, soloSubject } = await captionAndFlag(cleaned);
 
       await env.DB.prepare(
-        `INSERT INTO photos (r2_key, ai_caption, album, taken_date, taken_city, minor_flag, approval_status)
-         VALUES (?, ?, ?, ?, ?, ?, 'pending')`
+        `INSERT INTO photos (r2_key, ai_caption, album, taken_date, taken_city, minor_flag, solo_subject, approval_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`
       )
-        .bind(key, caption, album, takenDate, takenCity, minorFlag)
+        .bind(key, caption, album, takenDate, takenCity, minorFlag, soloSubject ? 1 : 0)
         .run();
 
       processed.push(name);
