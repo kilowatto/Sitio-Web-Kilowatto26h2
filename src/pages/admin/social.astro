@@ -10,10 +10,11 @@ const authorized = !!token;
 let pendingGroups: any[] = [];
 let recentPosted: any[] = [];
 let recentFailed: any[] = [];
+let topics: any[] = [];
 let paused = false;
 
 if (authorized && env?.DB) {
-  const [pending, posted, failed, pauseState] = await Promise.all([
+  const [pending, posted, failed, pauseState, topicsRes] = await Promise.all([
     env.DB.prepare(
       `SELECT * FROM brand_posts WHERE status = 'pending_approval' ORDER BY variant_group, created_at`
     ).all(),
@@ -24,10 +25,12 @@ if (authorized && env?.DB) {
       `SELECT * FROM brand_posts WHERE status = 'failed' ORDER BY created_at DESC LIMIT 10`
     ).all(),
     env.KILOWATTO_KV.get("brand_autopilot_paused"),
+    env.DB.prepare(`SELECT * FROM brand_topics ORDER BY sort_order`).all(),
   ]);
   paused = pauseState === "true";
   recentPosted = posted?.results ?? [];
   recentFailed = failed?.results ?? [];
+  topics = topicsRes?.results ?? [];
 
   const rows = pending?.results ?? [];
   const groups = new Map<string, any[]>();
@@ -98,6 +101,25 @@ if (authorized && env?.DB) {
             </>
           )}
 
+          <h2>Temas</h2>
+          <p class="hint">Larry solo elige entre los temas activos. Desactiva los que no quieras que toque, sin borrarlos.</p>
+          <ul class="topics-list">
+            {topics.map((t: any) => (
+              <li class="topic-row" data-id={t.id}>
+                <label>
+                  <input type="checkbox" class="topic-toggle" data-id={t.id} checked={!!t.active} />
+                  <strong>{t.label}</strong>
+                </label>
+                <p class="topic-desc">{t.description}</p>
+              </li>
+            ))}
+          </ul>
+          <form id="topic-form" class="topic-form">
+            <input type="text" id="topic-label" placeholder="Nuevo tema (ej: Cine y series)" required />
+            <input type="text" id="topic-desc" placeholder="Descripción breve" />
+            <button type="submit">+ Agregar tema</button>
+          </form>
+
           <h2>Publicados recientemente</h2>
           <ul class="log">
             {recentPosted.map((p: any) => (
@@ -149,6 +171,30 @@ if (authorized && env?.DB) {
         });
         btn.closest(".draft")?.remove();
       });
+    });
+
+    document.querySelectorAll(".topic-toggle").forEach((box) => {
+      box.addEventListener("change", async () => {
+        const id = box.dataset.id;
+        await fetch(`/api/brand/topics/${id}?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ active: box.checked }),
+        });
+      });
+    });
+
+    document.getElementById("topic-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const label = document.getElementById("topic-label").value.trim();
+      const description = document.getElementById("topic-desc").value.trim();
+      if (!label) return;
+      await fetch(`/api/brand/topics?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label, description }),
+      });
+      location.reload();
     });
   </script>
 </Base>
@@ -218,4 +264,34 @@ if (authorized && env?.DB) {
   .reject { background: var(--mist); color: var(--ink); }
 
   .log { font-size: 0.85rem; color: var(--ink-soft); display: grid; gap: 0.3rem; }
+
+  .topics-list { list-style: none; padding: 0; display: grid; gap: 0.5rem; margin-bottom: var(--space-2); }
+  .topic-row {
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    padding: 0.5rem 0.8rem;
+  }
+  .topic-row label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+  .topic-desc { margin: 0.2rem 0 0 1.6rem; font-size: 0.8rem; color: var(--ink-soft); }
+  .topic-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: var(--space-3);
+  }
+  .topic-form input {
+    flex: 1;
+    min-width: 10rem;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+  }
+  .topic-form button {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+  }
 </style>

@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { buildVoiceContext, voicePromptBlock, buildLearningContext } from "../../../lib/brand-voice";
+import { buildVoiceContext, voicePromptBlock } from "../../../lib/brand-voice";
+import { retrieveLearningContext } from "../../../lib/brand-learning";
 import { proposeImage } from "../../../lib/brand-image";
 
 export const prerender = false;
@@ -57,7 +58,9 @@ export const POST: APIRoute = async ({ request }) => {
 
   const { voiceSamples, bioFacts } = await buildVoiceContext(env.DB);
   const voiceBlock = voicePromptBlock(voiceSamples, bioFacts);
-  const learningBlock = await buildLearningContext(env.DB);
+  // Vector-retrieved, not a flat SQL dump — only feedback semantically relevant to THIS
+  // topic comes back, instead of the last N rejections/edits regardless of subject.
+  const learningBlock = await retrieveLearningContext(topic.label, topic.description ?? "");
 
   const prompt = `${voiceBlock}
 

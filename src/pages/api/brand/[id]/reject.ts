@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { recordFeedback } from "../../../../lib/brand-learning";
 
 export const prerender = false;
 
@@ -10,13 +11,27 @@ export const POST: APIRoute = async ({ params, request }) => {
   }
 
   const body = await request.json<{ reason?: string }>().catch(() => ({}) as any);
+  const reason = body?.reason || null;
+
+  const post = await env.DB.prepare("SELECT content, topic_id, platform FROM brand_posts WHERE id = ?")
+    .bind(params.id)
+    .first<any>();
 
   // Reason is genuinely optional (Esteban's call — forcing it every time kills the habit
-  // of using it at all) — store NULL when absent so buildLearningContext's filter treats
-  // it as "no signal" instead of feeding a meaningless placeholder back into future prompts.
+  // of using it at all) — store NULL when absent so it's excluded from the vector feedback
+  // store as "no signal" instead of embedding a meaningless placeholder.
   await env.DB.prepare(`UPDATE brand_posts SET status = 'rejected', rejection_reason = ? WHERE id = ?`)
-    .bind(body?.reason || null, params.id)
+    .bind(reason, params.id)
     .run();
+
+  if (reason && post) {
+    await recordFeedback({
+      type: "rejection",
+      text: `Post: "${post.content.slice(0, 150)}" — Rechazado porque: ${reason}`,
+      topicId: post.topic_id,
+      platform: post.platform,
+    });
+  }
 
   return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });
 };

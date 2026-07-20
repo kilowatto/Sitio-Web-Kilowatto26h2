@@ -37,6 +37,10 @@
     {
       "binding": "VECTORIZE",
       "index_name": "kilowatto-embeddings"
+    },
+    {
+      "binding": "BRAND_FEEDBACK",
+      "index_name": "kilowatto-brand-feedback"
     }
   ],
   "ai": {
