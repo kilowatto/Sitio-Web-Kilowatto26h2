@@ -12,6 +12,8 @@ if (authorized && env?.DB) {
     .all();
   pending = res?.results ?? [];
 }
+
+const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length;
 ---
 
 <Base title="Revisión de fotos — Admin">
@@ -23,34 +25,61 @@ if (authorized && env?.DB) {
         <>
           <h1>Fotos pendientes de aprobar ({pending.length})</h1>
           <p class="hint">
-            Las marcadas <strong>"posible menor"</strong> necesitan una confirmación extra antes de aprobarse —
-            nunca se publican con un solo clic.
+            Las marcadas <strong>"posible menor"</strong> siempre necesitan un segundo clic de confirmación,
+            una por una — nunca se publican de golpe. Las demás sí puedes seleccionarlas y aprobarlas en lote.
           </p>
+
+          <form id="upload-form" class="upload-form">
+            <input type="file" id="zip-input" accept=".zip" required />
+            <input type="text" id="album-input" placeholder="álbum (ej: familia)" value="familia" />
+            <button type="submit">Subir zip</button>
+            <span id="upload-status"></span>
+          </form>
+          <p class="hint upload-note">
+            JPG/PNG se procesan aquí mismo (caption + EXIF + flag de menor, igual que siempre). HEIC y video todavía
+            necesitan el script local — este formulario los reporta como omitidos en vez de fallar.
+          </p>
+
+          {clearCount > 0 && (
+            <div class="batch-bar">
+              <button id="select-all-clear" type="button">
+                Seleccionar todas las sin marcar ({clearCount})
+              </button>
+              <button id="approve-batch" type="button" disabled>
+                Aprobar seleccionadas (<span id="batch-count">0</span>)
+              </button>
+            </div>
+          )}
+
           <div class="grid">
-            {pending.map((p: any) => (
-              <div class={`photo-card ${p.minor_flag === "flagged" ? "photo-card--flagged" : ""}`}>
-                <img src={`/media/${p.r2_key}`} alt="" loading="lazy" />
-                <p class="caption">{p.ai_caption || "(sin caption)"}</p>
-                <p class="meta">
-                  {p.taken_city ?? "ciudad desconocida"} · {p.taken_date ?? "fecha desconocida"}
-                </p>
-                <p class="flag">
-                  {p.minor_flag === "flagged" ? "⚠️ Posible menor / incierto" : "✅ Sin menores detectados"}
-                </p>
-                <div class="actions">
-                  <button
-                    class="approve"
-                    data-id={p.id}
-                    data-flagged={p.minor_flag === "flagged" ? "1" : "0"}
-                  >
-                    Aprobar
-                  </button>
-                  <button class="reject" data-id={p.id}>
-                    Rechazar
-                  </button>
+            {pending.map((p: any) => {
+              const flagged = p.minor_flag === "flagged";
+              return (
+                <div class={`photo-card ${flagged ? "photo-card--flagged" : ""}`} data-id={p.id}>
+                  {!flagged && <input type="checkbox" class="select-box" data-id={p.id} />}
+                  <img src={`/media/${p.r2_key}`} alt="" loading="lazy" />
+                  <p class="caption">{p.ai_caption || "(sin caption)"}</p>
+                  <p class="meta">
+                    {p.taken_city ?? "ciudad desconocida"} · {p.taken_date ?? "fecha desconocida"}
+                  </p>
+                  <p class="flag">{flagged ? "⚠️ Posible menor / incierto" : "✅ Sin menores detectados"}</p>
+                  <div class="actions">
+                    {flagged ? (
+                      <button class="approve-flagged" data-id={p.id} data-step="1">
+                        Aprobar
+                      </button>
+                    ) : (
+                      <button class="approve-single" data-id={p.id}>
+                        Aprobar
+                      </button>
+                    )}
+                    <button class="reject" data-id={p.id}>
+                      Rechazar
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )
@@ -58,17 +87,66 @@ if (authorized && env?.DB) {
   </div>
 
   <script define:vars={{ token }}>
-    document.querySelectorAll(".approve").forEach((btn) => {
+    document.getElementById("upload-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById("zip-input");
+      const albumInput = document.getElementById("album-input");
+      const status = document.getElementById("upload-status");
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      status.textContent = `Subiendo ${(file.size / 1024 / 1024).toFixed(1)} MB… esto puede tardar varios minutos con muchas fotos.`;
+      const fd = new FormData();
+      fd.append("zip", file);
+
+      try {
+        const res = await fetch(
+          `/api/photos/upload-zip?token=${encodeURIComponent(token)}&album=${encodeURIComponent(albumInput.value || "familia")}`,
+          { method: "POST", body: fd }
+        );
+        const data = await res.json();
+        if (!res.ok) {
+          status.textContent = "Error: " + (data.error || res.statusText);
+          return;
+        }
+        status.textContent = `Listo: ${data.processed} procesadas, ${data.skipped} omitidas (HEIC/video/error).`;
+        if (data.skippedFiles?.length) console.log("Omitidas:", data.skippedFiles);
+        setTimeout(() => location.reload(), 2000);
+      } catch (err) {
+        status.textContent = "Error de red: " + err.message;
+      }
+    });
+
+    function removeCard(id) {
+      document.querySelector(`.photo-card[data-id="${id}"]`)?.remove();
+      updateBatchCount();
+    }
+
+    // Flagged photos: click once to arm ("¿Seguro?"), click again within the same
+    // page (no native dialog) to actually approve. Always two deliberate clicks,
+    // never a single one, for anything the AI couldn't clearly clear.
+    document.querySelectorAll(".approve-flagged").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (btn.dataset.step === "1") {
+          btn.dataset.step = "2";
+          btn.textContent = "¿Seguro? Sin menores — confirmar";
+          btn.classList.add("armed");
+          return;
+        }
+        const id = btn.dataset.id;
+        const res = await fetch(`/api/photos/${id}/approve?token=${encodeURIComponent(token)}&confirm=si`, {
+          method: "POST",
+        });
+        if (res.ok) removeCard(id);
+        else alert("No se pudo aprobar: " + (await res.text()));
+      });
+    });
+
+    document.querySelectorAll(".approve-single").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const id = btn.dataset.id;
-        const flagged = btn.dataset.flagged === "1";
-        let url = `/api/photos/${id}/approve?token=${encodeURIComponent(token)}`;
-        if (flagged) {
-          if (!confirm("Esta foto fue marcada como posible menor. ¿Confirmas que NO hay ningún menor de edad en la imagen?")) return;
-          url += "&confirm=si";
-        }
-        const res = await fetch(url, { method: "POST" });
-        if (res.ok) btn.closest(".photo-card")?.remove();
+        const res = await fetch(`/api/photos/${id}/approve?token=${encodeURIComponent(token)}`, { method: "POST" });
+        if (res.ok) removeCard(id);
         else alert("No se pudo aprobar: " + (await res.text()));
       });
     });
@@ -77,8 +155,37 @@ if (authorized && env?.DB) {
       btn.addEventListener("click", async () => {
         const id = btn.dataset.id;
         await fetch(`/api/photos/${id}/reject?token=${encodeURIComponent(token)}`, { method: "POST" });
-        btn.closest(".photo-card")?.remove();
+        removeCard(id);
       });
+    });
+
+    function updateBatchCount() {
+      const checked = document.querySelectorAll(".select-box:checked").length;
+      const countEl = document.getElementById("batch-count");
+      const btn = document.getElementById("approve-batch");
+      if (countEl) countEl.textContent = String(checked);
+      if (btn) btn.disabled = checked === 0;
+    }
+
+    document.querySelectorAll(".select-box").forEach((box) => {
+      box.addEventListener("change", updateBatchCount);
+    });
+
+    document.getElementById("select-all-clear")?.addEventListener("click", () => {
+      document.querySelectorAll(".select-box").forEach((box) => (box.checked = true));
+      updateBatchCount();
+    });
+
+    document.getElementById("approve-batch")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const ids = Array.from(document.querySelectorAll(".select-box:checked")).map((b) => b.dataset.id);
+      btn.disabled = true;
+      btn.textContent = `Aprobando ${ids.length}…`;
+      for (const id of ids) {
+        const res = await fetch(`/api/photos/${id}/approve?token=${encodeURIComponent(token)}`, { method: "POST" });
+        if (res.ok) removeCard(id);
+      }
+      location.reload();
     });
   </script>
 </Base>
@@ -93,6 +200,66 @@ if (authorized && env?.DB) {
     max-width: var(--measure);
   }
 
+  .upload-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin: var(--space-2) 0;
+    padding: var(--space-2);
+    background: var(--mist);
+    border-radius: 0.5rem;
+  }
+
+  .upload-form input[type="text"] {
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    width: 10rem;
+  }
+
+  .upload-form button {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+  }
+
+  .upload-note {
+    font-size: 0.8rem;
+  }
+
+  .batch-bar {
+    display: flex;
+    gap: 0.6rem;
+    margin: var(--space-2) 0;
+    flex-wrap: wrap;
+  }
+
+  .batch-bar button {
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 0.4rem;
+    padding: 0.5rem 0.9rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+
+  #approve-batch {
+    background: var(--rhino);
+    color: #fff;
+    border-color: var(--rhino);
+  }
+
+  #approve-batch:disabled {
+    background: var(--mist);
+    color: var(--ink-soft);
+    border-color: var(--line);
+    cursor: not-allowed;
+  }
+
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
@@ -101,6 +268,7 @@ if (authorized && env?.DB) {
   }
 
   .photo-card {
+    position: relative;
     border: 1px solid var(--line);
     border-radius: 0.5rem;
     overflow: hidden;
@@ -110,6 +278,15 @@ if (authorized && env?.DB) {
   .photo-card--flagged {
     border-color: var(--rhino);
     border-width: 2px;
+  }
+
+  .select-box {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    width: 1.2rem;
+    height: 1.2rem;
+    z-index: 2;
   }
 
   .photo-card img {
@@ -145,9 +322,15 @@ if (authorized && env?.DB) {
     cursor: pointer;
   }
 
-  .approve {
+  .approve-single,
+  .approve-flagged {
     background: var(--rhino);
     color: #fff;
+  }
+
+  .approve-flagged.armed {
+    background: #b91c1c;
+    font-size: 0.78rem;
   }
 
   .reject {
