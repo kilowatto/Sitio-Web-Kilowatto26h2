@@ -41,5 +41,11 @@
   ],
   "ai": {
     "binding": "AI"
-  }
+  },
+  "analytics_engine_datasets": [
+    {
+      "binding": "BRAND_ANALYTICS",
+      "dataset": "kilowatto_brand_posts"
+    }
+  ]
 }

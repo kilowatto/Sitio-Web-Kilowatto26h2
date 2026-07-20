@@ -10,21 +10,25 @@ const authorized = !!token;
 let fotosCount = 0;
 let entidadesCount = 0;
 let prensaCount = 0;
+let socialCount = 0;
 if (authorized && env?.DB) {
-  const [f, e, p] = await Promise.all([
+  const [f, e, p, s] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS n FROM photos WHERE approval_status = 'pending'").first(),
     env.DB.prepare("SELECT COUNT(*) AS n FROM entities WHERE approval_status = 'pending'").first(),
     env.DB.prepare("SELECT COUNT(*) AS n FROM press_mentions WHERE status = 'pending'").first(),
+    env.DB.prepare("SELECT COUNT(*) AS n FROM brand_posts WHERE status = 'pending_approval'").first(),
   ]);
   fotosCount = (f as any)?.n ?? 0;
   entidadesCount = (e as any)?.n ?? 0;
   prensaCount = (p as any)?.n ?? 0;
+  socialCount = (s as any)?.n ?? 0;
 }
 
 const sections = [
   { href: "/admin/fotos", label: "Fotos", count: fotosCount, desc: "Revisar y aprobar fotos subidas" },
   { href: "/admin/entidades", label: "Entidades", count: entidadesCount, desc: "Tooltips de Wikidata pendientes" },
   { href: "/admin/prensa", label: "Prensa", count: prensaCount, desc: "Menciones de prensa detectadas" },
+  { href: "/admin/social", label: "Marca personal", count: socialCount, desc: "Borradores de X/LinkedIn de Larry" },
 ];
 ---
 

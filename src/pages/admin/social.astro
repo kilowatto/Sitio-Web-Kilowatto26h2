@@ -1,0 +1,193 @@
+---
+import Base from "../../layouts/Base.astro";
+import AdminLogin from "../../components/AdminLogin.astro";
+import { env } from "cloudflare:workers";
+import { checkAdminAuth } from "../../lib/admin-auth";
+
+const token = checkAdminAuth(Astro, env);
+const authorized = !!token;
+
+let pendingGroups: any[] = [];
+let recentPosted: any[] = [];
+let recentFailed: any[] = [];
+let paused = false;
+
+if (authorized && env?.DB) {
+  const [pending, posted, failed, pauseState] = await Promise.all([
+    env.DB.prepare(
+      `SELECT * FROM brand_posts WHERE status = 'pending_approval' ORDER BY variant_group, created_at`
+    ).all(),
+    env.DB.prepare(
+      `SELECT * FROM brand_posts WHERE status = 'posted' ORDER BY posted_at DESC LIMIT 15`
+    ).all(),
+    env.DB.prepare(
+      `SELECT * FROM brand_posts WHERE status = 'failed' ORDER BY created_at DESC LIMIT 10`
+    ).all(),
+    env.KILOWATTO_KV.get("brand_autopilot_paused"),
+  ]);
+  paused = pauseState === "true";
+  recentPosted = posted?.results ?? [];
+  recentFailed = failed?.results ?? [];
+
+  const rows = pending?.results ?? [];
+  const groups = new Map<string, any[]>();
+  for (const r of rows as any[]) {
+    const key = r.variant_group ?? `single-${r.id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(r);
+  }
+  pendingGroups = Array.from(groups.entries()).map(([key, items]) => ({ key, items }));
+}
+---
+
+<Base title="Marca personal — Admin">
+  <div class="container admin">
+    {
+      !authorized ? (
+        <AdminLogin />
+      ) : (
+        <>
+          <p class="admin-nav"><a href="/admin">← Panel de administración</a></p>
+          <div class="pause-bar">
+            <span>Autopiloto: <strong class={paused ? "off" : "on"}>{paused ? "PAUSADO" : "ACTIVO"}</strong></span>
+            <button id="toggle-pause" data-paused={String(paused)}>
+              {paused ? "Reanudar" : "Pausar todo ahora"}
+            </button>
+          </div>
+
+          <h1>Borradores pendientes ({pendingGroups.length})</h1>
+          <p class="hint">Posts de "idea" — nunca se publican solos. Reshares de prensa se auto-publican y solo aparecen abajo en el historial.</p>
+
+          <div class="groups">
+            {pendingGroups.map((g) => (
+              <div class="group">
+                {g.items.map((p: any) => (
+                  <div class={`draft ${p.rejection_reason ? "draft--flagged" : ""}`} data-id={p.id}>
+                    <p class="meta">
+                      {p.platform.toUpperCase()} · variante {p.variant_style ?? "?"}
+                      {p.rejection_reason && <span class="warn"> ⚠️ {p.rejection_reason}</span>}
+                    </p>
+                    <textarea class="content-box" data-id={p.id}>{p.content}</textarea>
+                    <div class="actions">
+                      <button class="approve" data-id={p.id}>Aprobar</button>
+                      <button class="reject" data-id={p.id}>Rechazar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {recentFailed.length > 0 && (
+            <>
+              <h2>Fallidos ({recentFailed.length})</h2>
+              <ul class="log">
+                {recentFailed.map((p: any) => (
+                  <li>
+                    <strong>{p.platform}</strong> — {p.rejection_reason} — <em>{p.content.slice(0, 80)}…</em>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <h2>Publicados recientemente</h2>
+          <ul class="log">
+            {recentPosted.map((p: any) => (
+              <li>
+                <strong>{p.platform}</strong> · {p.kind} · {p.posted_at} —{" "}
+                {p.external_url ? <a href={p.external_url} target="_blank" rel="noopener">ver post</a> : p.content.slice(0, 80)}
+              </li>
+            ))}
+          </ul>
+        </>
+      )
+    }
+  </div>
+
+  <script define:vars={{ token }}>
+    document.getElementById("toggle-pause")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const currentlyPaused = btn.dataset.paused === "true";
+      await fetch(`/api/brand/toggle-pause?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paused: !currentlyPaused }),
+      });
+      location.reload();
+    });
+
+    document.querySelectorAll(".approve").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const textarea = document.querySelector(`.content-box[data-id="${id}"]`);
+        await fetch(`/api/brand/${id}/approve?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ content: textarea?.value }),
+        });
+        btn.closest(".draft")?.remove();
+      });
+    });
+
+    document.querySelectorAll(".reject").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        await fetch(`/api/brand/${id}/reject?token=${encodeURIComponent(token)}`, { method: "POST" });
+        btn.closest(".draft")?.remove();
+      });
+    });
+  </script>
+</Base>
+
+<style>
+  .admin { padding-block: var(--space-4); }
+  .admin-nav { margin-bottom: var(--space-2); font-size: 0.85rem; }
+  .hint { color: var(--ink-soft); max-width: var(--measure); }
+
+  .pause-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: var(--space-2);
+    background: var(--mist);
+    border-radius: 0.5rem;
+    margin-bottom: var(--space-3);
+  }
+  .pause-bar .on { color: var(--rhino); }
+  .pause-bar .off { color: #b91c1c; }
+  .pause-bar button {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+  }
+
+  .groups { display: grid; gap: var(--space-3); margin-top: var(--space-2); }
+  .group { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: var(--space-2); }
+  .draft {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: var(--space-2);
+  }
+  .draft--flagged { border-color: #b91c1c; }
+  .meta { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-soft); margin: 0 0 0.4rem; }
+  .warn { color: #b91c1c; }
+  .content-box {
+    width: 100%;
+    min-height: 6rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    padding: 0.5rem;
+    font-family: inherit;
+    resize: vertical;
+  }
+  .actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+  .actions button { flex: 1; border: none; border-radius: 0.4rem; padding: 0.4rem 0; cursor: pointer; }
+  .approve { background: var(--rhino); color: #fff; }
+  .reject { background: var(--mist); color: var(--ink); }
+
+  .log { font-size: 0.85rem; color: var(--ink-soft); display: grid; gap: 0.3rem; }
+</style>
