@@ -1,36 +1,88 @@
 ---
-import Base from "../../layouts/Base.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
 import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
 import { checkAdminAuth } from "../../lib/admin-auth";
+import { KNOWN_EXCLUSIONS } from "../../lib/press-query";
 
 const token = await checkAdminAuth(Astro, env);
 const authorized = !!token;
 
 let pending: any[] = [];
+let published: any[] = [];
 if (authorized && env?.DB) {
-  const res = await env.DB
-    .prepare("SELECT * FROM press_mentions WHERE status = 'pending' ORDER BY discovered_at DESC")
-    .all();
-  pending = res?.results ?? [];
+  const [pendingRes, publishedRes] = await Promise.all([
+    env.DB.prepare("SELECT * FROM press_mentions WHERE status = 'pending' ORDER BY discovered_at DESC").all(),
+    env.DB.prepare("SELECT * FROM press_mentions WHERE status = 'published' ORDER BY click_count DESC, published_at DESC").all(),
+  ]);
+  pending = pendingRes?.results ?? [];
+  published = publishedRes?.results ?? [];
 }
 ---
 
-<Base title="Prensa — Admin">
-  <div class="container admin">
-    {
-      !authorized ? (
-        <AdminLogin />
-      ) : (
-        <>
-          <p class="admin-nav"><a href="/admin">← Panel de administración</a></p>
-          <h1>Menciones de prensa pendientes ({pending.length})</h1>
-          <form id="check-form">
-            <button type="submit">Buscar menciones nuevas ahora</button>
-          </form>
-          <div class="list">
-            {pending.map((m: any) => (
-              <div class={`press-card press-card--${m.identity_confidence}`}>
+<AdminLayout title="Prensa — Admin" active="/admin/prensa" authorized={authorized}>
+  {
+    !authorized ? (
+      <AdminLogin />
+    ) : (
+      <>
+        <h1>Menciones de prensa pendientes <span class="count-badge">{pending.length}</span></h1>
+        <form id="check-form">
+          <button type="submit">Buscar menciones nuevas ahora</button>
+          <p id="check-status" class="hint"></p>
+        </form>
+
+        <details class="section" id="advanced-search-section">
+          <summary>Búsqueda avanzada</summary>
+          <div class="adv-search">
+            <p class="hint" id="brave-usage-hint"></p>
+
+            <div class="chip-field">
+              <label for="include-input">Buscar</label>
+              <div class="chip-list" id="include-chips"></div>
+              <input type="text" id="include-input" placeholder="Escribe un término y Enter…" />
+            </div>
+
+            <div class="chip-field">
+              <label for="exclude-input">No buscar</label>
+              <div class="chip-list" id="exclude-chips"></div>
+              <input type="text" id="exclude-input" placeholder="Escribe un término y Enter…" />
+              <button type="button" id="known-exclusions-btn" class="ghost-btn">+ Exclusiones conocidas</button>
+            </div>
+
+            <label class="global-toggle">
+              <input type="checkbox" id="global-toggle" /> Buscar también global (no solo México)
+            </label>
+
+            <button type="button" id="run-search-btn">Buscar</button>
+            <p id="search-status" class="hint"></p>
+
+            <div class="list" id="search-results"></div>
+          </div>
+
+          <details class="section" id="saved-searches-section">
+            <summary>Búsquedas guardadas <span class="count-badge" id="saved-count">0</span></summary>
+            <div class="list" id="saved-searches-list"></div>
+          </details>
+        </details>
+
+        <form id="briefing-form">
+          <button type="submit">Buscar monitoreo semanal (negocios/privado)</button>
+          <p id="briefing-status" class="hint"></p>
+        </form>
+
+        {pending.length === 0 && <p class="empty-state">Nada pendiente ahora mismo.</p>}
+
+        <div class="list">
+          {pending.map((m: any) => (
+            <div class={`press-card press-card--${m.identity_confidence} ${m.is_family_private ? "press-card--private" : ""}`} data-swipe-delete>
+              <div data-swipe-content>
+                {m.is_family_private ? (
+                  <p class="private-badge">🔒 PRIVADO — familiar, nunca publicable</p>
+                ) : m.watch_entity ? (
+                  <p class="meta">Monitoreo: <strong>{m.watch_entity}</strong></p>
+                ) : null}
+                {m.thumbnail_url && <img src={m.thumbnail_url} alt="" class="press-thumbnail" loading="lazy" />}
                 <p class="meta">
                   {m.outlet} · {m.published_at} · confianza: <strong>{m.identity_confidence}</strong>
                 </p>
@@ -40,28 +92,306 @@ if (authorized && env?.DB) {
                   </a>
                 </h3>
                 {m.summary && <p>{m.summary}</p>}
+                {(m.raw_content_r2_key || m.archive_url) && (
+                  <p class="meta">
+                    Respaldo:{" "}
+                    {m.raw_content_r2_key && <a href={`/media/${m.raw_content_r2_key}`} target="_blank" rel="noopener">copia local</a>}
+                    {m.raw_content_r2_key && m.archive_url && " · "}
+                    {m.archive_url && <a href={m.archive_url} target="_blank" rel="noopener">Wayback Machine</a>}
+                  </p>
+                )}
                 <div class="actions">
-                  <button class="approve" data-id={m.id}>Publicar</button>
+                  {!m.is_family_private && <button class="approve" data-id={m.id}>Publicar</button>}
                   <button class="reject" data-id={m.id}>Descartar</button>
+                </div>
+              </div>
+              <button class="swipe-delete-action reject" data-id={m.id}>Descartar</button>
+            </div>
+          ))}
+        </div>
+
+        <details class="section">
+          <summary>Publicadas <span class="count-badge">{published.length}</span></summary>
+          <div class="list">
+            {published.map((m: any) => (
+              <div class="press-card press-card--published">
+                <div>
+                  <p class="meta">
+                    {m.outlet} · {m.published_at} · 🖱️ {m.click_count} clic{m.click_count === 1 ? "" : "s"}
+                  </p>
+                  <h3>
+                    <a href={m.url} target="_blank" rel="noopener">
+                      {m.title}
+                    </a>
+                  </h3>
                 </div>
               </div>
             ))}
           </div>
-        </>
-      )
-    }
-  </div>
+        </details>
+      </>
+    )
+  }
 
-  <script define:vars={{ token }}>
+  <script define:vars={{ token, knownExclusions: KNOWN_EXCLUSIONS }}>
+    function makeChipList(containerId, inputId) {
+      const container = document.getElementById(containerId);
+      const input = document.getElementById(inputId);
+      const chips = [];
+
+      function render() {
+        container.innerHTML = "";
+        chips.forEach((chip, i) => {
+          const span = document.createElement("span");
+          span.className = "chip";
+          span.append(document.createTextNode(chip));
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.textContent = "×";
+          remove.addEventListener("click", () => {
+            chips.splice(i, 1);
+            render();
+          });
+          span.appendChild(remove);
+          container.appendChild(span);
+        });
+      }
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const val = input.value.trim();
+          if (val && !chips.includes(val)) {
+            chips.push(val);
+            render();
+          }
+          input.value = "";
+        }
+      });
+
+      return {
+        get: () => chips.slice(),
+        add: (val) => {
+          if (val && !chips.includes(val)) {
+            chips.push(val);
+            render();
+          }
+        },
+      };
+    }
+
+    const includeChips = makeChipList("include-chips", "include-input");
+    const excludeChips = makeChipList("exclude-chips", "exclude-input");
+
+    document.getElementById("known-exclusions-btn")?.addEventListener("click", () => {
+      knownExclusions.forEach((term) => excludeChips.add(term));
+    });
+
+    function refreshBraveUsage() {
+      fetch(`/api/press/brave-usage?token=${encodeURIComponent(token)}`)
+        .then((r) => r.json())
+        .then((d) => {
+          const hint = document.getElementById("brave-usage-hint");
+          if (hint) hint.textContent = `${d.count ?? 0} búsquedas Brave usadas este mes`;
+        })
+        .catch(() => {});
+    }
+    refreshBraveUsage();
+
+    function renderResultCard(item) {
+      const card = document.createElement("div");
+      card.className = "press-card search-result-card";
+
+      const meta = document.createElement("p");
+      meta.className = "meta";
+      meta.textContent = item.outlet;
+
+      const h3 = document.createElement("h3");
+      const a = document.createElement("a");
+      a.href = item.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = item.title || item.url;
+      h3.appendChild(a);
+
+      const badge = document.createElement("p");
+      const badgeClass = item.aiLabel === "yes" ? "ai-yes" : item.aiLabel === "no" ? "ai-no" : "ai-unsure";
+      const badgeText = item.aiLabel === "yes" ? "IA: parece él" : item.aiLabel === "no" ? "IA: probable homónimo" : "IA: incierto";
+      badge.className = `ai-badge ${badgeClass}`;
+      badge.textContent = badgeText;
+
+      const snippet = document.createElement("p");
+      snippet.className = "snippet";
+      snippet.textContent = item.snippet || "";
+
+      const thumbInput = document.createElement("input");
+      thumbInput.type = "url";
+      thumbInput.className = "thumb-override";
+      thumbInput.placeholder = "URL de imagen (opcional)";
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "approve add-manual";
+      addBtn.textContent = "Agregar a pendientes";
+      actions.appendChild(addBtn);
+
+      card.append(meta, h3, badge, snippet, thumbInput, actions);
+
+      addBtn.addEventListener("click", async () => {
+        addBtn.disabled = true;
+        addBtn.textContent = "Agregando…";
+        const thumbnailOverride = thumbInput.value.trim();
+        try {
+          const res = await fetch(`/api/press/add-manual?token=${encodeURIComponent(token)}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              url: item.url,
+              title: item.title,
+              snippet: item.snippet,
+              thumbnailOverride: thumbnailOverride || undefined,
+            }),
+          });
+          if (res.ok) {
+            addBtn.textContent = "Agregado ✓";
+            setTimeout(() => {
+              card.remove();
+              location.reload();
+            }, 900);
+          } else {
+            addBtn.textContent = "Ya existe / error";
+            addBtn.disabled = false;
+          }
+        } catch {
+          addBtn.textContent = "Error — reintenta";
+          addBtn.disabled = false;
+        }
+      });
+
+      return card;
+    }
+
+    document.getElementById("run-search-btn")?.addEventListener("click", async () => {
+      const btn = document.getElementById("run-search-btn");
+      const status = document.getElementById("search-status");
+      const results = document.getElementById("search-results");
+      const include = includeChips.get();
+      if (include.length === 0) {
+        status.textContent = "Agrega al menos un término en 'Buscar'.";
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Buscando…";
+      status.textContent = "";
+      results.innerHTML = "";
+      try {
+        const res = await fetch(`/api/press/search-preview?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            include,
+            exclude: excludeChips.get(),
+            global: document.getElementById("global-toggle").checked,
+          }),
+        });
+        const data = await res.json();
+        if (!data.items || data.items.length === 0) {
+          status.textContent = "Sin resultados nuevos (o ya existen todos en la base).";
+        } else {
+          status.textContent = `${data.items.length} resultado(s) nuevo(s).`;
+          data.items.forEach((item) => results.appendChild(renderResultCard(item)));
+        }
+        loadSavedSearches();
+        refreshBraveUsage();
+      } catch (err) {
+        status.textContent = "Se perdió la conexión — intenta de nuevo.";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Buscar";
+      }
+    });
+
+    async function loadSavedSearches() {
+      try {
+        const res = await fetch(`/api/press/saved-searches?token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        const list = document.getElementById("saved-searches-list");
+        const countEl = document.getElementById("saved-count");
+        list.innerHTML = "";
+        const items = data.items ?? [];
+        countEl.textContent = String(items.length);
+        items.forEach((s) => {
+          const card = document.createElement("div");
+          card.className = "press-card saved-search-card";
+
+          const meta = document.createElement("p");
+          meta.className = "meta";
+          const includeText = s.include_terms.join(", ");
+          const excludeText = s.exclude_terms.length ? ` · no: ${s.exclude_terms.join(", ")}` : "";
+          meta.textContent = `${includeText}${excludeText}${s.global_scope ? " · global" : ""}`;
+
+          const actions = document.createElement("div");
+          actions.className = "actions";
+          const delBtn = document.createElement("button");
+          delBtn.type = "button";
+          delBtn.className = "reject delete-saved";
+          delBtn.textContent = "Eliminar";
+          actions.appendChild(delBtn);
+
+          card.append(meta, actions);
+          list.appendChild(card);
+
+          delBtn.addEventListener("click", async () => {
+            delBtn.disabled = true;
+            await fetch(`/api/press/saved-searches?token=${encodeURIComponent(token)}&id=${s.id}`, { method: "DELETE" });
+            card.remove();
+            countEl.textContent = String(Math.max(0, items.length - 1));
+          });
+        });
+      } catch {}
+    }
+    loadSavedSearches();
+
     document.getElementById("check-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const btn = e.target.querySelector("button");
+      const status = document.getElementById("check-status");
+      if (btn.disabled) return;
       btn.disabled = true;
       btn.textContent = "Buscando…";
-      const res = await fetch(`/api/news/check?token=${encodeURIComponent(token)}`, { method: "POST" });
-      const data = await res.json();
-      alert(JSON.stringify(data.summary ?? data, null, 2));
-      location.reload();
+      try {
+        const res = await fetch(`/api/news/check?token=${encodeURIComponent(token)}`, { method: "POST" });
+        const data = await res.json();
+        const s = data.summary ?? data;
+        status.textContent = `Encontradas: ${s.found ?? 0} · nuevas: ${s.new ?? 0} · confirmadas: ${s.confirmed ?? 0} · inciertas: ${s.uncertain ?? 0} · descartadas: ${s.rejected ?? 0}`;
+        setTimeout(() => location.reload(), 1800);
+      } catch (err) {
+        status.textContent = "Se perdió la conexión — intenta de nuevo.";
+        btn.disabled = false;
+        btn.textContent = "Buscar menciones nuevas ahora";
+      }
+    });
+
+    document.getElementById("briefing-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector("button");
+      const status = document.getElementById("briefing-status");
+      if (btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = "Buscando… (puede tardar, revisa varias empresas)";
+      try {
+        const res = await fetch(`/api/press/weekly-briefing?token=${encodeURIComponent(token)}`, { method: "POST" });
+        const data = await res.json();
+        const s = data.summary ?? data;
+        status.textContent = `Encontradas: ${s.found ?? 0} · nuevas: ${s.new ?? 0} · marcadas privadas: ${s.privateFlagged ?? 0}`;
+        setTimeout(() => location.reload(), 1800);
+      } catch (err) {
+        status.textContent = "Se perdió la conexión — intenta de nuevo.";
+        btn.disabled = false;
+        btn.textContent = "Buscar monitoreo semanal (negocios/privado)";
+      }
     });
 
     document.querySelectorAll(".approve").forEach((btn) => {
@@ -77,62 +407,190 @@ if (authorized && env?.DB) {
       });
     });
   </script>
-</Base>
+</AdminLayout>
 
 <style>
-  .admin {
-    padding-block: var(--space-4);
+  h1 { font-size: 1.3rem; margin: 0 0 0.75rem; }
+  .count-badge {
+    background: var(--admin-surface-2);
+    color: var(--admin-text-soft);
+    border-radius: 999px;
+    padding: 0.1rem 0.6rem;
+    font-size: 0.8rem;
+    font-weight: 600;
   }
-  .admin-nav {
-    margin-bottom: var(--space-2);
-    font-size: 0.85rem;
-  }
-  #check-form {
-    margin-block: var(--space-2) var(--space-3);
-  }
-  #check-form button {
-    background: var(--ink);
-    color: var(--paper);
-    border: none;
-    border-radius: 0.4rem;
-    padding: 0.5rem 1rem;
+  #check-form { margin-block: 0.75rem 1.25rem; }
+  details.section { margin-top: 1.5rem; }
+  details.section summary {
     cursor: pointer;
-  }
-  .list {
+    font-weight: 700;
+    font-size: 1.05rem;
+    margin-bottom: 0.75rem;
     display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-  .press-card {
-    border: 1px solid var(--line);
-    border-radius: 0.5rem;
-    padding: var(--space-2);
-  }
-  .press-card--uncertain {
-    border-color: var(--rhino);
-    border-width: 2px;
-  }
-  .meta {
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    color: var(--ink-soft);
-  }
-  .actions {
-    display: flex;
+    align-items: center;
     gap: 0.5rem;
-    margin-top: 0.4rem;
   }
-  .actions button {
+  details.section .list { margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.6rem; }
+  .press-card--published { padding: 0.75rem 1rem; }
+  .press-card--published h3 { font-size: 1rem; margin: 0.2em 0 0; }
+
+  .adv-search { padding: 0.9rem 0.2rem 0.5rem; display: flex; flex-direction: column; gap: 0.9rem; }
+  .chip-field label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.35rem; }
+  .chip-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.4rem; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--admin-surface-2);
+    border-radius: 999px;
+    padding: 0.25rem 0.4rem 0.25rem 0.75rem;
+    font-size: 0.82rem;
+  }
+  .chip button {
     border: none;
-    border-radius: 0.4rem;
-    padding: 0.35rem 0.8rem;
+    background: none;
     cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+    color: var(--admin-text-soft);
+    padding: 0.1rem 0.3rem;
   }
-  .approve {
+  .chip-field input[type="text"] {
+    width: 100%;
+    border: 1px solid var(--admin-border);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.65rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    background: var(--admin-surface);
+    color: var(--admin-text);
+  }
+  .ghost-btn {
+    margin-top: 0.4rem;
+    background: none;
+    border: 1px dashed var(--admin-border);
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    color: var(--admin-text-soft);
+  }
+  .global-toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+  #run-search-btn {
+    align-self: flex-start;
     background: var(--rhino);
     color: #fff;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
   }
-  .reject {
-    background: var(--mist);
+  .search-result-card, .saved-search-card { padding: 0.9rem 1rem; }
+  .ai-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+    margin: 0.2rem 0 0.4rem;
   }
+  .ai-yes { background: #d4edda; color: #155724; }
+  .ai-unsure { background: #fff3cd; color: #856404; }
+  .ai-no { background: #f8d7da; color: #721c24; }
+  .press-card--private { border-color: #721c24; border-width: 2px; }
+  .private-badge {
+    display: inline-block;
+    background: #721c24;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.75rem;
+    border-radius: 0.4rem;
+    padding: 0.3rem 0.6rem;
+    margin: 0 0 0.6rem;
+  }
+  #briefing-form { margin-block: 0.75rem 1.25rem; }
+  #briefing-form button {
+    background: var(--admin-surface-2);
+    color: var(--admin-text);
+    border: 1px solid var(--admin-border);
+    border-radius: 0.5rem;
+    padding: 0.65rem 1.1rem;
+    cursor: pointer;
+    min-height: 2.75rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .snippet { font-size: 0.85rem; color: var(--admin-text-soft); margin: 0 0 0.5rem; }
+  .thumb-override {
+    width: 100%;
+    border: 1px solid var(--admin-border);
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    font-family: inherit;
+    font-size: 0.82rem;
+    margin-bottom: 0.5rem;
+    background: var(--admin-surface);
+    color: var(--admin-text);
+  }
+  .saved-search-card { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+  .saved-search-card .meta { margin: 0; flex: 1; }
+  #check-form button {
+    background: var(--rhino);
+    color: #fff;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.65rem 1.1rem;
+    cursor: pointer;
+    min-height: 2.75rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .hint { color: var(--admin-text-soft); font-size: 0.85rem; }
+  .empty-state {
+    border: 1px dashed var(--admin-border);
+    border-radius: 0.7rem;
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--admin-text-soft);
+  }
+  .list { display: grid; gap: 0.75rem; }
+  @media (min-width: 48rem) {
+    .list { grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); align-items: start; }
+  }
+  .press-card {
+    border: 1px solid var(--admin-border);
+    border-radius: 0.8rem;
+    background: var(--admin-surface);
+  }
+  [data-swipe-content] { padding: 1rem; border-radius: 0.8rem; }
+  .press-thumbnail {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: 0.6rem;
+    margin-bottom: 0.6rem;
+    background: var(--admin-surface-2);
+  }
+  .press-card--uncertain { border-color: var(--rhino); border-width: 2px; }
+  .meta { font-size: 0.72rem; color: var(--admin-text-soft); margin: 0 0 0.3rem; }
+  h3 { font-size: 1rem; margin: 0 0 0.4rem; }
+  h3 a { color: inherit; }
+  .actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+  .actions button {
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.9rem;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.85rem;
+    min-height: 2.5rem;
+  }
+  .approve { background: var(--rhino); color: #fff; }
+  .reject { background: var(--admin-surface-2); color: var(--admin-text); }
+  .swipe-delete-action { font-size: 0.75rem; }
 </style>

@@ -1,0 +1,297 @@
+---
+// Locale-prefixed mirror of src/pages/columnas/[param].astro — see that file for why
+// pagination and the article detail share one dynamic route. Translated fields come from
+// the `translations` table (entity_type "columns"); untranslated locales fall back to the
+// original Spanish via t()'s fallback argument, same pattern as curiosidades.astro.
+import Site from "../../../layouts/Site.astro";
+import ColumnList from "../../../components/ColumnList.astro";
+import ScrollBarChart from "../../../components/ScrollBarChart.astro";
+import ColumnShare from "../../../components/ColumnShare.astro";
+import CommentSection from "../../../components/CommentSection.astro";
+import { localeFromParam } from "../../../lib/locales";
+import { loadTranslations, t } from "../../../lib/i18n";
+import { getColumnsPage, getColumnBySlug, incrementColumnView, displayViewCount, excerptFrom, type ColumnRow } from "../../../lib/columns-query";
+import { renderColumnBody } from "../../../lib/column-layout";
+import { env } from "cloudflare:workers";
+
+const locale = localeFromParam(Astro.params.locale);
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+
+const raw = Astro.params.param ?? "";
+const isNumeric = /^\d+$/.test(raw);
+
+let pageNum = 1;
+let columns: ColumnRow[] = [];
+let totalPages = 1;
+let column: ColumnRow | null = null;
+
+if (isNumeric) {
+  pageNum = Number(raw);
+  if (pageNum < 2) {
+    if (pageNum === 1) return Astro.redirect(`/${locale.code}/columnas`, 301);
+    Astro.response.status = 404;
+    return Astro.rewrite("/404");
+  }
+  if (env?.DB) {
+    const page = await getColumnsPage(env, pageNum);
+    const tr = await loadTranslations(env.DB, "columns", locale.code);
+    columns = page.rows.map((c) => ({
+      ...c,
+      title: t(tr, c.id, "title", c.title) as string,
+      subtitle: t(tr, c.id, "subtitle", c.subtitle),
+      body_html: t(tr, c.id, "body_html", c.body_html) as string,
+    }));
+    totalPages = page.totalPages;
+  }
+  if (pageNum > totalPages || columns.length === 0) {
+    Astro.response.status = 404;
+    return Astro.rewrite("/404");
+  }
+} else {
+  if (env?.DB) {
+    const row = await getColumnBySlug(env, raw);
+    if (row) {
+      await incrementColumnView(env, row.id);
+      const tr = await loadTranslations(env.DB, "columns", locale.code);
+      column = {
+        ...row,
+        title: t(tr, row.id, "title", row.title) as string,
+        subtitle: t(tr, row.id, "subtitle", row.subtitle),
+        body_html: t(tr, row.id, "body_html", row.body_html) as string,
+      };
+    }
+  }
+  if (!column) {
+    Astro.response.status = 404;
+    return Astro.rewrite("/404");
+  }
+}
+
+const BYLINE: Record<string, string> = {
+  en: "By Esteban Rey (",
+  "pt-BR": "Por Esteban Rey (",
+  fr: "Par Esteban Rey (",
+  de: "Von Esteban Rey (",
+  ar: "بقلم إستيبان راي (",
+  "zh-Hans": "作者：Esteban Rey（",
+  ja: "著者：Esteban Rey（",
+};
+const byline = BYLINE[locale.code] ?? "Por Esteban Rey (";
+
+const READS_LABEL: Record<string, string> = {
+  en: "reads",
+  "pt-BR": "leituras",
+  fr: "lectures",
+  de: "Lesungen",
+  ar: "قراءة",
+  "zh-Hans": "次阅读",
+  ja: "回読まれています",
+};
+const readsLabel = READS_LABEL[locale.code] ?? "lecturas";
+const readsCount = column ? displayViewCount(column).toLocaleString(locale.code) : "";
+
+const articleJsonLd = column
+  ? {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      headline: column.title,
+      description: column.subtitle || excerptFrom(column.body_html),
+      datePublished: column.published_at,
+      inLanguage: locale.code,
+      author: { "@type": "Person", name: "Esteban Rey", alternateName: "Kilowatto", url: "https://kilowatto.com" },
+      publisher: { "@type": "Organization", name: "Kilowatto" },
+      mainEntityOfPage: `https://kilowatto.com/${locale.code}/columnas/${column.slug}`,
+    }
+  : null;
+
+const backLabel: Record<string, string> = {
+  en: "Columns",
+  "pt-BR": "Colunas",
+  fr: "Chroniques",
+  de: "Kolumnen",
+  ar: "مقالات",
+  "zh-Hans": "专栏",
+  ja: "コラム",
+};
+const listHeading: Record<string, string> = {
+  en: "What I write about tech, AI and business",
+  "pt-BR": "O que escrevo sobre tecnologia, IA e negócios",
+  fr: "Ce que j'écris sur la tech, l'IA et les affaires",
+  de: "Was ich über Technologie, KI und Business schreibe",
+  ar: "ما أكتبه عن التقنية والذكاء الاصطناعي والأعمال",
+  "zh-Hans": "我写的科技、人工智能与商业观察",
+  ja: "テクノロジー、AI、ビジネスについて書いていること",
+};
+
+const bodyWithImages = column
+  ? renderColumnBody(column.body_html, {
+      infographicUrl: column.infographic_r2_key ? `/media/${column.infographic_r2_key}` : null,
+      illustrationUrl: column.illustration_r2_key ? `/media/${column.illustration_r2_key}` : null,
+    })
+  : "";
+---
+
+{
+  column ? (
+    <Site
+      title={`${column.title} — Esteban Rey`}
+      description={column.subtitle || excerptFrom(column.body_html)}
+      active="/columnas"
+      ogType="article"
+      locale={locale.code}
+      dir={locale.rtl ? "rtl" : "ltr"}
+      image={column.og_r2_key ? `/media/${column.og_r2_key}` : column.cover_r2_key ? `/media/${column.cover_r2_key}` : undefined}
+    >
+      <script type="application/ld+json" set:html={JSON.stringify(articleJsonLd)} />
+
+      {column.cover_r2_key ? (
+        <div class="column-hero">
+          <img
+            src={`/media/${column.cover_r2_key}?w=1200`}
+            srcset={`/media/${column.cover_r2_key}?w=800 800w, /media/${column.cover_r2_key}?w=1400 1400w, /media/${column.cover_r2_key}?w=2000 2000w`}
+            sizes="100vw"
+            alt=""
+            class="column-hero__img"
+          />
+          <div class="column-hero__gradient" />
+          <div class="column-hero__text">
+            <div class="container">
+              <p class="eyebrow column-hero__eyebrow">
+                <a href={`/${locale.code}/columnas`}>{backLabel[locale.code] ?? "Columnas"}</a>
+              </p>
+              <h1>{column.title}</h1>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <section class="page-head">
+          <div class="container">
+            <p class="eyebrow">
+              <a href={`/${locale.code}/columnas`}>{backLabel[locale.code] ?? "Columnas"}</a>
+            </p>
+            <h1>{column.title}</h1>
+          </div>
+        </section>
+      )}
+
+      <section class="chapter">
+        <div class="container">
+          {column.subtitle && <p class="hero__sub">{column.subtitle}</p>}
+          <p class="row__range">
+            {column.published_at} · {byline}
+            <a href="https://x.com/kilowatto" target="_blank" rel="noopener me">
+              @Kilowatto
+            </a>
+            ) · {readsCount} {readsLabel}
+          </p>
+          <div class="column-article" set:html={bodyWithImages} />
+          <ColumnShare
+            url={`https://kilowatto.com/${locale.code}/columnas/${column.slug}`}
+            title={column.title}
+            subtitle={column.subtitle}
+            locale={locale.code}
+          />
+          <CommentSection columnId={column.id} locale={locale.code} />
+        </div>
+      </section>
+      <ScrollBarChart />
+    </Site>
+  ) : (
+    <Site
+      title={`${backLabel[locale.code] ?? "Columnas"} — página ${pageNum} — Esteban Rey`}
+      active="/columnas"
+      locale={locale.code}
+      dir={locale.rtl ? "rtl" : "ltr"}
+    >
+      <section class="page-head">
+        <div class="container">
+          <p class="eyebrow">{backLabel[locale.code] ?? "Columnas"}</p>
+          <h1>{listHeading[locale.code] ?? "Lo que escribo sobre tecnología, IA y negocios"}</h1>
+        </div>
+      </section>
+      <section class="chapter">
+        <div class="container">
+          <ColumnList columns={columns} currentPage={pageNum} totalPages={totalPages} basePath={`/${locale.code}/columnas`} />
+        </div>
+      </section>
+    </Site>
+  )
+}
+
+<style>
+  .column-article {
+    max-width: 42rem;
+    font-size: 1.05rem;
+    line-height: 1.7;
+  }
+  .column-article h2 {
+    margin-top: var(--space-4);
+    font-family: var(--font-display);
+  }
+  .column-article p {
+    margin-top: var(--space-2);
+  }
+  .column-article p.column-callout {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--ember);
+    border-radius: 0.5rem;
+    padding: 0.9rem 1.1rem;
+    font-size: 0.98rem;
+  }
+  .column-hero {
+    position: relative;
+    width: 100vw;
+    left: 50%;
+    margin-left: -50vw;
+    height: clamp(13rem, 30vw, 22rem);
+    overflow: hidden;
+    margin-bottom: var(--space-3);
+  }
+  .column-hero__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .column-hero__gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.45) 40%, rgba(0, 0, 0, 0) 75%);
+  }
+  .column-hero__text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding-bottom: var(--space-2);
+  }
+  .column-hero__eyebrow {
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .column-hero__eyebrow a {
+    color: inherit;
+  }
+  .column-hero__text h1 {
+    color: #fff;
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 4vw, 2.75rem);
+    line-height: 1.08;
+    max-width: 42rem;
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
+  }
+  .column-break-img {
+    margin: var(--space-4) 0;
+    max-width: 42rem;
+  }
+  .column-break-img img {
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid var(--line);
+    display: block;
+  }
+</style>

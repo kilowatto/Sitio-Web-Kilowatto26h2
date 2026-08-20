@@ -1,21 +1,35 @@
 ---
 import Site from "../layouts/Site.astro";
+import PullQuote from "../components/PullQuote.astro";
 import { env } from "cloudflare:workers";
 
 let companies: any[] = [];
+let projects: any[] = [];
 if (env?.DB) {
-  const res = await env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all();
-  companies = res?.results ?? [];
+  const [companiesRes, projectsRes] = await Promise.all([
+    env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all(),
+    // Only ever shows projects the weekly refresh worker last confirmed reachable — see
+    // src/lib/projects-refresh.ts. Down sites disappear on their own, no manual curation.
+    env.DB.prepare("SELECT * FROM projects WHERE is_reachable = 1 ORDER BY sort_order").all(),
+  ]);
+  companies = companiesRes?.results ?? [];
+  projects = projectsRes?.results ?? [];
 }
 ---
 
-<Site title="Empresas — Esteban Rey" active="/empresas">
+<Site
+  title="Empresas y proyectos — Esteban Rey"
+  description="Ignia Cloud, Yucatech Festival, Cereza, Aluna y DeSiCi: las empresas y proyectos activos de Esteban Rey (Kilowatto)."
+  active="/empresas"
+>
   <section class="page-head">
     <div class="container">
       <p class="eyebrow">Empresas</p>
-      <h1>Seis organizaciones, veinticinco años.</h1>
+      <h1>Veinticinco años, {companies.length} organizaciones.</h1>
     </div>
   </section>
+
+  <PullQuote placement="empresas" />
 
   <section class="chapter">
     <div class="container">
@@ -45,4 +59,54 @@ if (env?.DB) {
       </ol>
     </div>
   </section>
+
+  {projects.length > 0 && (
+    <section class="chapter">
+      <div class="container">
+        <p class="eyebrow">Mis proyectos</p>
+        <h2>En vivo, ahora mismo.</h2>
+        <ul class="cards">
+          {
+            projects.map((p: any) => (
+              <li class="card project-card">
+                {p.image_r2_key && (
+                  <img
+                    src={`/media/${p.image_r2_key}?w=600`}
+                    srcset={`/media/${p.image_r2_key}?w=500 500w, /media/${p.image_r2_key}?w=800 800w, /media/${p.image_r2_key}?w=1100 1100w`}
+                    sizes="(max-width: 640px) 100vw, 50vw"
+                    alt={`Captura de pantalla de ${p.name}`}
+                    loading="lazy"
+                    class="project-card__image"
+                  />
+                )}
+                <div class="project-card__body">
+                  {p.role && <p class="eyebrow">{p.role}</p>}
+                  <h3>{p.name}</h3>
+                  {p.summary && <p>{p.summary}</p>}
+                  <p>
+                    <a href={p.url} target="_blank" rel="noopener">
+                      {p.url.replace(/^https?:\/\//, "")}
+                    </a>
+                  </p>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+  )}
+
+  {
+    projects.map((p: any) => (
+      <script type="application/ld+json" set:html={JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: p.name,
+        url: p.url,
+        founder: { "@type": "Person", name: "Esteban Rey" },
+        description: p.summary ?? undefined,
+      })} />
+    ))
+  }
 </Site>

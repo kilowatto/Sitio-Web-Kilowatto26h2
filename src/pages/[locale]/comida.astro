@@ -1,0 +1,353 @@
+---
+import Site from "../../layouts/Site.astro";
+import { localeFromParam, VOICE_INSTRUCTIONS } from "../../lib/locales";
+import { navLabels } from "../../lib/nav-labels";
+import { env } from "cloudflare:workers";
+
+const locale = localeFromParam(Astro.params.locale);
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+if (locale.canonical) return Astro.redirect("/comida", 302);
+const nl = navLabels(locale.code);
+
+const ES_CONTENT = {
+  pageEyebrow: "Lo que se me antoja",
+  pageTitle: "Marquesitas, tacos al pastor, sushi y demás antojos",
+  marquesitaEyebrow: "Marquesitas tabasqueñas",
+  marquesitaAlt: "Marquesitas recién hechas en un puesto callejero",
+  marquesitaIntro: [
+    "Esta vez no eran de Mérida —para variar—, pero unas marquesitas tabasqueñas con queso de bola holandés y cajeta Coronado le ganan a cualquier antojo, venga de donde venga.",
+    "La marquesita es de las cosas más simples y a la vez más perfectas de la cocina callejera del sureste de México: una masa delgada de harina, agua y azúcar se cuece sobre un molde circular de hierro caliente hasta quedar crujiente como una galleta, todavía tibia se rellena y se enrolla sobre sí misma. El verdadero lujo nunca está en la masa — está en lo que le pongas encima.",
+    "Y en esta casa la combinación no admite debate: queso de bola holandés (ese mismo queso Edam que llegó a Yucatán hace más de un siglo por el comercio marítimo y hoy es más yucateco que muchos platillos con nombre en maya) y un chorro generoso de cajeta. El contraste de un queso salado y semiduro derritiéndose contra un caramelo de leche de cabra dentro de una crepa crujiente es, sencillamente, imbatible.",
+  ],
+  marquesitaFacts: [
+    "El nombre \"marquesita\" no tiene relación conocida con ninguna marquesa real — nadie en Mérida sabe muy bien de dónde salió, y a nadie parece importarle.",
+    "La receta original es solo harina, agua y azúcar enrollada en un molde caliente — el verdadero lujo está 100% en el relleno, no en la masa.",
+    "El queso de bola holandés que llevan casi todas las marquesitas llegó a Yucatán por el comercio marítimo con Holanda desde el siglo XIX — un queso europeo que terminó siendo más yucateco que muchos platillos \"tradicionales\".",
+    "Aunque esta vez no era de Mérida, cualquier yucateco con honor jurará que la única marquesita de verdad es la de su puesto de confianza — no hay marquesita neutral.",
+    "Con cajeta y queso —y Nutella, si te animas— una sola marquesita puede llevar más azúcar que un pastel completo, y aun así se comen como si fueran ligeras.",
+  ],
+  amashitoEyebrow: "Chile amashito",
+  amashitoAlt: "Chile amashito y cebolla morada picados finamente en un tazón",
+  amashitoIntro: [
+    "De las cosas que más me gustan, sin competencia: chile amashito fresco, picado junto con cebolla morada y bañado en limón. Nada de nombres pretenciosos ni presentación — es picante crudo, de mesa, de los que se preparan en dos minutos y se acaban en menos.",
+    "El amashito (también se escribe amaxito) es un chile silvestre, pequeño y redondo, típico del sureste de México —sobre todo Tabasco y Chiapas—, primo cercano del chiltepín. Se usa casi siempre fresco y verde, nunca seco, y pica bastante más de lo que su tamaño de chícharo sugiere.",
+  ],
+  amashitoFacts: [
+    "Es de la misma familia que el chiltepín, pero se identifica por comerse fresco y verde, no seco ni ahumado.",
+    "Su picor no se mide por el tamaño: entre más chico, generalmente pica más — el amashito no es la excepción.",
+    "No es una salsa cocida ni licuada: se pica crudo, se mezcla con cebolla morada y limón, y se sirve de inmediato.",
+  ],
+  amashitoRecipeHeading: "Cómo se prepara",
+  amashitoSteps: [
+    "Picar finamente la cebolla morada.",
+    "Picar finamente los chiles amashito — con cuidado, pican fuerte incluso al contacto con la piel.",
+    "Exprimir limón sobre la mezcla, agregar sal al gusto y servir de inmediato.",
+  ],
+  pastorEyebrow: "Tacos al pastor (o de trompo)",
+  pastorAlt: "Tacos al pastor recién servidos con una rodaja de limón, en un puesto de la Ciudad de México",
+  pastorIntro: [
+    "Dicen los que saben que los mejores tacos al pastor se marinan con Coca-Cola. Yo, que no sé nada de eso, simplemente me los como. Estos de la foto llevan piña, y aunque hay quien jura que es puro adorno, la piña le da un sabor buenísimo a la carne mientras se asa colgada del trompo.",
+    "La familia y los amigos de Larry, cuando vienen de visita desde la sabana, apenas se bajan del avión van directo al Farolito —a veces la sucursal de la Condesa, a veces la de Insurgentes, a veces la del Pedregal— pero siempre, siempre, por unos tacos al pastor.",
+    "Yo, por mi parte, en esta ocasión me voy a comer ocho. No vaya a ser que baje de peso.",
+  ],
+  pastorFacts: [
+    "El taco al pastor nació de la técnica del shawarma que trajeron inmigrantes libaneses a México a principios del siglo XX — carne apilada y asada verticalmente en un trompo, pero con cerdo marinado en chiles y especias en vez de cordero.",
+    "La rodaja de piña en la punta del trompo no es solo decoración: al asarse gotea sobre la carne y ayuda a caramelizarla mientras gira frente al fuego.",
+    "El nombre \"trompo\" viene de la forma del montón de carne apilada en el asador vertical, que gira igual que un trompo de juguete mientras se cocina.",
+    "El Farolito es una de las taquerías más queridas de la Ciudad de México, con sucursales —como la Condesa, Insurgentes o el Pedregal— que se llenan a cualquier hora del día o de la noche.",
+  ],
+  restaurants: [
+    {
+      name: "El Japonez",
+      eyebrow: "Mi sushi de cadena favorito en México",
+      url: null as string | null,
+      urlLabel: null as string | null,
+      body: [
+        "Es mi restaurante de sushi de cadena que más me gusta en México. No es el sushi más tradicional ni el más purista, pero es exactamente el que se me antoja cuando quiero algo rico, consistente y sin complicaciones — y con varias sucursales, siempre hay una cerca.",
+        "Su rollo con mantequilla de trufa no tiene desperdicio. Es ese tipo de fusión mexicana-japonesa que un purista de Tokio jamás aprobaría, y que sin embargo funciona a la perfección.",
+      ],
+      facts: [
+        "Es probablemente el sushi que más mexicanos han comido en su vida sin saber que \"eso\" no es exactamente como se come el sushi en Japón — y a nadie le importa.",
+        "Su mantequilla de trufa en el sushi es la prueba de que a veces fusionar cocinas sin pedir permiso da mejores resultados que respetar la tradición al pie de la letra.",
+        "Es una cadena, no un solo restaurante — y aun así logra que cada sucursal se sienta como \"tu Japonez de siempre\".",
+        "Es el tipo de lugar al que uno jura que va \"una vez al mes\" y termina yendo cada semana.",
+      ],
+    },
+    {
+      name: "Sushi Ran",
+      eyebrow: "Sausalito, California",
+      url: "https://sushiran.com/",
+      urlLabel: "sushiran.com",
+      body: [
+        "En Sausalito, cruzando el puente desde San Francisco, está Sushi Ran — un restaurante con más de 40 años abiertos, fundado por Yoshi Tome y hoy con el chef ejecutivo Takanori Wada al frente de la cocina. Tiene un Bib Gourmand de Michelin (2025), fue nombrado por el San Francisco Chronicle uno de los 30 restaurantes más importantes del Bay Area, y ha ganado un OpenTable Diners' Choice.",
+        "La calidad y el sabor ahí son espectaculares — la combinación perfecta entre grasa y sabor. De los tres, es probablemente el más consistente en ese balance exacto que busco en un buen corte de pescado.",
+      ],
+      facts: [
+        "Lleva más de 40 años abierto en un pueblo tan pequeño (Sausalito) que la mayoría de sus vecinos podrían caminar hasta ahí en pantuflas — y aun así compite con lo mejor de San Francisco.",
+        "Tiene un Bib Gourmand de Michelin — la categoría que premia \"comer increíble sin pagar como si fuera tu aniversario\", aunque en la práctica sigue sin ser precisamente barato.",
+        "El San Francisco Chronicle lo nombró uno de los 30 restaurantes más importantes del Bay Area en 30 años — un logro que ningún letrero en la puerta menciona lo suficientemente grande.",
+        "Ganó un OpenTable Diners' Choice compitiendo contra toda una ciudad obsesionada con la comida — y lo hizo sirviendo pescado crudo en un pueblo de veleros.",
+      ],
+    },
+    {
+      name: "Kunio",
+      eyebrow: "San Ángel, Ciudad de México",
+      url: "https://www.tripadvisor.com/Restaurant_Review-g150800-d4759934-Reviews-Kunio-Mexico_City_Central_Mexico_and_Gulf_Coast.html",
+      urlLabel: "Ver en TripAdvisor",
+      body: [
+        "Escondido en San Ángel, uno de los barrios más coloniales y menos pensados para encontrar sushi de la Ciudad de México, está Kunio — un japonés discreto al que casi nunca se llega por accidente, siempre por recomendación de alguien de confianza.",
+        "Siempre tiene una frescura como pocas. Es el tipo de lugar donde el pescado habla por sí solo, sin necesidad de que el restaurante presuma nada.",
+      ],
+      facts: [
+        "Está escondido en San Ángel, uno de los barrios más coloniales y menos \"sushi\" de la Ciudad de México — la frescura del pescado ahí compite directamente con el empedrado de las calles.",
+        "Es de esos lugares que casi nadie conoce por accidente — siempre llegas porque alguien de confianza te lo recomendó primero.",
+        "La discreción es casi parte del menú: ni el letrero grita, ni el lugar presume — deja que el nigiri hable solo.",
+      ],
+    },
+  ],
+  closingEyebrow: "Mi favorito de todos",
+  closingHeading: "Nigiri de salmón con wasabi",
+  closing: [
+    "Si me preguntan cuál es mi platillo favorito de todos, sin pensarlo mucho: nigiri de salmón, con un toque de wasabi. Simple, directo, sin nada de más.",
+    "Y aunque el sushi se lleve la corona, también soy fan absoluto de los poke bowls — con arroz de coliflor, salmón, atún, elote y edamame. ¿Por qué estaré gordo?",
+  ],
+  salmonAlt: "Dos platos de salmón: uno con caviar negro, otro estilo aguachile con jalapeño relleno",
+  salmonCaption:
+    "Arriba, salmón cortado fino en sashimi con una línea generosa de caviar negro encima — la sal y el estallido del caviar contra la grasa del salmón es una combinación que no falla nunca. Abajo, salmón y atún estilo aguachile, curtidos en cítrico hasta quedar casi translúcidos, coronados con rodajas de jalapeño relleno para el toque picante. Dos formas distintas de tratar el mismo pescado, y las dos ganan.",
+};
+
+// A single-element array in the source (e.g. a one-paragraph intro) sometimes comes back from
+// the model as a bare string instead of a 1-item array — confirmed live on the equivalent
+// avestruces page. Coerce that one specific, safe case back into shape before the strict check
+// below, instead of discarding an entire good translation over it.
+function normalizeShape(es: any, raw: any): any {
+  if (Array.isArray(es)) {
+    if (es.length === 1 && typeof raw === "string") return [raw];
+    if (Array.isArray(raw)) return raw.map((item, i) => normalizeShape(es[i] ?? es[0], item));
+    return raw;
+  }
+  if (es && typeof es === "object" && raw && typeof raw === "object") {
+    const result: any = {};
+    for (const k of Object.keys(es)) result[k] = normalizeShape(es[k], raw[k]);
+    return result;
+  }
+  return raw;
+}
+
+function shapeMatches(es: any, raw: any): boolean {
+  if (Array.isArray(es)) {
+    return Array.isArray(raw) && raw.length === es.length && es.every((v, idx) => shapeMatches(v, raw[idx]));
+  }
+  if (es && typeof es === "object") {
+    return raw && typeof raw === "object" && Object.keys(es).every((k) => shapeMatches(es[k], raw[k]));
+  }
+  return raw === null || typeof raw === "string";
+}
+
+// The 70B model occasionally drops a single closing "]" when generating a large nested
+// array-of-objects blob (observed consistently on the last restaurant's "facts" array).
+// JSON.parse's own error position points at the offending character — inserting "]" right
+// before it repairs this exact failure mode without guessing blindly.
+function parseWithBracketRepair(text: string): any {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const m = /position (\d+)/.exec(String((e as Error)?.message ?? e));
+    if (!m) return null;
+    const pos = Number(m[1]);
+    try {
+      return JSON.parse(text.slice(0, pos) + "]" + text.slice(pos));
+    } catch {
+      return null;
+    }
+  }
+}
+
+const CACHE_KEY = `kw:static:comida:${locale.code}:v2`;
+let content = ES_CONTENT;
+
+if (env?.KILOWATTO_KV) {
+  const cached = await env.KILOWATTO_KV.get(CACHE_KEY, "json");
+  if (cached) {
+    content = cached as typeof ES_CONTENT;
+  } else if (env?.AI) {
+    const voice = VOICE_INSTRUCTIONS[locale.code] ?? `Translate to ${locale.code}.`;
+    const prompt = `${voice}\n\nTraduce este objeto JSON (español mexicano) a ${locale.code}. NO traduzcas los nombres propios "El Japonez", "Sushi Ran", "Kunio", "Yoshi Tome", "Takanori Wada", "San Ángel", "Sausalito", "OpenTable Diners' Choice", "Bib Gourmand", "San Francisco Chronicle", "amashito", "amaxito", "chiltepín", "Larry", "El Farolito", "Condesa", "Insurgentes", "Pedregal", ni las URLs (campos "url"/"urlLabel" que empiecen con "http" o contengan un dominio) — cópialas literalmente. Mantén exactamente las mismas claves y la misma cantidad de elementos en cada arreglo. Devuelve SOLO el objeto JSON traducido, sin texto adicional ni bloques de código:\n\n${JSON.stringify(ES_CONTENT)}`;
+
+    try {
+      const result: any = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 8000,
+      });
+      const parsed =
+        typeof result?.response === "object"
+          ? result.response
+          : parseWithBracketRepair(typeof result?.response === "string" ? (result.response.match(/\{[\s\S]*\}/)?.[0] ?? "null") : "null");
+      const raw = parsed && typeof parsed === "object" ? normalizeShape(ES_CONTENT, parsed) : parsed;
+      if (raw && typeof raw === "object" && shapeMatches(ES_CONTENT, raw)) {
+        content = raw;
+        await env.KILOWATTO_KV.put(CACHE_KEY, JSON.stringify(raw), { expirationTtl: 60 * 60 * 24 * 30 });
+      }
+    } catch {
+      // fall back to Spanish silently
+    }
+  }
+}
+---
+
+<Site
+  title={`${nl.comida} — Esteban Rey`}
+  description="Marquesitas tabasqueñas, tacos al pastor en El Farolito, y los restaurantes de sushi favoritos de Esteban Rey: El Japonez, Sushi Ran en Sausalito y Kunio en San Ángel."
+  active="/comida"
+  locale={locale.code}
+  dir={locale.rtl ? "rtl" : "ltr"}
+>
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">{content.pageEyebrow}</p>
+      <h1>{content.pageTitle}</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">{content.marquesitaEyebrow}</p>
+      <img
+        src="/comida/marquesita.webp"
+        alt={content.marquesitaAlt}
+        loading="eager"
+        width="900"
+        height="1600"
+        class="hero-photo"
+      />
+      {content.marquesitaIntro.map((p) => <p class="hero__sub">{p}</p>)}
+      <ul class="facts-list">
+        {content.marquesitaFacts.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">{content.amashitoEyebrow}</p>
+      <img
+        src="/comida/chile-amashito.webp"
+        alt={content.amashitoAlt}
+        loading="lazy"
+        width="900"
+        height="1200"
+        class="hero-photo"
+      />
+      {content.amashitoIntro.map((p) => <p class="hero__sub">{p}</p>)}
+      <ul class="facts-list">
+        {content.amashitoFacts.map((f) => <li>{f}</li>)}
+      </ul>
+      <h3 class="recipe-heading">{content.amashitoRecipeHeading}</h3>
+      <ol class="facts-list recipe-steps">
+        {content.amashitoSteps.map((s) => <li>{s}</li>)}
+      </ol>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">{content.pastorEyebrow}</p>
+      <img
+        src="/comida/tacos-al-pastor.webp"
+        alt={content.pastorAlt}
+        loading="lazy"
+        width="900"
+        height="1008"
+        class="hero-photo"
+      />
+      {content.pastorIntro.map((p) => <p class="hero__sub">{p}</p>)}
+      <ul class="facts-list">
+        {content.pastorFacts.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  {content.restaurants.map((r, i) => (
+    <section class={`chapter ${i % 2 === 0 ? "chapter--mist" : ""}`}>
+      <div class="container">
+        <p class="eyebrow">{r.eyebrow}</p>
+        <h2>{r.name}</h2>
+        {r.body.map((p) => <p class="hero__sub">{p}</p>)}
+        {r.url && (
+          <p class="see-more">
+            <a href={r.url} target="_blank" rel="noopener">{r.urlLabel} →</a>
+          </p>
+        )}
+        <ul class="facts-list">
+          {r.facts.map((f) => <li>{f}</li>)}
+        </ul>
+      </div>
+    </section>
+  ))}
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">{content.closingEyebrow}</p>
+      <h2>{content.closingHeading}</h2>
+      {content.closing.map((p) => <p class="hero__sub">{p}</p>)}
+      <img
+        src="/comida/salmon-favorito.webp"
+        alt={content.salmonAlt}
+        loading="lazy"
+        width="720"
+        height="1600"
+        class="salmon-photo"
+      />
+      <p class="hero__sub salmon-caption">{content.salmonCaption}</p>
+    </div>
+  </section>
+</Site>
+
+<style>
+  .hero-photo {
+    width: 100%;
+    max-height: 26rem;
+    object-fit: cover;
+    display: block;
+    margin: var(--space-3) 0;
+    border-radius: 0.5rem;
+  }
+  .salmon-photo {
+    width: 100%;
+    max-width: 20rem;
+    display: block;
+    margin: var(--space-3) 0 0;
+    border-radius: 0.5rem;
+  }
+  .salmon-caption {
+    max-width: 20rem;
+    font-size: 0.9rem;
+  }
+  .facts-list {
+    margin: var(--space-3) 0 0;
+    padding-left: 1.4rem;
+    display: grid;
+    gap: 0.55rem;
+    color: var(--ink-soft);
+    max-width: var(--measure);
+  }
+  .recipe-heading {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    margin: var(--space-3) 0 0;
+  }
+  .recipe-steps {
+    color: var(--ink);
+  }
+  .see-more {
+    margin-top: var(--space-2);
+  }
+  .see-more a {
+    color: var(--ember);
+    font-weight: 600;
+    text-decoration: none;
+  }
+</style>

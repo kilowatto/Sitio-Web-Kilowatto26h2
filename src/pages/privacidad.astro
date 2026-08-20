@@ -1,0 +1,87 @@
+---
+import Site from "../layouts/Site.astro";
+---
+
+<Site title="Aviso de privacidad — Kilowatto" active="/privacidad">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Privacidad</p>
+      <h1>Aviso de privacidad</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container prose">
+      <p><em>Última actualización: julio de 2026.</em></p>
+
+      <h2>¿Quién opera este sitio?</h2>
+      <p>
+        kilowatto.com es el sitio personal de Esteban Rey Ortega ("Kilowatto"). No es un
+        producto comercial ni recopila datos con fines de venta a terceros.
+      </p>
+
+      <h2>Qué datos se recopilan</h2>
+      <ul>
+        <li>
+          <strong>Analítica de uso:</strong> usamos Google Analytics 4, cargado a través de
+          Cloudflare Zaraz, para entender qué páginas se visitan. No usamos esta información
+          para identificarte individualmente.
+        </li>
+        <li>
+          <strong>Fotos publicadas en la galería:</strong> antes de publicar cualquier foto,
+          removemos los metadatos EXIF originales (incluida la ubicación GPS exacta) — solo
+          conservamos la ciudad aproximada y el mes/año en que se tomó, nunca coordenadas
+          precisas ni la fecha exacta en la vista pública.
+        </li>
+        <li>
+          <strong>Menores de edad:</strong> este sitio no publica fotos donde aparezcan
+          personas que puedan ser menores de edad, ni confirma ni niega información sobre
+          hijos o familiares menores.
+        </li>
+      </ul>
+
+      <h2>Cookies y terceros</h2>
+      <p>
+        Este sitio corre 100% en la infraestructura de Cloudflare (Workers, D1, R2). Las
+        únicas herramientas de terceros activas son Google Analytics (vía Cloudflare Zaraz).
+        Si en el futuro se conecta alguna red social (X, LinkedIn) para autenticación o
+        publicación automática de contenido propio, esas integraciones solo acceden a lo
+        estrictamente necesario para esa función y nunca comparten datos de quienes visitan
+        este sitio.
+      </p>
+
+      <h2>Tus derechos</h2>
+      <p>
+        Puedes solicitar la corrección o eliminación de cualquier dato personal tuyo que
+        aparezca en este sitio (por ejemplo, si apareces etiquetado en una foto de la
+        galería) contactando a Esteban directamente por
+        {" "}<a href="https://x.com/Kilowatto" target="_blank" rel="noopener">X</a>.
+      </p>
+
+      <h2>Cambios a este aviso</h2>
+      <p>
+        Este aviso puede actualizarse conforme el sitio agregue nuevas funciones. La fecha de
+        última actualización siempre aparece arriba.
+      </p>
+    </div>
+  </section>
+</Site>
+
+<style>
+  .prose {
+    max-width: var(--measure);
+  }
+  .prose h2 {
+    margin-top: var(--space-3);
+    font-size: 1.1rem;
+  }
+  .prose ul {
+    padding-left: 1.2rem;
+  }
+  .prose li {
+    margin-bottom: 0.6rem;
+  }
+  .prose a {
+    color: var(--rhino);
+  }
+</style>

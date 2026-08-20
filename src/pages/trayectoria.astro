@@ -1,5 +1,6 @@
 ---
 import Site from "../layouts/Site.astro";
+import PullQuote from "../components/PullQuote.astro";
 import { env } from "cloudflare:workers";
 
 let timeline: any[] = [];
@@ -9,13 +10,19 @@ if (env?.DB) {
 }
 ---
 
-<Site title="Trayectoria — Esteban Rey" active="/trayectoria">
+<Site
+  title="Trayectoria — Esteban Rey"
+  description="La trayectoria completa de Esteban Rey (Kilowatto): de configurar firewalls a los 16 años a fundar Ignia Cloud, con más de 25 años en tecnología."
+  active="/trayectoria"
+>
   <section class="page-head">
     <div class="container">
       <p class="eyebrow">Trayectoria</p>
       <h1>De los 5 años con una Atari, a fundar la nube naranja.</h1>
     </div>
   </section>
+
+  <PullQuote placement="trayectoria" />
 
   <section class="chapter">
     <div class="container">

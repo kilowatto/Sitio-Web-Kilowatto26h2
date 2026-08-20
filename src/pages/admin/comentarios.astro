@@ -1,0 +1,197 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import AdminLogin from "../../components/AdminLogin.astro";
+import { env } from "cloudflare:workers";
+import { checkAdminAuth } from "../../lib/admin-auth";
+
+const token = await checkAdminAuth(Astro, env);
+const authorized = !!token;
+
+let pending: any[] = [];
+let recentApproved: any[] = [];
+let bans: any[] = [];
+
+if (authorized && env?.DB) {
+  const [pendingRes, approvedRes, bansRes] = await Promise.all([
+    env.DB.prepare(
+      `SELECT c.*, col.title AS column_title, col.slug AS column_slug
+       FROM comments c JOIN columns col ON col.id = c.column_id
+       WHERE c.status = 'pending' ORDER BY c.created_at ASC`
+    ).all(),
+    env.DB.prepare(
+      `SELECT c.*, col.title AS column_title, col.slug AS column_slug
+       FROM comments c JOIN columns col ON col.id = c.column_id
+       WHERE c.status = 'approved' ORDER BY c.created_at DESC LIMIT 15`
+    ).all(),
+    env.DB.prepare(`SELECT * FROM comment_bans ORDER BY created_at DESC`).all(),
+  ]);
+  pending = pendingRes.results ?? [];
+  recentApproved = approvedRes.results ?? [];
+  bans = bansRes.results ?? [];
+}
+---
+
+{
+  !authorized ? (
+    <AdminLogin />
+  ) : (
+    <AdminLayout title="Comentarios — Admin" active="/admin/comentarios">
+      <section class="panel">
+        <h1>Comentarios</h1>
+        <p class="hint">
+          Ningún comentario se muestra en el sitio hasta que lo apruebas aquí. &ldquo;Banear&rdquo; bloquea esa IP para
+          futuros comentarios (sin avisarle) y rechaza de una vez cualquier otro pendiente de la misma IP.
+        </p>
+
+        <h2>Pendientes ({pending.length})</h2>
+        {pending.length === 0 ? (
+          <p class="empty">No hay comentarios esperando revisión.</p>
+        ) : (
+          <div class="drafts">
+            {pending.map((c: any) => (
+              <div class="draft" data-id={c.id}>
+                {c.flagged_reason && <p class="flag">⚠️ {c.flagged_reason}</p>}
+                <p class="draft__meta">
+                  <strong>{c.author_name || "Anónimo"}</strong> · {c.created_at} · en{" "}
+                  <a href={`/columnas/${c.column_slug}`} target="_blank" rel="noopener">
+                    {c.column_title}
+                  </a>
+                </p>
+                <p class="draft__body">{c.body}</p>
+                <div class="draft__actions">
+                  <button type="button" class="btn btn--approve" data-action="approve" data-id={c.id}>
+                    ✅ Aprobar
+                  </button>
+                  <button type="button" class="btn btn--reject" data-action="reject" data-id={c.id}>
+                    ✕ Rechazar
+                  </button>
+                  <button type="button" class="btn btn--ban" data-action="ban" data-id={c.id}>
+                    🚫 Banear IP
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <h2>Aprobados recientemente</h2>
+        {recentApproved.length === 0 ? (
+          <p class="empty">Todavía no hay comentarios aprobados.</p>
+        ) : (
+          <ul class="recent">
+            {recentApproved.map((c: any) => (
+              <li>
+                <strong>{c.author_name || "Anónimo"}</strong> en{" "}
+                <a href={`/columnas/${c.column_slug}`} target="_blank" rel="noopener">
+                  {c.column_title}
+                </a>{" "}
+                — {c.created_at}: {c.body.slice(0, 100)}
+                {c.body.length > 100 ? "…" : ""}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <h2>IPs baneadas ({bans.length})</h2>
+        {bans.length === 0 ? (
+          <p class="empty">Ninguna IP baneada por ahora.</p>
+        ) : (
+          <ul class="recent">
+            {bans.map((b: any) => (
+              <li data-ban-id={b.id}>
+                {b.reason || "sin razón especificada"} — desde {b.created_at}{" "}
+                <button type="button" class="btn btn--unban" data-action="unban" data-id={b.id}>
+                  Quitar baneo
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <script define:vars={{ token }}>
+        document.querySelectorAll('[data-action="approve"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            try {
+              await fetch(`/api/comments/${btn.dataset.id}/approve?token=${encodeURIComponent(token)}`, { method: "POST" });
+              location.reload();
+            } catch {
+              alert("Se perdió la conexión al aprobar.");
+              btn.disabled = false;
+            }
+          });
+        });
+
+        document.querySelectorAll('[data-action="reject"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const reason = prompt("¿Por qué lo rechazas? (opcional)") ?? "";
+            btn.disabled = true;
+            try {
+              await fetch(`/api/comments/${btn.dataset.id}/reject?token=${encodeURIComponent(token)}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ reason }),
+              });
+              location.reload();
+            } catch {
+              alert("Se perdió la conexión al rechazar.");
+              btn.disabled = false;
+            }
+          });
+        });
+
+        document.querySelectorAll('[data-action="ban"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("¿Banear la IP de este comentario? No podrá volver a comentar y no se le avisará.")) return;
+            const reason = prompt("Razón del baneo (opcional, solo para tu registro)") ?? "";
+            btn.disabled = true;
+            try {
+              await fetch(`/api/comments/${btn.dataset.id}/ban?token=${encodeURIComponent(token)}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ reason }),
+              });
+              location.reload();
+            } catch {
+              alert("Se perdió la conexión al banear.");
+              btn.disabled = false;
+            }
+          });
+        });
+
+        document.querySelectorAll('[data-action="unban"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            try {
+              await fetch(`/api/comment-bans/${btn.dataset.id}/remove?token=${encodeURIComponent(token)}`, { method: "POST" });
+              location.reload();
+            } catch {
+              alert("Se perdió la conexión.");
+              btn.disabled = false;
+            }
+          });
+        });
+      </script>
+
+      <style>
+        .panel { max-width: 56rem; margin: 0 auto; padding: 1.5rem; }
+        .hint { color: var(--ink-soft, #666); font-size: 0.9rem; margin-top: 0.25rem; }
+        .empty { color: var(--ink-soft, #666); }
+        .btn { border: none; border-radius: 0.5rem; padding: 0.5rem 0.9rem; font-weight: 600; cursor: pointer; font-size: 0.88rem; }
+        .btn--approve { background: #1a7f37; color: #fff; }
+        .btn--reject { background: #b83b09; color: #fff; }
+        .btn--ban { background: #2b2b2b; color: #fff; }
+        .btn--unban { background: transparent; color: var(--ember, #ff5f14); border: 1px solid var(--line, #ddd); margin-left: 0.5rem; }
+        .btn:disabled { opacity: 0.6; cursor: default; }
+        .drafts { display: flex; flex-direction: column; gap: 1.25rem; margin-top: 1rem; }
+        .draft { border: 1px solid var(--line, #ddd); border-radius: 0.75rem; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+        .draft__meta { font-size: 0.85rem; color: var(--ink-soft, #666); margin: 0; }
+        .draft__body { margin: 0; white-space: pre-wrap; }
+        .draft__actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+        .flag { background: #fff3cd; color: #664d03; padding: 0.4rem 0.6rem; border-radius: 0.4rem; font-size: 0.85rem; margin: 0; }
+        .recent { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.92rem; }
+      </style>
+    </AdminLayout>
+  )
+}

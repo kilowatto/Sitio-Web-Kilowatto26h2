@@ -1,0 +1,165 @@
+---
+import Site from "../../layouts/Site.astro";
+import { localeFromParam } from "../../lib/locales";
+
+const locale = localeFromParam(Astro.params.locale);
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+if (locale.canonical) return Astro.redirect("/contacto", 302);
+
+// Small, static UI copy — translated once here rather than via the live-AI-translate-on-request
+// pattern used elsewhere, specifically to avoid the exact "silent fallback to Spanish" failure
+// mode this same audit found repeatedly on larger, AI-translated content blocks.
+const COPY: Record<string, any> = {
+  "es-AR": { eyebrow: "Contacto", h1: "Escribime.", intro: "Para negocios, prensa, el Yucatech Festival, o simplemente para saludar. Leo todo personalmente.", name: "Nombre", email: "Correo", message: "Mensaje", submit: "Enviar", sending: "Enviando…", ok: "¡Gracias! Te responderé pronto.", rate: "Demasiados mensajes seguidos — intenta de nuevo más tarde.", invalid: "Revisá los campos e intentá de nuevo.", offline: "Se perdió la conexión — intentá de nuevo.", desc: "Escribile a Esteban Rey (Kilowatto) — CEO de Ignia Cloud, fundador del Yucatech Festival." },
+  "es-CO": { eyebrow: "Contacto", h1: "Escríbeme.", intro: "Para negocios, prensa, el Yucatech Festival, o simplemente para saludar. Leo todo personalmente.", name: "Nombre", email: "Correo", message: "Mensaje", submit: "Enviar", sending: "Enviando…", ok: "¡Gracias! Te responderé pronto.", rate: "Demasiados mensajes seguidos — intenta de nuevo más tarde.", invalid: "Revisa los campos e intenta de nuevo.", offline: "Se perdió la conexión — intenta de nuevo.", desc: "Escríbele a Esteban Rey (Kilowatto) — CEO de Ignia Cloud, fundador del Yucatech Festival." },
+  "es-ES": { eyebrow: "Contacto", h1: "Escríbeme.", intro: "Para negocios, prensa, el Yucatech Festival, o simplemente para saludar. Lo leo todo personalmente.", name: "Nombre", email: "Correo", message: "Mensaje", submit: "Enviar", sending: "Enviando…", ok: "¡Gracias! Te responderé pronto.", rate: "Demasiados mensajes seguidos — inténtalo de nuevo más tarde.", invalid: "Revisa los campos e inténtalo de nuevo.", offline: "Se ha perdido la conexión — inténtalo de nuevo.", desc: "Escríbele a Esteban Rey (Kilowatto) — CEO de Ignia Cloud, fundador del Yucatech Festival." },
+  "es-419": { eyebrow: "Contacto", h1: "Escríbeme.", intro: "Para negocios, prensa, el Yucatech Festival, o simplemente para saludar. Leo todo personalmente.", name: "Nombre", email: "Correo", message: "Mensaje", submit: "Enviar", sending: "Enviando…", ok: "¡Gracias! Te responderé pronto.", rate: "Demasiados mensajes seguidos — intenta de nuevo más tarde.", invalid: "Revisa los campos e intenta de nuevo.", offline: "Se perdió la conexión — intenta de nuevo.", desc: "Escríbele a Esteban Rey (Kilowatto) — CEO de Ignia Cloud, fundador del Yucatech Festival." },
+  en: { eyebrow: "Contact", h1: "Write to me.", intro: "For business, press, the Yucatech Festival, or just to say hi. I read everything myself.", name: "Name", email: "Email", message: "Message", submit: "Send", sending: "Sending…", ok: "Thanks! I'll get back to you soon.", rate: "Too many messages in a row — try again later.", invalid: "Check the fields and try again.", offline: "Connection lost — try again.", desc: "Write to Esteban Rey (Kilowatto) — CEO of Ignia Cloud, founder of Yucatech Festival." },
+  "pt-BR": { eyebrow: "Contato", h1: "Escreva para mim.", intro: "Para negócios, imprensa, o Yucatech Festival, ou só para dizer oi. Eu leio tudo pessoalmente.", name: "Nome", email: "E-mail", message: "Mensagem", submit: "Enviar", sending: "Enviando…", ok: "Obrigado! Responderei em breve.", rate: "Muitas mensagens seguidas — tente novamente mais tarde.", invalid: "Revise os campos e tente novamente.", offline: "Conexão perdida — tente novamente.", desc: "Escreva para Esteban Rey (Kilowatto) — CEO da Ignia Cloud, fundador do Yucatech Festival." },
+  fr: { eyebrow: "Contact", h1: "Écrivez-moi.", intro: "Pour affaires, presse, le Yucatech Festival, ou juste pour dire bonjour. Je lis tout personnellement.", name: "Nom", email: "E-mail", message: "Message", submit: "Envoyer", sending: "Envoi…", ok: "Merci ! Je vous répondrai bientôt.", rate: "Trop de messages d'affilée — réessayez plus tard.", invalid: "Vérifiez les champs et réessayez.", offline: "Connexion perdue — réessayez.", desc: "Écrivez à Esteban Rey (Kilowatto) — PDG d'Ignia Cloud, fondateur du Yucatech Festival." },
+  de: { eyebrow: "Kontakt", h1: "Schreib mir.", intro: "Für Geschäftliches, Presse, das Yucatech Festival, oder einfach zum Hallosagen. Ich lese alles persönlich.", name: "Name", email: "E-Mail", message: "Nachricht", submit: "Senden", sending: "Wird gesendet…", ok: "Danke! Ich melde mich bald bei dir.", rate: "Zu viele Nachrichten hintereinander — versuch es später erneut.", invalid: "Überprüfe die Felder und versuch es erneut.", offline: "Verbindung verloren — versuch es erneut.", desc: "Schreib Esteban Rey (Kilowatto) — CEO von Ignia Cloud, Gründer des Yucatech Festival." },
+  ar: { eyebrow: "تواصل", h1: "راسلني.", intro: "للأعمال، أو الصحافة، أو مهرجان يوكاتك، أو فقط لإلقاء التحية. أقرأ كل شيء بنفسي.", name: "الاسم", email: "البريد الإلكتروني", message: "الرسالة", submit: "إرسال", sending: "جارٍ الإرسال…", ok: "شكرًا! سأرد عليك قريبًا.", rate: "رسائل كثيرة جدًا متتالية — حاول لاحقًا.", invalid: "راجع الحقول وحاول مرة أخرى.", offline: "انقطع الاتصال — حاول مرة أخرى.", desc: "راسل إستيبان ري (كيلواتو) — الرئيس التنفيذي لشركة Ignia Cloud ومؤسس مهرجان يوكاتك." },
+  "zh-Hans": { eyebrow: "联系", h1: "给我留言。", intro: "无论是商务合作、媒体采访、Yucatech Festival，还是只是打个招呼——我都会亲自阅读每一条留言。", name: "姓名", email: "邮箱", message: "留言", submit: "发送", sending: "发送中…", ok: "谢谢！我会尽快回复你。", rate: "留言过于频繁，请稍后再试。", invalid: "请检查填写内容后重试。", offline: "连接已断开，请重试。", desc: "给 Esteban Rey（Kilowatto）留言——Ignia Cloud 首席执行官，Yucatech Festival 创始人。" },
+  ja: { eyebrow: "お問い合わせ", h1: "メッセージを送る", intro: "ビジネス、取材、Yucatech Festivalについて、あるいはただの挨拶でも構いません。すべて自分で目を通しています。", name: "お名前", email: "メールアドレス", message: "メッセージ", submit: "送信", sending: "送信中…", ok: "ありがとうございます！近いうちに返信します。", rate: "短時間に送信しすぎです — しばらくしてからもう一度お試しください。", invalid: "入力内容を確認してもう一度お試しください。", offline: "接続が切れました — もう一度お試しください。", desc: "Esteban Rey（Kilowatto、Ignia Cloud CEO、Yucatech Festival創設者）にメッセージを送る。" },
+};
+
+const c = COPY[locale.code] ?? COPY.en;
+---
+
+<Site title={`${c.eyebrow} — Esteban Rey`} active={`/${locale.code}/contacto`} description={c.desc} locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">{c.eyebrow}</p>
+      <h1>{c.h1}</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container contact-layout">
+      <div>
+        <p class="hero__sub">{c.intro}</p>
+        <p class="contact-social">
+          <a href="https://x.com/kilowatto" target="_blank" rel="noopener me">X (@kilowatto)</a>
+        </p>
+      </div>
+
+      <form id="contact-form" class="contact-form">
+        <label for="name">{c.name}</label>
+        <input type="text" id="name" name="name" required maxlength="200" />
+
+        <label for="email">{c.email}</label>
+        <input type="email" id="email" name="email" required maxlength="200" />
+
+        <label for="message">{c.message}</label>
+        <textarea id="message" name="message" rows="6" required maxlength="4000"></textarea>
+
+        <input type="text" id="website" name="website" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+        <button type="submit">{c.submit}</button>
+        <p id="contact-status" class="hint" role="status"></p>
+      </form>
+    </div>
+  </section>
+</Site>
+
+<script define:vars={{ c }}>
+  const form = document.getElementById("contact-form");
+  const status = document.getElementById("contact-status");
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector("button");
+    const data = new FormData(form);
+    btn.disabled = true;
+    btn.textContent = c.sending;
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: data.get("name"),
+          email: data.get("email"),
+          message: data.get("message"),
+          website: data.get("website"),
+        }),
+      });
+      if (res.ok) {
+        form.reset();
+        status.textContent = c.ok;
+      } else if (res.status === 429) {
+        status.textContent = c.rate;
+      } else {
+        status.textContent = c.invalid;
+      }
+    } catch {
+      status.textContent = c.offline;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = c.submit;
+    }
+  });
+</script>
+
+<style>
+  .contact-layout {
+    display: grid;
+    gap: var(--space-4);
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) {
+    .contact-layout {
+      grid-template-columns: 1fr 1.2fr;
+    }
+  }
+  .contact-social {
+    margin-top: var(--space-3);
+  }
+  .contact-social a {
+    font-weight: 600;
+  }
+  .contact-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .contact-form label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-top: 0.6rem;
+  }
+  .contact-form input,
+  .contact-form textarea {
+    border: 1px solid var(--line);
+    padding: 0.6rem 0.75rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .hp-field {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+  .contact-form button {
+    margin-top: var(--space-2);
+    align-self: flex-start;
+    background: var(--rhino);
+    color: #fff;
+    border: none;
+    padding: 0.65rem 1.3rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .hint {
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+  }
+</style>

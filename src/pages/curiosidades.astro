@@ -1,0 +1,75 @@
+---
+import Site from "../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  filosofia: "Filosofía",
+  formacion: "Formación",
+  negocio: "Negocio",
+  curiosidades: "Rápidas",
+};
+const CATEGORY_ORDER = ["filosofia", "formacion", "negocio", "curiosidades"];
+
+let quotes: any[] = [];
+if (env?.DB) {
+  const res = await env.DB.prepare("SELECT * FROM quotes ORDER BY category, sort_order").all();
+  quotes = res?.results ?? [];
+}
+
+const grouped = CATEGORY_ORDER.map((cat) => ({
+  key: cat,
+  label: CATEGORY_LABELS[cat] ?? cat,
+  items: quotes.filter((q: any) => q.category === cat),
+})).filter((g) => g.items.length > 0);
+---
+
+<Site
+  title="Curiosidades — Esteban Rey"
+  description="Citas y reflexiones de Esteban Rey (Kilowatto) sobre filosofía, formación, negocios y la vida en general."
+  active="/curiosidades"
+>
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">En sus palabras</p>
+      <h1>Serio, no solemne. Irónico, sin insultar a nadie — sobre todo a mí.</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      {
+        grouped.map((g) => (
+          <div class="quote-group">
+            <p class="eyebrow">{g.label}</p>
+            <ul class="quote-list">
+              {g.items.map((q: any) => (
+                <li class="quote-item">“{q.text}”</li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+</Site>
+
+<style>
+  .quote-group {
+    margin-bottom: var(--space-4);
+  }
+  .quote-list {
+    list-style: none;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+  }
+  .quote-item {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-style: italic;
+    line-height: 1.45;
+    padding-left: var(--space-2);
+    border-left: 3px solid var(--rhino);
+  }
+</style>

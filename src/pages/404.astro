@@ -1,0 +1,131 @@
+---
+import Site from "../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+// When reached via Astro.rewrite("/404") (from the [locale] catch-all routes),
+// Astro.url.pathname reflects the rewritten "/404" target, not what was actually
+// requested — Astro.originalPathname preserves the real one. Falls back to url.pathname
+// for the direct/no-rewrite 404 case (multi-segment paths matching no route at all).
+const path = Astro.originPathname ?? Astro.url.pathname;
+const referrer = Astro.request.headers.get("referer") ?? null;
+
+if (env?.DB && !path.startsWith("/admin")) {
+  try {
+    await env.DB.prepare(
+      `INSERT INTO broken_links (path, referrer) VALUES (?, ?)
+       ON CONFLICT(path) DO UPDATE SET hit_count = hit_count + 1, last_seen = datetime('now'), referrer = COALESCE(excluded.referrer, broken_links.referrer)`
+    )
+      .bind(path, referrer)
+      .run();
+  } catch {
+    // logging is best-effort, never block the 404 page over it
+  }
+}
+
+// Esteban's voice: serio, no solemne, irónico sin insultar a nadie — sobre todo a mí.
+// Picked server-side per request, not client JS, so it varies on reload without a flash.
+const MESSAGES = [
+  "Ni Larry la encuentra, y él encontró un procesador de NVIDIA una vez.",
+  "Esta página se fue de vacaciones y no dejó dirección de reenvío.",
+  '"404" — la única cifra que no me alegra ver crecer.',
+  "Busqué en todos lados. Bueno, en el sitio. Que tampoco es tan grande.",
+  "Aquí no hay nada. Como mi bandeja de consejos: no me pidas, no doy.",
+];
+const message = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
+---
+
+<Site title="Página no encontrada — Kilowatto" active="">
+  <section class="page-head">
+    <div class="container not-found">
+      <img
+        src="/media/photos/social-generated/d640f87c-0d1d-46cb-bd27-809e897e9f6f.png?w=300"
+        srcset="/media/photos/social-generated/d640f87c-0d1d-46cb-bd27-809e897e9f6f.png?w=300 300w, /media/photos/social-generated/d640f87c-0d1d-46cb-bd27-809e897e9f6f.png?w=500 500w"
+        sizes="14rem"
+        alt="Larry buscando confundido con una lupa"
+        class="not-found-image"
+      />
+      <p class="eyebrow">Error 404</p>
+      <h1>No encontré esta página.</h1>
+      <p class="not-found-message">{message}</p>
+
+      <form id="site-search" class="not-found-search" role="search">
+        <input type="search" name="q" placeholder="Buscar en kilowatto.com…" aria-label="Buscar en el sitio" />
+        <button type="submit">Buscar</button>
+      </form>
+
+      <nav class="not-found-links" aria-label="Secciones populares">
+        <a href="/trayectoria">Trayectoria</a>
+        <a href="/empresas">Empresas</a>
+        <a href="/curiosidades">Curiosidades</a>
+        <a href="/galeria">Galería</a>
+        <a href="/">Ir al inicio</a>
+      </nav>
+    </div>
+  </section>
+</Site>
+
+<script>
+  document.getElementById("site-search")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const q = new FormData(e.target as HTMLFormElement).get("q");
+    if (!q) return;
+    window.location.href = `https://www.google.com/search?q=${encodeURIComponent(`site:kilowatto.com ${q}`)}`;
+  });
+</script>
+
+<style>
+  .not-found {
+    text-align: center;
+    padding-block: var(--space-4) var(--space-5);
+    max-width: 34rem;
+  }
+  .not-found-image {
+    width: 14rem;
+    max-width: 70vw;
+    margin: 0 auto var(--space-3);
+    border-radius: 1rem;
+  }
+  .not-found h1 {
+    font-family: var(--font-display);
+    font-size: clamp(1.8rem, 6vw, 2.6rem);
+    margin: 0.2em 0;
+  }
+  .not-found-message {
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+    margin-bottom: var(--space-3);
+  }
+  .not-found-search {
+    display: flex;
+    gap: 0.5rem;
+    max-width: 24rem;
+    margin: 0 auto var(--space-3);
+  }
+  .not-found-search input {
+    flex: 1;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    font-size: 0.95rem;
+  }
+  .not-found-search button {
+    background: var(--rhino);
+    color: #fff;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.65rem 1.1rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .not-found-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1rem;
+  }
+  .not-found-links a {
+    color: var(--ember);
+    font-weight: 600;
+    text-decoration: none;
+  }
+</style>

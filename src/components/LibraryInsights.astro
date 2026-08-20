@@ -1,0 +1,538 @@
+---
+// The "card catalog" — real computed stats (word count estimate, author word-art, author
+// counts) plus the portal into /biblioteca/harry-potter. One shared DOM for both layouts: a
+// right sidebar on desktop (flows with the page, not pinned), a horizontal swipeable strip of
+// index cards on mobile — CSS alone repositions it (see the media query below), no duplicated
+// markup or double fetch.
+//
+// The rhino word-art is the SAME data as the "Por autor" filter list below it — every real
+// author name, sized by book count, placed inside the rhino silhouette and clickable (same
+// filter link). An image generator can't render many distinct legible words, so the rhino
+// silhouette is only a mask image (Recraft-generated); actual placement inside it is a
+// client-side canvas-sampling + spiral-packing algorithm.
+import type { WordCountEstimate } from "../lib/library-insights";
+
+interface Props {
+  totalBooks: number;
+  authorCloud: [string, number][];
+  currentAuthor: string | null;
+  wordEstimate: WordCountEstimate;
+  readingHours: number;
+  shelfMeters: number;
+}
+
+const { totalBooks, authorCloud, currentAuthor, wordEstimate, readingHours, shelfMeters } = Astro.props;
+const maxAuthorCount = Math.max(1, ...authorCloud.map(([, c]) => c));
+
+// A full "Autor A y Autor B y Autor C" joint credit is too long to ever fit inside the rhino
+// silhouette, even at the smallest legible font -- so the word-art shows a shortened label
+// (first credited author + "+") while the link underneath still filters by the exact full
+// author string, same as clicking the equivalent row in the "Por autor" list.
+function rhinoLabel(author: string): string {
+  const [first, ...rest] = author.split(" y ");
+  return rest.length ? `${first} +` : author;
+}
+
+const rhinoWordsJson = JSON.stringify(
+  authorCloud.map(([author, count]) => ({
+    word: rhinoLabel(author),
+    count,
+    href: `/biblioteca?autor=${encodeURIComponent(author)}`,
+    current: author === currentAuthor,
+  }))
+);
+---
+
+<aside class="lib-insights" aria-label="Estadísticas de la biblioteca">
+  <div class="lib-card lib-card--index">
+    <div class="lib-index__punch" aria-hidden="true"></div>
+    <p class="lib-index__heading">BIBLIOTECA KILOWATTO — FICHA Nº4</p>
+    <div class="lib-index__rule" aria-hidden="true"></div>
+    <dl class="lib-stat-list">
+      <div class="lib-stat">
+        <dt>Libros catalogados</dt>
+        <dd>{totalBooks}</dd>
+      </div>
+      <div class="lib-stat">
+        <dt>Palabras estimadas</dt>
+        <dd>{wordEstimate.totalWords.toLocaleString("es-MX")}</dd>
+      </div>
+      <div class="lib-stat lib-stat--imagined">
+        <dt>Horas de lectura (est.)</dt>
+        <dd>~{readingHours.toLocaleString("es-MX")}</dd>
+      </div>
+      <div class="lib-stat lib-stat--imagined">
+        <dt>Metros en el librero</dt>
+        <dd>~{shelfMeters.toLocaleString("es-MX")}</dd>
+      </div>
+    </dl>
+    <div class="lib-index__dots" aria-hidden="true"></div>
+    <p class="lib-index__footnote">
+      {wordEstimate.knownBooks} con conteo real publicado · {wordEstimate.estimatedBooks} estimados por género —
+      horas y metros son cálculos imaginados, no medidos.
+    </p>
+  </div>
+
+  <div class="lib-card">
+    <p class="lib-card__eyebrow">Nube de autores</p>
+    <h3>Todo el librero, un autor a la vez</h3>
+    <div class="lib-rhino-wrap">
+      <div class="lib-rhino-cloud" id="lib-rhino-cloud" data-words={rhinoWordsJson} data-mask="/media/biblioteca/rhino-word-mask.png"></div>
+    </div>
+    <p class="lib-card__footnote">Los mismos autores y conteos de "Por autor" abajo, acomodados dentro de la silueta — toca cualquiera para filtrar.</p>
+  </div>
+
+  <div class="lib-card">
+    <p class="lib-card__eyebrow">Filtrar</p>
+    <h3>Por autor</h3>
+    <ul class="lib-author-list">
+      {authorCloud.map(([author, count]) => (
+        <li>
+          <a href={`/biblioteca?autor=${encodeURIComponent(author)}`} aria-current={currentAuthor === author ? "true" : undefined}>
+            <span class="lib-author-list__name">{author}</span>
+            <span class="lib-author-list__bar">
+              <span class="lib-author-list__fill" style={`width:${(count / maxAuthorCount) * 100}%`} />
+            </span>
+            <span class="lib-author-list__count">{count}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+
+  <a href="/biblioteca/harry-potter" class="lib-card lib-portal">
+    <img
+      src="/media/biblioteca/castle-door.webp?w=700"
+      srcset="/media/biblioteca/castle-door.webp?w=700 700w, /media/biblioteca/castle-door.webp?w=1200 1200w"
+      sizes="(max-width: 720px) 100vw, 50vw"
+      alt=""
+      class="lib-portal__img"
+    />
+    <div class="lib-portal__scrim"></div>
+    <div class="lib-portal__text">
+      <h3>Entra al armario de Harry Potter</h3>
+      <p>Toca la puerta →</p>
+    </div>
+  </a>
+
+  <a href="/biblioteca/riordanverse" class="lib-card lib-portal lib-portal--riordan">
+    <img
+      src="/media/biblioteca/riordan-camp-gate.webp?w=700"
+      srcset="/media/biblioteca/riordan-camp-gate.webp?w=700 700w, /media/biblioteca/riordan-camp-gate.webp?w=1200 1200w"
+      sizes="(max-width: 720px) 100vw, 50vw"
+      alt=""
+      class="lib-portal__img"
+    />
+    <div class="lib-portal__scrim"></div>
+    <div class="lib-portal__text">
+      <h3>Entra al Riordanverse</h3>
+      <p>Desenfunda tu pluma →</p>
+    </div>
+  </a>
+</aside>
+
+<style>
+  .lib-insights {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 0.25rem 1.25rem 1rem;
+    margin: 0 -1.25rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .lib-insights::-webkit-scrollbar {
+    display: none;
+  }
+  .lib-card {
+    flex: 0 0 82%;
+    scroll-snap-align: center;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    padding: var(--space-2);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+  }
+  .lib-card__eyebrow {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.68rem;
+    color: var(--ink-soft);
+    margin: 0 0 0.15rem;
+  }
+  .lib-card h3 {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    margin: 0 0 0.7rem;
+  }
+  .lib-card__footnote {
+    margin: 0.7rem 0 0;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    line-height: 1.4;
+  }
+
+  /* Old library card-catalog index card: kraft/cream stock, a hole-punch circle, a typewriter
+     register, dotted "checkout" leader lines between label and value. */
+  .lib-card--index {
+    background: #f2e9d8;
+    background-image: radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+    background-size: 3px 3px;
+    border: 1px solid #d8c9a3;
+    color: #4a3d24;
+    position: relative;
+    padding-top: 1.6rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    .lib-card--index {
+      background: #2a2216;
+      border-color: #4a3d24;
+      color: #e8dcc0;
+    }
+  }
+  :root[data-theme="dark"] .lib-card--index {
+    background: #2a2216;
+    border-color: #4a3d24;
+    color: #e8dcc0;
+  }
+  :root[data-theme="light"] .lib-card--index {
+    background: #f2e9d8;
+    border-color: #d8c9a3;
+    color: #4a3d24;
+  }
+  .lib-index__punch {
+    position: absolute;
+    top: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: var(--paper);
+    box-shadow: inset 0 0 0 1px #d8c9a3;
+  }
+  .lib-index__heading {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-align: center;
+    margin: 0 0 0.5rem;
+    font-weight: 700;
+  }
+  .lib-index__rule {
+    height: 2px;
+    background: repeating-linear-gradient(90deg, currentColor 0, currentColor 4px, transparent 4px, transparent 7px);
+    opacity: 0.5;
+    margin-bottom: 0.9rem;
+  }
+  .lib-stat-list {
+    margin: 0;
+    display: grid;
+    gap: 0.55rem;
+    font-family: var(--font-mono);
+  }
+  .lib-stat {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+  }
+  .lib-stat dt {
+    /* Grows to fill the row, then clips its own leader line at that width -- without
+       min-width:0 a flex item refuses to shrink below its content size (text + the 100%-wide
+       ::after below), which is exactly what let the dotted line run past the card edge on the
+       longer labels ("Metros en el librero", "Horas de lectura (est.)"). */
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .lib-stat dt::after {
+    content: "";
+    display: inline-block;
+    width: 100%;
+    border-bottom: 1px dotted currentColor;
+    opacity: 0.5;
+    margin: 0 0.3em -0.15em;
+  }
+  .lib-stat dd {
+    flex: 0 0 auto;
+    margin: 0;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .lib-stat--imagined dd {
+    opacity: 0.75;
+  }
+  .lib-index__dots {
+    margin: 0.9rem 0 0.5rem;
+    border-top: 1px dashed currentColor;
+    opacity: 0.4;
+  }
+  .lib-index__footnote {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    opacity: 0.75;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  /* Real word-cloud-in-shape: a square canvas-sampled area, words positioned in % (so it
+     scales with the card) and sized via container-query units so font-size scales too. */
+  .lib-rhino-wrap {
+    container-type: inline-size;
+  }
+  .lib-rhino-cloud {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    /* No visible rhino drawing underneath — the words are still packed into the rhino
+       silhouette's coordinates below (same mask, same algorithm), so the overall shape comes
+       through in how the names are arranged, without literally drawing a rhino on the page. */
+  }
+  .lib-rhino-cloud :global(a) {
+    position: absolute;
+    font-family: var(--font-display);
+    font-weight: 700;
+    white-space: nowrap;
+    line-height: 1;
+    text-decoration: none;
+    transition: opacity 0.15s ease;
+  }
+  .lib-rhino-cloud :global(a:hover),
+  .lib-rhino-cloud :global(a:focus-visible) {
+    text-decoration: underline;
+  }
+  .lib-rhino-cloud :global(a[aria-current="true"]) {
+    text-decoration: underline;
+  }
+
+  .lib-author-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.5rem;
+    max-height: 16rem;
+    overflow-y: auto;
+  }
+  .lib-author-list a {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 0.15rem 0.5rem;
+    text-decoration: none;
+    color: inherit;
+  }
+  .lib-author-list__name {
+    font-size: 0.85rem;
+    grid-column: 1;
+  }
+  .lib-author-list__count {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .lib-author-list__bar {
+    grid-column: 1 / -1;
+    display: block;
+    height: 0.3rem;
+    background: var(--mist);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .lib-author-list__fill {
+    display: block;
+    height: 100%;
+    background: var(--rhino);
+    border-radius: 999px;
+  }
+  .lib-author-list a[aria-current="true"] .lib-author-list__name {
+    color: var(--ember);
+    font-weight: 700;
+  }
+  .lib-author-list a[aria-current="true"] .lib-author-list__fill {
+    background: var(--ember);
+  }
+
+  /* The portal — a real generated castle-gate illustration, deliberately the one dark, moody
+     card on an otherwise light page, like a doorway punched through into somewhere else. */
+  .lib-portal {
+    position: relative;
+    text-decoration: none;
+    text-align: center;
+    display: block;
+    overflow: hidden;
+    min-height: 14rem;
+    padding: 0;
+  }
+  .lib-portal__img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+  }
+  .lib-portal:hover .lib-portal__img {
+    transform: scale(1.06);
+  }
+  .lib-portal__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(10, 8, 5, 0.15) 0%, rgba(10, 8, 5, 0.85) 85%);
+  }
+  .lib-portal__text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: var(--space-2);
+  }
+  .lib-portal h3 {
+    font-size: 1.05rem;
+    color: #f6efd8;
+    margin: 0;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  }
+  /* The Riordanverse portal — a real generated gate/archway image (a lone pine on a hill
+     beyond it, echoing Thalia's Pine at Camp Half-Blood), same treatment as the castle door. */
+  .lib-portal--riordan .lib-portal__scrim {
+    background: linear-gradient(180deg, rgba(5, 22, 32, 0.1) 0%, rgba(5, 22, 32, 0.85) 85%);
+  }
+  .lib-portal--riordan h3 {
+    color: #eefaf7;
+  }
+  .lib-portal--riordan p {
+    color: #3ee0c8;
+  }
+  .lib-portal p {
+    margin: 0.2rem 0 0;
+    font-size: 0.85rem;
+    color: #ffd764;
+  }
+
+  /* Desktop: one column, no swipe affordance needed. Deliberately NOT sticky/internally
+     scrolling — a pinned sidebar with its own scrollbar fights the page's own scroll (two
+     scroll regions competing for the same gesture), which is confusing more than useful.
+     It just flows in the grid column and scrolls away with the rest of the page. */
+  @media (min-width: 960px) {
+    .lib-insights {
+      grid-column: 2;
+      grid-row: 2;
+      flex-direction: column;
+      overflow-x: visible;
+      align-self: start;
+      padding: 0 0 1rem;
+      margin: 0;
+    }
+    .lib-card {
+      flex: none;
+    }
+  }
+</style>
+
+<script>
+  // @ts-nocheck
+  // Real word-cloud-in-a-shape via echarts-wordcloud — genuine bitmap silhouette masking (the
+  // white area of the mask image is excluded, everything else fills with words) plus real
+  // rotation. A hand-rolled spiral-packing algorithm here couldn't rotate words or reliably
+  // fill thin shape extremities; this swaps in a real, maintained library instead of patching
+  // that approach further.
+  // Plain <script src> tag injection, NOT a dynamic import() — Vite's build wraps dynamic
+  // import() of a remote URL in its module-preload helper and leaves an unsubstituted
+  // `__VITE_PRELOAD__` reference in the shipped bundle (a ReferenceError at runtime, silently
+  // swallowed by the try/catch below). Loading the UMD builds as classic scripts sidesteps
+  // Vite's import transform entirely.
+  let echartsLoadPromise;
+  function loadEchartsOnce() {
+    if (echartsLoadPromise) return echartsLoadPromise;
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = src;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error("failed to load " + src));
+        document.head.appendChild(s);
+      });
+    }
+    echartsLoadPromise = loadScript("https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js")
+      .then(() => loadScript("https://cdn.jsdelivr.net/npm/echarts-wordcloud@2/dist/echarts-wordcloud.min.js"))
+      .then(() => window.echarts);
+    return echartsLoadPromise;
+  }
+
+  async function buildRhinoCloud(el) {
+    const words = JSON.parse(el.dataset.words ?? "[]");
+    const maskUrl = el.dataset.mask;
+    if (!words.length || !maskUrl) return;
+
+    let echarts;
+    try {
+      echarts = await loadEchartsOnce();
+      if (!echarts) return;
+    } catch {
+      return; // CDN/network failure — leave the card empty rather than throw
+    }
+
+    const maskImg = new Image();
+    maskImg.crossOrigin = "anonymous";
+    const loaded = await new Promise((resolve) => {
+      maskImg.onload = () => resolve(true);
+      maskImg.onerror = () => resolve(false);
+      maskImg.src = maskUrl;
+    });
+    if (!loaded) return;
+
+    const hrefByWord = new Map(words.map((w) => [w.word, w.href]));
+    const colors = ["#b83b09", "#ff5f14", "#4a3d24", "#8a5a2e"];
+
+    const chart = echarts.init(el, null, { renderer: "canvas" });
+    chart.setOption({
+      series: [
+        {
+          type: "wordCloud",
+          maskImage: maskImg,
+          left: "center",
+          top: "center",
+          width: "100%",
+          height: "100%",
+          sizeRange: [10, 42],
+          rotationRange: [-60, 60],
+          rotationStep: 6,
+          gridSize: 5,
+          shrinkToFit: true,
+          drawOutOfBound: false,
+          textStyle: {
+            fontFamily: "Fraunces, serif",
+            fontWeight: 700,
+            // Per-datum color via the documented `textStyle` on each data item, not a
+            // series-level color callback -- the callback's params shape for this series type
+            // isn't the standard formatter-params object, and calling .find()/indexing off
+            // undefined fields threw inside echarts' async render (outside this function's
+            // try/catch), silently aborting the whole chart with no visible error.
+          },
+          emphasis: { textStyle: { color: "#ff5f14" } },
+          data: words.map((w, i) => ({
+            name: w.word,
+            value: w.count,
+            textStyle: { color: w.current ? "#ff5f14" : colors[i % colors.length] },
+          })),
+        },
+      ],
+    });
+
+    chart.on("click", (params) => {
+      const href = hrefByWord.get(params.name);
+      if (href) window.location.href = href;
+    });
+
+    window.addEventListener("resize", () => chart.resize());
+  }
+
+  document.querySelectorAll("#lib-rhino-cloud").forEach(buildRhinoCloud);
+</script>

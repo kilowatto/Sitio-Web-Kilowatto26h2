@@ -1,44 +1,196 @@
 ---
 import Site from "../../layouts/Site.astro";
 import Spark from "../../components/Spark.astro";
+import PullQuote from "../../components/PullQuote.astro";
 import { env } from "cloudflare:workers";
 import { localeFromParam } from "../../lib/locales";
 import { loadTranslations, t } from "../../lib/i18n";
+import { projectsLabels } from "../../lib/nav-labels";
 
 const locale = localeFromParam(Astro.params.locale);
-if (!locale || locale.canonical) return Astro.redirect("/", 302);
+// A single unmatched path segment (a broken link, a typo, anything) structurally matches
+// this dynamic [locale] route too — it must NOT silently redirect home as if it were a
+// real locale (confirmed live 2026-07-22: this swallowed every genuine 404 on the site,
+// including the custom src/pages/404.astro page, which never got a chance to render).
+// Only a recognized-but-canonical locale (e.g. someone typed /es-MX explicitly) should
+// redirect — anything else is a real 404.
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+if (locale.canonical) return Astro.redirect("/", 302);
 
 let profile: any = null;
 let companies: any[] = [];
-let investments: any[] = [];
+let projects: any[] = [];
 let heroPhoto: any = null;
 let profileTr = new Map<string, string>();
 let companiesTr = new Map<string, string>();
-let investmentsTr = new Map<string, string>();
+let projectsTr = new Map<string, string>();
 
 if (env?.DB) {
-  const [profileRes, companiesRes, investmentsRes, heroPhotoRes] = await Promise.all([
+  const [profileRes, companiesRes, projectsRes, heroPhotoRes] = await Promise.all([
     env.DB.prepare("SELECT * FROM profile WHERE id = 1").first(),
     env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all(),
-    env.DB.prepare("SELECT * FROM investments ORDER BY sort_order").all(),
+    // Same self-updating list as /empresas — only ever shows projects the weekly refresh
+    // worker last confirmed reachable. See src/lib/projects-refresh.ts.
+    env.DB.prepare("SELECT * FROM projects WHERE is_reachable = 1 ORDER BY sort_order").all(),
     env.DB.prepare(
       "SELECT r2_key FROM photos WHERE approval_status = 'approved' AND (solo_subject = 1 OR is_profile_photo = 1) ORDER BY RANDOM() LIMIT 1"
     ).first(),
   ]);
   profile = profileRes;
   companies = companiesRes?.results ?? [];
-  investments = investmentsRes?.results ?? [];
+  projects = projectsRes?.results ?? [];
   heroPhoto = heroPhotoRes;
-  [profileTr, companiesTr, investmentsTr] = await Promise.all([
+  [profileTr, companiesTr, projectsTr] = await Promise.all([
     loadTranslations(env.DB, "profile", locale.code),
     loadTranslations(env.DB, "companies", locale.code),
-    loadTranslations(env.DB, "investments", locale.code),
+    loadTranslations(env.DB, "projects", locale.code),
   ]);
 }
 
 const latestCompanies = companies.slice(-3).reverse();
-const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rhino-investments").slice(0, 2);
 const bio = t(profileTr, 1, "bio_short", profile?.bio_short) ?? "25+ years building technology, companies, and teams across Latin America.";
+const pl = projectsLabels(locale.code);
+
+// Static parity content for the FAQ / Larry / Yucatech sections that exist on the canonical
+// root index.astro but were never ported here — translated once ahead of time rather than via
+// live AI-translate-on-request, to avoid the exact "silent fallback to Spanish" failure mode
+// this content already suffered from before this fix.
+const SPANISH_HOME_EXTRA = {
+  yucatechEyebrow: "Mérida, Yucatán",
+  yucatechHeading: "Yucatech Festival",
+  yucatechBody: "El evento que apuesta a que el sur-sureste de México sea el próximo hub tecnológico de América Latina.",
+  yucatechCta: "Conocer el festival →",
+  larryEyebrow: "Tu copiloto en el sitio",
+  larryBody: "Serio, pero no solemne — como su jefe. Pregúntale lo que quieras sobre la trayectoria, las empresas o los proyectos.",
+  faqEyebrow: "Preguntas frecuentes",
+  faqHeading: "Antes de que preguntes.",
+  faq: [
+    { q: "¿Quién es Esteban Rey (Kilowatto)?", a: "Esteban Rey Ortega, conocido en la industria tecnológica como \"Kilowatto\", es un arquitecto de sistemas, CEO e inversionista serial mexicano con más de 25 años de trayectoria. Es fundador y CEO de Ignia Cloud, fundador del Yucatech Festival en Mérida, y opera Orange Rhino Investments, además de participar en Cereza, Aluna y DeSiCi." },
+    { q: "¿Esteban Rey (Kilowatto) es el mismo Esteban Rey cantante?", a: "No. Existe un cantautor venezolano homónimo (proyectos musicales como Chamito Sound y Amor Cromático) que no tiene ninguna relación con Esteban Rey Ortega, el empresario tecnológico mexicano de este sitio, fundador de Ignia Cloud." },
+    { q: "¿Por qué le dicen \"Kilowatto\" a Esteban Rey?", a: "\"Kilowatto\" es el apodo con el que se le conoce en la industria tecnológica mexicana desde sus inicios en cómputo y telecomunicaciones, y hoy es su marca personal." },
+    { q: "¿Qué empresas ha fundado Esteban Rey?", a: "Es fundador y CEO de Ignia Cloud (nube soberana para México y Latinoamérica), fundador del Yucatech Festival, y tiene proyectos activos en Cereza, Aluna y DeSiCi, además de su vehículo de inversión Orange Rhino Investments." },
+  ],
+};
+
+const HOME_EXTRA: Record<string, typeof SPANISH_HOME_EXTRA> = {
+  en: {
+    yucatechEyebrow: "Mérida, Yucatán",
+    yucatechHeading: "Yucatech Festival",
+    yucatechBody: "The event betting that southeastern Mexico becomes Latin America's next tech hub.",
+    yucatechCta: "Learn about the festival →",
+    larryEyebrow: "Your copilot on this site",
+    larryBody: "Serious, but not solemn — just like his boss. Ask him anything about the timeline, the companies, or the projects.",
+    faqEyebrow: "Frequently asked questions",
+    faqHeading: "Before you ask.",
+    faq: [
+      { q: "Who is Esteban Rey (Kilowatto)?", a: "Esteban Rey Ortega, known in the tech industry as \"Kilowatto,\" is a systems architect, CEO, and serial investor with over 25 years of experience. He's the founder and CEO of Ignia Cloud, founder of the Yucatech Festival in Mérida, and runs Orange Rhino Investments, alongside involvement in Cereza, Aluna, and DeSiCi." },
+      { q: "Is Esteban Rey (Kilowatto) the same as the singer Esteban Rey?", a: "No. There's an unrelated Venezuelan singer-songwriter of the same name (music projects like Chamito Sound and Amor Cromático) who has no connection to Esteban Rey Ortega, the Mexican tech entrepreneur behind this site and founder of Ignia Cloud." },
+      { q: "Why is Esteban Rey called \"Kilowatto\"?", a: "\"Kilowatto\" is the nickname he's known by in the Mexican tech industry since his early days in computing and telecommunications, and today it's his personal brand." },
+      { q: "What companies has Esteban Rey founded?", a: "He's the founder and CEO of Ignia Cloud (sovereign cloud for Mexico and Latin America), founder of the Yucatech Festival, and has active projects in Cereza, Aluna, and DeSiCi, plus his investment vehicle Orange Rhino Investments." },
+    ],
+  },
+  "pt-BR": {
+    yucatechEyebrow: "Mérida, Yucatán",
+    yucatechHeading: "Yucatech Festival",
+    yucatechBody: "O evento que aposta que o sudeste do México será o próximo polo tecnológico da América Latina.",
+    yucatechCta: "Conhecer o festival →",
+    larryEyebrow: "Seu copiloto no site",
+    larryBody: "Sério, mas não solene — como seu chefe. Pergunte a ele o que quiser sobre a trajetória, as empresas ou os projetos.",
+    faqEyebrow: "Perguntas frequentes",
+    faqHeading: "Antes que você pergunte.",
+    faq: [
+      { q: "Quem é Esteban Rey (Kilowatto)?", a: "Esteban Rey Ortega, conhecido na indústria de tecnologia como \"Kilowatto\", é um arquiteto de sistemas, CEO e investidor serial com mais de 25 anos de trajetória. É fundador e CEO da Ignia Cloud, fundador do Yucatech Festival em Mérida, e opera a Orange Rhino Investments, além de participar da Cereza, Aluna e DeSiCi." },
+      { q: "Esteban Rey (Kilowatto) é o mesmo Esteban Rey cantor?", a: "Não. Existe um cantautor venezuelano homônimo (projetos musicais como Chamito Sound e Amor Cromático) que não tem nenhuma relação com Esteban Rey Ortega, o empresário de tecnologia mexicano deste site, fundador da Ignia Cloud." },
+      { q: "Por que chamam Esteban Rey de \"Kilowatto\"?", a: "\"Kilowatto\" é o apelido pelo qual é conhecido na indústria de tecnologia mexicana desde seus primeiros passos em computação e telecomunicações, e hoje é sua marca pessoal." },
+      { q: "Quais empresas Esteban Rey fundou?", a: "É fundador e CEO da Ignia Cloud (nuvem soberana para o México e a América Latina), fundador do Yucatech Festival, e tem projetos ativos na Cereza, Aluna e DeSiCi, além do seu veículo de investimento Orange Rhino Investments." },
+    ],
+  },
+  fr: {
+    yucatechEyebrow: "Mérida, Yucatán",
+    yucatechHeading: "Yucatech Festival",
+    yucatechBody: "L'événement qui parie que le sud-est du Mexique deviendra le prochain pôle technologique d'Amérique latine.",
+    yucatechCta: "Découvrir le festival →",
+    larryEyebrow: "Votre copilote sur le site",
+    larryBody: "Sérieux, mais pas solennel — comme son patron. Demandez-lui tout ce que vous voulez sur le parcours, les entreprises ou les projets.",
+    faqEyebrow: "Questions fréquentes",
+    faqHeading: "Avant que vous ne demandiez.",
+    faq: [
+      { q: "Qui est Esteban Rey (Kilowatto) ?", a: "Esteban Rey Ortega, connu dans l'industrie technologique sous le nom de « Kilowatto », est un architecte de systèmes, PDG et investisseur en série avec plus de 25 ans d'expérience. Il est fondateur et PDG d'Ignia Cloud, fondateur du Yucatech Festival à Mérida, et dirige Orange Rhino Investments, en plus de participer à Cereza, Aluna et DeSiCi." },
+      { q: "Esteban Rey (Kilowatto) est-il le même que le chanteur Esteban Rey ?", a: "Non. Il existe un auteur-compositeur-interprète vénézuélien homonyme (projets musicaux comme Chamito Sound et Amor Cromático) qui n'a aucun lien avec Esteban Rey Ortega, l'entrepreneur technologique mexicain de ce site, fondateur d'Ignia Cloud." },
+      { q: "Pourquoi surnomme-t-on Esteban Rey « Kilowatto » ?", a: "« Kilowatto » est le surnom sous lequel il est connu dans l'industrie technologique mexicaine depuis ses débuts en informatique et télécommunications, et c'est aujourd'hui sa marque personnelle." },
+      { q: "Quelles entreprises Esteban Rey a-t-il fondées ?", a: "Il est fondateur et PDG d'Ignia Cloud (cloud souverain pour le Mexique et l'Amérique latine), fondateur du Yucatech Festival, et a des projets actifs chez Cereza, Aluna et DeSiCi, en plus de son véhicule d'investissement Orange Rhino Investments." },
+    ],
+  },
+  de: {
+    yucatechEyebrow: "Mérida, Yucatán",
+    yucatechHeading: "Yucatech Festival",
+    yucatechBody: "Die Veranstaltung, die darauf setzt, dass der Südosten Mexikos zum nächsten Tech-Hub Lateinamerikas wird.",
+    yucatechCta: "Mehr über das Festival →",
+    larryEyebrow: "Dein Co-Pilot auf dieser Seite",
+    larryBody: "Ernst, aber nicht steif — genau wie sein Chef. Frag ihn alles über den Werdegang, die Unternehmen oder die Projekte.",
+    faqEyebrow: "Häufige Fragen",
+    faqHeading: "Bevor du fragst.",
+    faq: [
+      { q: "Wer ist Esteban Rey (Kilowatto)?", a: "Esteban Rey Ortega, in der Tech-Branche als „Kilowatto\" bekannt, ist ein Systemarchitekt, CEO und Serieninvestor mit über 25 Jahren Erfahrung. Er ist Gründer und CEO von Ignia Cloud, Gründer des Yucatech Festival in Mérida, und betreibt Orange Rhino Investments, neben seiner Beteiligung an Cereza, Aluna und DeSiCi." },
+      { q: "Ist Esteban Rey (Kilowatto) derselbe wie der Sänger Esteban Rey?", a: "Nein. Es gibt einen gleichnamigen venezolanischen Singer-Songwriter (Musikprojekte wie Chamito Sound und Amor Cromático), der in keiner Verbindung zu Esteban Rey Ortega steht, dem mexikanischen Tech-Unternehmer hinter dieser Seite und Gründer von Ignia Cloud." },
+      { q: "Warum wird Esteban Rey „Kilowatto\" genannt?", a: "„Kilowatto\" ist der Spitzname, unter dem er seit seinen Anfängen in Computertechnik und Telekommunikation in der mexikanischen Tech-Branche bekannt ist, und heute seine persönliche Marke." },
+      { q: "Welche Unternehmen hat Esteban Rey gegründet?", a: "Er ist Gründer und CEO von Ignia Cloud (souveräne Cloud für Mexiko und Lateinamerika), Gründer des Yucatech Festival, und hat aktive Projekte bei Cereza, Aluna und DeSiCi, zusätzlich zu seinem Investitionsvehikel Orange Rhino Investments." },
+    ],
+  },
+  ar: {
+    yucatechEyebrow: "ميريدا، يوكاتان",
+    yucatechHeading: "Yucatech Festival",
+    yucatechBody: "الحدث الذي يراهن على أن يصبح جنوب شرق المكسيك المركز التقني القادم في أمريكا اللاتينية.",
+    yucatechCta: "تعرف على المهرجان ←",
+    larryEyebrow: "مرشدك في هذا الموقع",
+    larryBody: "جاد لكن غير رسمي — مثل رئيسه تمامًا. اسأله عن أي شيء يخص المسيرة المهنية أو الشركات أو المشاريع.",
+    faqEyebrow: "أسئلة شائعة",
+    faqHeading: "قبل أن تسأل.",
+    faq: [
+      { q: "من هو إستيبان ري (كيلواتو)؟", a: "إستيبان ري أورتيغا، المعروف في صناعة التقنية باسم \"كيلواتو\"، هو مهندس أنظمة ورئيس تنفيذي ومستثمر متسلسل بخبرة تفوق 25 عامًا. هو مؤسس ورئيس تنفيذي لشركة Ignia Cloud، ومؤسس مهرجان Yucatech في ميريدا، ويدير Orange Rhino Investments، إضافة إلى مشاركته في Cereza وAluna وDeSiCi." },
+      { q: "هل إستيبان ري (كيلواتو) هو نفسه المغني إستيبان ري؟", a: "لا. هناك مغني وملحن فنزويلي يحمل نفس الاسم (مشاريع موسيقية مثل Chamito Sound وAmor Cromático) لا علاقة له بإستيبان ري أورتيغا، رجل الأعمال التقني المكسيكي صاحب هذا الموقع ومؤسس Ignia Cloud." },
+      { q: "لماذا يُلقَّب إستيبان ري بـ\"كيلواتو\"؟", a: "\"كيلواتو\" هو اللقب الذي عُرف به في صناعة التقنية المكسيكية منذ بداياته في الحوسبة والاتصالات، وهو اليوم علامته الشخصية." },
+      { q: "ما هي الشركات التي أسسها إستيبان ري؟", a: "هو مؤسس ورئيس تنفيذي لشركة Ignia Cloud (سحابة سيادية للمكسيك وأمريكا اللاتينية)، ومؤسس مهرجان Yucatech، ولديه مشاريع نشطة في Cereza وAluna وDeSiCi، إضافة إلى أداته الاستثمارية Orange Rhino Investments." },
+    ],
+  },
+  "zh-Hans": {
+    yucatechEyebrow: "梅里达，尤卡坦",
+    yucatechHeading: "Yucatech Festival",
+    yucatechBody: "这场活动押注墨西哥东南部将成为拉丁美洲下一个科技中心。",
+    yucatechCta: "了解这个节日 →",
+    larryEyebrow: "网站上的领航员",
+    larryBody: "严肃但不古板——和他的老板一样。关于职业历程、公司或项目，尽管问他。",
+    faqEyebrow: "常见问题",
+    faqHeading: "在你提问之前。",
+    faq: [
+      { q: "埃斯特万·雷(Kilowatto)是谁？", a: "埃斯特万·雷·奥尔特加，在科技行业中被称为\"Kilowatto\"，是一位拥有25年以上经验的系统架构师、首席执行官和连续投资人。他是Ignia Cloud的创始人兼CEO，Yucatech Festival（梅里达）的创始人，并运营Orange Rhino Investments，同时参与Cereza、Aluna和DeSiCi。" },
+      { q: "埃斯特万·雷(Kilowatto)和歌手埃斯特万·雷是同一个人吗？", a: "不是。有一位同名的委内瑞拉创作歌手（音乐项目包括Chamito Sound和Amor Cromático），与本网站的主人公——墨西哥科技企业家、Ignia Cloud创始人埃斯特万·雷·奥尔特加没有任何关系。" },
+      { q: "为什么埃斯特万·雷被称为\"Kilowatto\"？", a: "\"Kilowatto\"是他自从事计算机和电信行业以来在墨西哥科技界的绰号，如今已成为他的个人品牌。" },
+      { q: "埃斯特万·雷创办了哪些公司？", a: "他是Ignia Cloud（面向墨西哥和拉丁美洲的主权云服务）的创始人兼CEO，Yucatech Festival的创始人，并在Cereza、Aluna和DeSiCi拥有活跃项目，此外还运营其投资平台Orange Rhino Investments。" },
+    ],
+  },
+  ja: {
+    yucatechEyebrow: "メリダ、ユカタン",
+    yucatechHeading: "Yucatech Festival",
+    yucatechBody: "メキシコ南東部をラテンアメリカ次のテックハブにするという賭けに出たイベント。",
+    yucatechCta: "フェスティバルを見る →",
+    larryEyebrow: "サイトの案内役",
+    larryBody: "真面目だけど堅苦しくない — ボスと同じように。経歴や会社、プロジェクトについて何でも聞いてください。",
+    faqEyebrow: "よくある質問",
+    faqHeading: "質問する前に。",
+    faq: [
+      { q: "エステバン・レイ(Kilowatto)とは誰ですか?", a: "「Kilowatto」としてテック業界で知られるエステバン・レイ・オルテガは、25年以上のキャリアを持つシステムアーキテクト、CEO、シリアル投資家です。Ignia Cloudの創業者兼CEO、メリダで開催されるYucatech Festivalの創設者であり、Orange Rhino Investmentsを運営する傍ら、Cereza、Aluna、DeSiCiにも携わっています。" },
+      { q: "エステバン・レイ(Kilowatto)は歌手のエステバン・レイと同一人物ですか?", a: "いいえ。同名のベネズエラ人シンガーソングライター(Chamito SoundやAmor Cromáticoといった音楽プロジェクト)がいますが、本サイトの主人公であるメキシコのテック起業家、Ignia Cloud創業者のエステバン・レイ・オルテガとは一切関係ありません。" },
+      { q: "なぜエステバン・レイは「Kilowatto」と呼ばれるのですか?", a: "「Kilowatto」は、コンピューターや通信業界でのキャリアの初期からメキシコのテック業界で呼ばれてきたニックネームで、現在では彼個人のブランドとなっています。" },
+      { q: "エステバン・レイが設立した企業は?", a: "彼はIgnia Cloud(メキシコとラテンアメリカ向けのソブリンクラウド)の創業者兼CEOであり、Yucatech Festivalの創設者で、Cereza、Aluna、DeSiCiでも活動しており、さらに投資事業のOrange Rhino Investmentsも運営しています。" },
+    ],
+  },
+};
+
+const he = HOME_EXTRA[locale.code] ?? SPANISH_HOME_EXTRA;
 ---
 
 <Site title="Esteban Rey — Kilowatto" active={`/${locale.code}`} locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
@@ -50,7 +202,16 @@ const bio = t(profileTr, 1, "bio_short", profile?.bio_short) ?? "25+ years build
         <Spark />
         <p class="hero__sub">{bio}</p>
       </div>
-      {heroPhoto && <img class="hero__photo" src={`/media/${heroPhoto.r2_key}`} alt="Esteban Rey" />}
+      {heroPhoto && (
+        <img
+          class="hero__photo"
+          src={`/media/${heroPhoto.r2_key}?w=500`}
+          srcset={`/media/${heroPhoto.r2_key}?w=500 500w, /media/${heroPhoto.r2_key}?w=900 900w`}
+          sizes="(max-width: 720px) 100vw, 22rem"
+          alt="Esteban Rey"
+          fetchpriority="high"
+        />
+      )}
     </div>
   </section>
 
@@ -78,20 +239,79 @@ const bio = t(profileTr, 1, "bio_short", profile?.bio_short) ?? "25+ years build
     </div>
   </section>
 
-  <section class="chapter chapter--mist">
+  <PullQuote placement="home" locale={locale.code} />
+
+  {projects.length > 0 && (
+    <section class="chapter chapter--mist">
+      <div class="container">
+        <p class="eyebrow">{pl.eyebrow}</p>
+        <ul class="cards">
+          {
+            projects.slice(0, 5).map((p: any) => (
+              <li class="card project-card">
+                {p.image_r2_key && (
+                  <img
+                    src={`/media/${p.image_r2_key}?w=600`}
+                    srcset={`/media/${p.image_r2_key}?w=500 500w, /media/${p.image_r2_key}?w=800 800w, /media/${p.image_r2_key}?w=1100 1100w`}
+                    sizes="(max-width: 640px) 100vw, 50vw"
+                    alt={`Screenshot of ${p.name}`}
+                    loading="lazy"
+                    class="project-card__image"
+                  />
+                )}
+                <div class="project-card__body">
+                  {p.role && <p class="eyebrow">{t(projectsTr, p.id, "role", p.role)}</p>}
+                  <h3>{p.name}</h3>
+                  {p.summary && <p>{t(projectsTr, p.id, "summary", p.summary)}</p>}
+                  <p>
+                    <a href={p.url} target="_blank" rel="noopener">
+                      {p.url.replace(/^https?:\/\//, "")}
+                    </a>
+                  </p>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="see-more"><a href={`/${locale.code}/empresas`}>→</a></p>
+      </div>
+    </section>
+  )}
+
+  <section class="chapter">
+    <div class="container chapter--split">
+      <div>
+        <p class="eyebrow">{he.yucatechEyebrow}</p>
+        <h2>{he.yucatechHeading}</h2>
+        <p>{he.yucatechBody}</p>
+        <p class="see-more"><a href={`/${locale.code}/yucatech`}>{he.yucatechCta}</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter faq-section">
     <div class="container">
-      <p class="eyebrow">Orange Rhino Investments</p>
-      <ul class="cards">
-        {
-          featuredInvestments.map((i: any) => (
-            <li class="card">
-              <h3>{i.name}</h3>
-              {i.summary && <p>{t(investmentsTr, i.id, "summary", i.summary)}</p>}
-            </li>
-          ))
-        }
-      </ul>
-      <p class="see-more"><a href={`/${locale.code}/inversiones`}>→</a></p>
+      <p class="eyebrow">{he.faqEyebrow}</p>
+      <h2>{he.faqHeading}</h2>
+      <div class="faq-list">
+        {he.faq.map((item) => (
+          <details class="faq-item">
+            <summary>{item.q}</summary>
+            <p>{item.a}</p>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist larry-intro">
+    <div class="container larry-intro__inner">
+      <img src="/larry/larry-gym.webp" alt="" width="220" height="220" loading="lazy" />
+      <div>
+        <p class="eyebrow">{he.larryEyebrow}</p>
+        <h2>Larry</h2>
+        <p class="hero__sub">{he.larryBody}</p>
+      </div>
     </div>
   </section>
 </Site>
@@ -143,5 +363,53 @@ const bio = t(profileTr, 1, "bio_short", profile?.bio_short) ?? "25+ years build
     color: var(--ember);
     font-weight: 600;
     text-decoration: none;
+  }
+
+  .faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: var(--space-3);
+    max-width: var(--measure);
+  }
+  .faq-item {
+    border: 1px solid var(--line);
+    padding: 0.9rem 1.1rem;
+  }
+  .faq-item summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+  }
+  .faq-item p {
+    margin: 0.75rem 0 0;
+    color: var(--ink-soft);
+  }
+
+  .larry-intro__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    text-align: center;
+  }
+  .larry-intro__inner img {
+    width: 9rem;
+    height: 9rem;
+    border-radius: 999px;
+    object-fit: cover;
+    border: 3px solid var(--rhino);
+  }
+  .larry-intro h2 {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    margin: 0.1em 0;
+  }
+  @media (min-width: 640px) {
+    .larry-intro__inner {
+      flex-direction: row;
+      text-align: left;
+    }
   }
 </style>

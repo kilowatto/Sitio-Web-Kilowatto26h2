@@ -1,0 +1,141 @@
+---
+import Site from "../layouts/Site.astro";
+---
+
+<Site title="Contacto — Esteban Rey" active="/contacto" description="Escríbele a Esteban Rey (Kilowatto) — CEO de Ignia Cloud, fundador del Yucatech Festival.">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Contacto</p>
+      <h1>Escríbeme.</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container contact-layout">
+      <div>
+        <p class="hero__sub">
+          Para negocios, prensa, el Yucatech Festival, o simplemente para saludar. Leo todo
+          personalmente.
+        </p>
+        <p class="contact-social">
+          <a href="https://x.com/kilowatto" target="_blank" rel="noopener me">X (@kilowatto)</a>
+        </p>
+      </div>
+
+      <form id="contact-form" class="contact-form">
+        <label for="name">Nombre</label>
+        <input type="text" id="name" name="name" required maxlength="200" />
+
+        <label for="email">Correo</label>
+        <input type="email" id="email" name="email" required maxlength="200" />
+
+        <label for="message">Mensaje</label>
+        <textarea id="message" name="message" rows="6" required maxlength="4000"></textarea>
+
+        <input type="text" id="website" name="website" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+        <button type="submit">Enviar</button>
+        <p id="contact-status" class="hint" role="status"></p>
+      </form>
+    </div>
+  </section>
+</Site>
+
+<script>
+  const form = document.getElementById("contact-form") as HTMLFormElement;
+  const status = document.getElementById("contact-status");
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector("button")!;
+    const data = new FormData(form);
+    btn.disabled = true;
+    btn.textContent = "Enviando…";
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: data.get("name"),
+          email: data.get("email"),
+          message: data.get("message"),
+          website: data.get("website"),
+        }),
+      });
+      if (res.ok) {
+        form.reset();
+        status!.textContent = "¡Gracias! Te responderé pronto.";
+      } else if (res.status === 429) {
+        status!.textContent = "Demasiados mensajes seguidos — intenta de nuevo más tarde.";
+      } else {
+        status!.textContent = "Revisa los campos e intenta de nuevo.";
+      }
+    } catch {
+      status!.textContent = "Se perdió la conexión — intenta de nuevo.";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Enviar";
+    }
+  });
+</script>
+
+<style>
+  .contact-layout {
+    display: grid;
+    gap: var(--space-4);
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) {
+    .contact-layout {
+      grid-template-columns: 1fr 1.2fr;
+    }
+  }
+  .contact-social {
+    margin-top: var(--space-3);
+  }
+  .contact-social a {
+    font-weight: 600;
+  }
+  .contact-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .contact-form label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-top: 0.6rem;
+  }
+  .contact-form input,
+  .contact-form textarea {
+    border: 1px solid var(--line);
+    padding: 0.6rem 0.75rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .hp-field {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+  .contact-form button {
+    margin-top: var(--space-2);
+    align-self: flex-start;
+    background: var(--rhino);
+    color: #fff;
+    border: none;
+    padding: 0.65rem 1.3rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .hint {
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+  }
+</style>

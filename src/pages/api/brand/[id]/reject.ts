@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { recordFeedback } from "../../../../lib/brand-learning";
+import { recordTrustReset } from "../../../../lib/news-reaction-trust";
 
 export const prerender = false;
 
@@ -13,7 +14,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const body = await request.json<{ reason?: string }>().catch(() => ({}) as any);
   const reason = body?.reason || null;
 
-  const post = await env.DB.prepare("SELECT content, topic_id, platform FROM brand_posts WHERE id = ?")
+  const post = await env.DB.prepare("SELECT content, topic_id, platform, kind FROM brand_posts WHERE id = ?")
     .bind(params.id)
     .first<any>();
 
@@ -31,6 +32,10 @@ export const POST: APIRoute = async ({ params, request }) => {
       topicId: post.topic_id,
       platform: post.platform,
     });
+  }
+
+  if (post?.kind === "news_reaction") {
+    await recordTrustReset(post.platform);
   }
 
   return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });

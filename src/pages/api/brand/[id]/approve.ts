@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { recordFeedback } from "../../../../lib/brand-learning";
+import { recordCleanApproval, recordTrustReset } from "../../../../lib/news-reaction-trust";
 
 export const prerender = false;
 
@@ -13,7 +14,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const id = params.id;
   const body = await request.json<{ content?: string; hashtags?: string }>().catch(() => ({}) as any);
 
-  const current = await env.DB.prepare("SELECT content, original_content, topic_id, platform FROM brand_posts WHERE id = ?")
+  const current = await env.DB.prepare("SELECT content, original_content, topic_id, platform, kind FROM brand_posts WHERE id = ?")
     .bind(id)
     .first<any>();
   if (!current) return new Response("not found", { status: 404 });
@@ -39,6 +40,11 @@ export const POST: APIRoute = async ({ params, request }) => {
       topicId: current.topic_id,
       platform: current.platform,
     });
+  }
+
+  if (current.kind === "news_reaction") {
+    if (wasEdited) await recordTrustReset(current.platform);
+    else await recordCleanApproval(current.platform);
   }
 
   return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });

@@ -1,0 +1,1629 @@
+---
+// Dedicated themed sub-page (not the generic /biblioteca list) — Esteban's Harry Potter
+// shelf gets its own "mundo mágico" visual treatment (dark parchment/wand theme) rather than
+// living inside the site's normal light theme, where a wizarding aesthetic would clash mid-page.
+// All these books are ALSO real rows in the shared `books` table, so they still show up in the
+// normal /biblioteca list/search — this page is purely an additional, richer display of the
+// same data, grouped by physical edition and kept in reading order per Esteban's request.
+import Site from "../../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+interface HpBook {
+  id: number;
+  title: string;
+  series: string;
+  reading_order: number | null;
+  cover_r2_key: string | null;
+  release_year: string | null;
+  comment: string | null;
+}
+
+let lbBox: HpBook[] = [];
+let salamandra: HpBook[] = [];
+let special: HpBook[] = [];
+
+if (env?.DB) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, title, series, reading_order, cover_r2_key, release_year, comment FROM books
+     WHERE series LIKE 'Harry Potter%' ORDER BY sort_order ASC`
+  ).all<HpBook>();
+  const all = results ?? [];
+  lbBox = all.filter((b) => b.series.includes("Letras de Bolsillo"));
+  salamandra = all.filter((b) => b.series === "Harry Potter — edición Salamandra");
+  special = all.filter((b) => b.series.includes("especiales") || b.series.includes("ilustrada"));
+}
+---
+
+<Site
+  title="El armario de Harry Potter — Esteban Rey"
+  description="La colección de Harry Potter de Esteban Rey: la caja completa Letras de Bolsillo, la edición Salamandra y piezas especiales."
+  active="/biblioteca"
+>
+  {/* The enchanted ceiling of the Great Hall, "bewitched to look like the sky outside" per
+      Hermione's line in the books — a real quote, not fan invention. Deliberately a SIBLING
+      before .hp-page (not nested inside it): .hp-page has overflow:hidden to contain its own
+      decorative absolutely-positioned elements, and ANY ancestor with overflow other than
+      visible silently breaks position:sticky on a descendant — this section needs its own
+      unbroken sticky containing block for the scroll-driven "camera descends to the tables"
+      effect below. */}
+  <section class="hp-greathall" id="hp-greathall">
+    <div class="hp-greathall__sticky">
+      <img
+        src="/media/biblioteca/riordan-great-hall.webp?w=1200"
+        srcset="/media/biblioteca/riordan-great-hall.webp?w=800 800w, /media/biblioteca/riordan-great-hall.webp?w=1400 1400w, /media/biblioteca/riordan-great-hall.webp?w=2000 2000w"
+        sizes="100vw"
+        alt="El techo encantado del Gran Comedor, mostrando el cielo nocturno estrellado sobre las mesas iluminadas por velas"
+        class="hp-greathall__img"
+        id="hp-greathall-img"
+      />
+      <div class="hp-greathall__clouds" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="hp-greathall__candles" id="hp-greathall-candles" aria-hidden="true"></div>
+      <div class="hp-greathall__vignette"></div>
+      <div class="hp-greathall__text container">
+        <p class="hp-eyebrow">El Gran Comedor</p>
+        <h2>Un techo bewitched para verse como el cielo de afuera</h2>
+        <p class="hp-greathall__sub">
+          Miles y miles de velas flotan en el aire sin nada que las sostenga — así las describe el libro.
+          Baja la mirada de las estrellas a las mesas.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="hp-page" id="hp-page">
+    <div class="hp-wand-glow" id="wand-glow"></div>
+    <div class="hp-wand-cursor" id="wand-cursor">
+      <div class="hp-wand-cursor__stick"></div>
+      <div class="hp-wand-cursor__tip"></div>
+    </div>
+    <div class="hp-avada-flash" id="avada-flash"></div>
+
+    {/* Spell effects, all triggered by tracing real wand gestures with the cursor (see the
+        gesture-recognition script near the bottom) -- Nox is a press-and-hold, the rest are
+        drawn shapes classified from the pointer path. */}
+    <div class="hp-nox-overlay" id="hp-nox-overlay"></div>
+    <div class="hp-patronum-flash" id="hp-patronum-flash"></div>
+    <div class="hp-fx-layer" id="hp-fx-layer" aria-hidden="true"></div>
+
+    <section class="hp-secret" id="hp-secret" hidden>
+      <div class="container">
+        <p class="hp-eyebrow">Alohomora</p>
+        <p class="hp-secret__quote">"Juro solemnemente que mis intenciones no son buenas."</p>
+        <p class="hp-secret__sub">Encontraste el rincón escondido de esta página. Nadie más sabe que está aquí — hasta ahora.</p>
+      </div>
+    </section>
+
+    <section class="hp-hero">
+      <img
+        src="/media/biblioteca/hp-lb-box-completo.webp?w=1200"
+        srcset="/media/biblioteca/hp-lb-box-completo.webp?w=800 800w, /media/biblioteca/hp-lb-box-completo.webp?w=1400 1400w, /media/biblioteca/hp-lb-box-completo.webp?w=2000 2000w"
+        sizes="100vw"
+        alt=""
+        class="hp-hero__img"
+      />
+      <div class="hp-hero__scrim"></div>
+      <div class="hp-hero__text container">
+        <p class="hp-eyebrow">Biblioteca · mundo mágico</p>
+        <h1>El armario de Harry Potter</h1>
+        <p class="hp-hero__sub">
+          Pasa la varita sobre cada portada para revelarla — <em>Revelio</em>. Toda esta colección también vive en la
+          <a href="/biblioteca">biblioteca general</a>.
+        </p>
+      </div>
+    </section>
+
+    <section class="hp-section hp-story">
+      <div class="container">
+        <p class="hp-eyebrow">Por qué me enganchó</p>
+        <h2>La primera lectura que de verdad me atrapó</h2>
+        <p>
+          Antes me tocaba leer a Platón (<em>La República</em>, el mito de la caverna), a Descartes o a Santo Tomás
+          de Aquino con su <em>Suma Teológica</em> — pero el primer libro que de verdad me enganchó fue Harry Potter.
+          Recuerdo haber comprado el primero en el Gandhi del aeropuerto, camino a ver las <a href="/avestruces">avestruces</a>,
+          y terminarlo en tres días. Por suerte un tío mío acababa de terminar el segundo y me lo prestó, así que en
+          una Semana Santa ya me había leído los primeros dos.
+        </p>
+        <p>
+          Recuerdo estar en El Worka —un bar/antro del Pedregal que después se incendió en circunstancias
+          extrañas 🔥— obviamente con unas cubas, pero picado por saber qué iba a pasar en el laberinto. Y que muere
+          Cedric. Alguien hizo el chiste de "<span class="hp-avada" data-avada>avada kevada</span>". Al otro día me levanto, ya crudo, y pienso: mmm, me
+          imagino que mataron a Cedric. Todos sabemos qué pasó.
+        </p>
+      </div>
+    </section>
+
+    <section class="hp-section">
+      <div class="container">
+        <p class="hp-eyebrow">La caja completa</p>
+        <h2>Edición Letras de Bolsillo, en orden</h2>
+        <p class="hp-section__sub">
+          Del uno al siete, en orden — aunque la caja ya no está completa. Cinco se prestaron a lo largo de los años
+          y nunca volvieron. Triste y feliz a la vez: quiero pensar que engancharon a alguien más, y que en algún
+          librero siguen haciendo lo mismo que me hicieron a mí.
+        </p>
+        <div class="hp-grid">
+          {lbBox.map((b) => (
+            <div class="hp-card" data-revelio>
+              <span class="hp-card__order">{b.reading_order}</span>
+              {b.cover_r2_key ? (
+                <img
+                  src={`/media/${b.cover_r2_key}?w=300`}
+                  srcset={`/media/${b.cover_r2_key}?w=300 300w, /media/${b.cover_r2_key}?w=500 500w`}
+                  sizes="200px"
+                  alt=""
+                  class="hp-card__img"
+                  loading="lazy"
+                />
+              ) : (
+                <div class="hp-card__placeholder">
+                  <span>Prestado hace años. Nunca volvió — ojalá siga enganchando a alguien por ahí.</span>
+                </div>
+              )}
+              <p class="hp-card__title">{b.title.replace(/^Harry Potter y (la |el |las |los )?/i, "")}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="hp-section hp-section--alt">
+      <div class="container">
+        <p class="hp-eyebrow">Copias sueltas</p>
+        <h2>Edición Salamandra</h2>
+        <p class="hp-section__sub">La misma saga, otra vez — portada por portada, en la edición estándar de Salamandra.</p>
+        <div class="hp-grid">
+          {salamandra.map((b) => (
+            <div class="hp-card" data-revelio>
+              <span class="hp-card__order">{b.reading_order}</span>
+              <img
+                src={`/media/${b.cover_r2_key}?w=300`}
+                srcset={`/media/${b.cover_r2_key}?w=300 300w, /media/${b.cover_r2_key}?w=500 500w`}
+                sizes="200px"
+                alt=""
+                class="hp-card__img"
+                loading="lazy"
+              />
+              <p class="hp-card__title">{b.title.replace(/^Harry Potter y (la |el |las |los )?/i, "")}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    {special.length > 0 && (
+      <section class="hp-section">
+        <div class="container">
+          <p class="hp-eyebrow">Piezas especiales</p>
+          <h2>Ediciones fuera de serie</h2>
+          <div class="hp-grid">
+            {special.map((b) => (
+              <div class="hp-card" data-revelio>
+                {b.cover_r2_key && (
+                  <img
+                    src={`/media/${b.cover_r2_key}?w=300`}
+                    srcset={`/media/${b.cover_r2_key}?w=300 300w, /media/${b.cover_r2_key}?w=500 500w`}
+                    sizes="200px"
+                    alt=""
+                    class="hp-card__img"
+                    loading="lazy"
+                  />
+                )}
+                <p class="hp-card__title">{b.title}</p>
+                {b.comment && <p class="hp-card__comment">{b.comment}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <section class="hp-section hp-section--alt hp-grimoire-section">
+      <div class="container">
+        <p class="hp-eyebrow">Solo en escritorio</p>
+        <h2>Grimorio de hechizos</h2>
+        <p class="hp-section__sub">
+          Cada hechizo se lanza trazando su forma con el cursor (mouse, no pantallas táctiles) en cualquier parte de
+          la página — no hace falta apuntar a nada en concreto, salvo donde se indica.
+        </p>
+        <div class="hp-grimoire" id="hp-grimoire">
+          <p class="hp-grimoire__seal" aria-hidden="true">🪄</p>
+          <ul class="hp-grimoire__list">
+            <li>
+              <span class="hp-grimoire__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="3" fill="currentColor"/><circle cx="16" cy="16" r="8" fill="none" stroke="currentColor" stroke-width="1.6" opacity="0.55"/><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="1.6" opacity="0.28"/></svg></span>
+              <span class="hp-grimoire__spell">Nox</span><span class="hp-grimoire__how">Mantén el clic sin moverte casi dos segundos.</span>
+            </li>
+            <li>
+              <span class="hp-grimoire__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16,16 C10,8 3,8 3,16 C3,24 10,24 16,16 C22,8 29,8 29,16 C29,24 22,24 16,16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span>
+              <span class="hp-grimoire__spell">Alohomora</span><span class="hp-grimoire__how">Traza un ocho (∞) en el aire.</span>
+            </li>
+            <li>
+              <span class="hp-grimoire__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16,4 A12,12 0 1 1 4.5,20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M4.5,20 L2,16.5 M4.5,20 L8.5,18.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="hp-grimoire__spell">Expecto Patronum</span><span class="hp-grimoire__how">Dibuja un círculo o lazo amplio, lejos de una portada.</span>
+            </li>
+            <li>
+              <span class="hp-grimoire__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="8" y="4" width="12" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" opacity="0.5"/><path d="M18,8 A7,7 0 1 1 8,15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span>
+              <span class="hp-grimoire__spell">Protego</span><span class="hp-grimoire__how">Dibuja un círculo pequeño justo sobre una portada.</span>
+            </li>
+            <li>
+              <span class="hp-grimoire__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M3,22 C10,27 19,26 24,18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M24,18 L27,6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M27,6 L24,10.5 M27,6 L30,11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="hp-grimoire__spell">Wingardium Leviosa</span><span class="hp-grimoire__how">Un trazo amplio que termina en un latigazo hacia arriba.</span>
+            </li>
+            <li>
+              <span class="hp-grimoire__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M6,6 L24,12 L6,18 L24,24 L6,30" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="hp-grimoire__spell">Incendio</span><span class="hp-grimoire__how">Un zigzag rápido, como firma nerviosa.</span>
+            </li>
+            <li>
+              <span class="hp-grimoire__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16,4 L16,22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M16,22 L11,17 M16,22 L21,17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="hp-grimoire__spell">Crucio</span><span class="hp-grimoire__how">Una estocada corta y rápida hacia abajo.</span>
+            </li>
+            <li>
+              <span class="hp-grimoire__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><circle cx="11" cy="16" r="2.6" fill="currentColor"/><circle cx="11" cy="16" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"/><circle cx="22" cy="16" r="2.6" fill="currentColor"/><circle cx="22" cy="16" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"/></svg></span>
+              <span class="hp-grimoire__spell">Accio</span><span class="hp-grimoire__how">Doble clic sobre cualquier portada.</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+</Site>
+
+<style>
+  /* Scroll-driven "camera descent" from the starry enchanted ceiling down to the candlelit
+     tables: a tall scroll runway with a sticky 100vh viewport inside it, panning a taller-than-
+     viewport image via JS-computed scroll progress (see the script below). */
+  .hp-greathall {
+    position: relative;
+    height: 220vh;
+    background: #05040a;
+  }
+  .hp-greathall__sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .hp-greathall__img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 180%;
+    object-fit: cover;
+    object-position: top center;
+    will-change: transform;
+  }
+  .hp-greathall__vignette {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(5, 4, 10, 0.55) 0%,
+      rgba(5, 4, 10, 0.05) 30%,
+      rgba(5, 4, 10, 0.15) 70%,
+      rgba(5, 4, 10, 0.85) 100%
+    );
+  }
+  .hp-greathall__text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 8%;
+    text-align: center;
+  }
+  .hp-greathall__text h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.6rem, 4vw, 2.6rem);
+    color: #f6efd8;
+    margin: 0 auto 0.6rem;
+    max-width: 40rem;
+    text-shadow: 0 2px 24px rgba(0, 0, 0, 0.8);
+  }
+  .hp-greathall__sub {
+    max-width: 30rem;
+    margin: 0 auto;
+    color: #d9d0b3;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+  }
+
+  /* Drifting clouds — the enchanted ceiling shows the real sky outside, moving clouds
+     included. Soft blurred blobs screen-blended over the ceiling area only, each drifting
+     sideways at a different speed/delay so they read as independent, not one repeating loop. */
+  .hp-greathall__clouds {
+    position: absolute;
+    inset: 0;
+    height: 55%;
+    overflow: hidden;
+    mix-blend-mode: screen;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .hp-greathall__clouds span {
+    position: absolute;
+    top: 12%;
+    width: 26rem;
+    height: 9rem;
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(230, 225, 210, 0.55), transparent 70%);
+    filter: blur(6px);
+    animation: hp-cloud-drift linear infinite;
+  }
+  .hp-greathall__clouds span:nth-child(1) {
+    top: 8%;
+    animation-duration: 90s;
+  }
+  .hp-greathall__clouds span:nth-child(2) {
+    top: 22%;
+    width: 20rem;
+    height: 7rem;
+    animation-duration: 130s;
+    animation-delay: -40s;
+  }
+  .hp-greathall__clouds span:nth-child(3) {
+    top: 30%;
+    width: 30rem;
+    height: 10rem;
+    animation-duration: 160s;
+    animation-delay: -90s;
+  }
+  @keyframes hp-cloud-drift {
+    from {
+      transform: translateX(-40rem);
+    }
+    to {
+      transform: translateX(160vw);
+    }
+  }
+
+  /* Floating candles: "thousands and thousands... floating in midair" per the book (a real
+     quote — deliberately not stating a specific count, since "1,000" is fan-wiki lore, not the
+     text). A representative handful, each independently flickering and gently bobbing. */
+  .hp-greathall__candles {
+    position: absolute;
+    inset: 0;
+    height: 70%;
+  }
+  /* .hp-candle and its descendants are created via document.createElement in the script below,
+     so they never receive Astro's auto-injected scope attribute -- their styles live in the
+     <style is:global> block further down instead (same reason .hp-sparkle lives there). */
+  @media (prefers-reduced-motion: reduce) {
+    .hp-greathall__clouds span {
+      animation: none;
+    }
+  }
+  @media (max-width: 40rem) {
+    /* A tall scroll-jacked hero is a much bigger ask of a phone's scroll — shorten the runway
+       and drop the least-essential candles (set via JS, see below) rather than ship the full
+       desktop density at a size where each candle reads as a tiny illegible speck. */
+    .hp-greathall {
+      height: 160vh;
+    }
+  }
+
+  .hp-page {
+    background: #0b0a14;
+    color: #e9e2c9;
+    margin: calc(-1 * var(--space-3)) 0 0;
+    padding-bottom: var(--space-5);
+    position: relative;
+    overflow: hidden;
+  }
+  /* The wand cursor/glow div elements live inside #hp-page, but the whole page (including the
+     .hp-greathall section, a sibling BEFORE .hp-page -- see the note up top about why it can't
+     nest inside it) should show the wand. Gated on a class the script below sets on <html>
+     itself, so it isn't tied to either section specifically. */
+  @media (pointer: fine) {
+    :global(html.hp-wand-page),
+    :global(html.hp-wand-page *) {
+      cursor: none;
+    }
+  }
+
+  /* The actual pointer, replaced: a wand whose tip sits exactly at the cursor position and
+     stays lit (Lumos) the whole time — the stick trails up-left from the tip so the tip
+     itself, not the stick, is what aligns with clicks. */
+  .hp-wand-cursor {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    z-index: 210;
+    transform: translate(-100px, -100px);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  :global(html.hp-wand-page) .hp-wand-cursor {
+    opacity: 1;
+  }
+  .hp-wand-cursor__stick {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 3rem;
+    height: 0.3rem;
+    background: linear-gradient(90deg, #8a5a2e, #4a2f18);
+    border-radius: 999px;
+    transform-origin: 0% 0%;
+    transform: rotate(42deg);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .hp-wand-cursor__tip {
+    position: absolute;
+    left: -0.2rem;
+    top: -0.2rem;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: #fffbe8;
+    box-shadow: 0 0 6px 2px rgba(255, 247, 200, 0.95), 0 0 18px 8px rgba(255, 214, 100, 0.6),
+      0 0 34px 16px rgba(255, 214, 100, 0.25);
+  }
+
+  /* The "Lumos" cursor glow — a soft warm light that follows the pointer, brightening the
+     dark background wherever it passes. Decorative only: pointer-events none so it never
+     blocks real clicks, and disabled entirely for touch/coarse-pointer devices below. */
+  .hp-wand-glow {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 22rem;
+    height: 22rem;
+    margin-left: -11rem;
+    margin-top: -11rem;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 214, 100, 0.16) 0%, rgba(255, 214, 100, 0.05) 45%, transparent 70%);
+    mix-blend-mode: screen;
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    will-change: transform;
+  }
+  :global(html.hp-wand-page) .hp-wand-glow {
+    opacity: 1;
+  }
+
+  /* The killing curse's signature sickly green — bursts full-screen toward the viewer,
+     centered on wherever the phrase sits, when hovered. */
+  .hp-avada {
+    color: #4dff6e;
+    font-weight: 700;
+    text-shadow: 0 0 0.5rem rgba(77, 255, 110, 0.8), 0 0 1.2rem rgba(77, 255, 110, 0.4);
+    cursor: default;
+  }
+  .hp-avada-flash {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 200;
+    opacity: 0;
+    background: radial-gradient(
+      circle at var(--fx, 50%) var(--fy, 50%),
+      rgba(120, 255, 140, 0.95) 0%,
+      rgba(60, 220, 100, 0.55) 20%,
+      rgba(20, 120, 60, 0.15) 45%,
+      transparent 65%
+    );
+  }
+  .hp-avada-flash.hp-avada-flash--active {
+    animation: hp-avada-burst 0.75s ease-out;
+  }
+  @keyframes hp-avada-burst {
+    0% {
+      opacity: 0;
+      transform: scale(0.25);
+    }
+    12% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: scale(2.4);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hp-avada-flash.hp-avada-flash--active {
+      animation: none;
+    }
+  }
+
+  .hp-hero {
+    position: relative;
+    height: clamp(16rem, 34vw, 26rem);
+    overflow: hidden;
+  }
+  .hp-hero__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(0.5) saturate(0.9);
+  }
+  .hp-hero__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, #0b0a14 5%, rgba(11, 10, 20, 0.75) 45%, rgba(11, 10, 20, 0.35) 100%);
+  }
+  .hp-hero__text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding-bottom: var(--space-3);
+  }
+  .hp-eyebrow {
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    color: #ffd764;
+    margin: 0 0 0.4rem;
+  }
+  .hp-hero__text h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    margin: 0 0 0.5rem;
+    color: #f6efd8;
+    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
+  }
+  .hp-hero__sub {
+    max-width: 34rem;
+    color: #cfc6a8;
+    margin: 0;
+  }
+  .hp-hero__sub a {
+    color: #ffd764;
+  }
+  .hp-hero__sub em {
+    color: #ffd764;
+    font-style: normal;
+    font-family: var(--font-display);
+  }
+
+  .hp-section {
+    padding: var(--space-4) 0;
+  }
+  .hp-section--alt {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .hp-section h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    margin: 0 0 0.4rem;
+    color: #f6efd8;
+  }
+  .hp-section__sub {
+    color: #b7ac8c;
+    margin: 0 0 var(--space-3);
+    max-width: 34rem;
+  }
+
+  .hp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: var(--space-2);
+  }
+
+  .hp-card {
+    position: relative;
+    border-radius: 0.6rem;
+    overflow: hidden;
+    background: #17131f;
+    border: 1px solid rgba(255, 214, 100, 0.15);
+  }
+  .hp-card__order {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 2;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    background: rgba(11, 10, 20, 0.75);
+    color: #ffd764;
+    border-radius: 999px;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hp-card__img {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    display: block;
+    /* "Under a fog" until revealed — Revelio clears it */
+    filter: grayscale(0.85) brightness(0.42) saturate(0.6);
+    transform: scale(1.01);
+    transition: filter 0.5s ease, transform 0.5s ease;
+  }
+  .hp-card__placeholder {
+    aspect-ratio: 2 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.78rem;
+    color: #8c806a;
+    background: repeating-linear-gradient(135deg, #17131f, #17131f 10px, #1c1826 10px, #1c1826 20px);
+  }
+  .hp-card__title {
+    margin: 0;
+    padding: 0.5rem 0.6rem 0.7rem;
+    font-size: 0.82rem;
+    color: #d9d0b3;
+    line-height: 1.3;
+  }
+  .hp-card__comment {
+    margin: 0;
+    padding: 0 0.6rem 0.7rem;
+    font-size: 0.72rem;
+    color: #8c806a;
+  }
+
+  .hp-card:hover .hp-card__img,
+  .hp-card:focus-within .hp-card__img {
+    filter: grayscale(0) brightness(1) saturate(1);
+    transform: scale(1.04);
+  }
+
+  @media (pointer: coarse) {
+    .hp-wand-glow,
+    .hp-wand-cursor {
+      display: none;
+    }
+    .hp-card__img {
+      filter: none;
+    }
+  }
+
+  /* Nox — hold the wand still (press without moving) and the page dims to near-black; the
+     wand's own glow (already above this in z-index) stays as the only light. Lumos fades it
+     back on release. */
+  .hp-nox-overlay {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 150;
+    transition: opacity 1s ease;
+  }
+  .hp-nox-overlay.hp-nox-overlay--active {
+    opacity: 0.94;
+  }
+
+  /* Expecto Patronum — the "big" spell: a slow, silvery full-screen shimmer, distinct from
+     Avada's fast sickly-green burst by being softer and warmer-white/silver. */
+  .hp-patronum-flash {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 160;
+    opacity: 0;
+    background: radial-gradient(
+      circle at var(--px, 50%) var(--py, 50%),
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(210, 230, 255, 0.6) 25%,
+      rgba(180, 210, 255, 0.2) 50%,
+      transparent 72%
+    );
+  }
+  .hp-patronum-flash.hp-patronum-flash--active {
+    animation: hp-patronum-burst 2.2s ease-out;
+  }
+  @keyframes hp-patronum-burst {
+    0% {
+      opacity: 0;
+      transform: scale(0.3);
+    }
+    18% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: scale(2.8);
+    }
+  }
+
+  /* Alohomora reveal — a hidden section unlocked by tracing a figure-eight. */
+  .hp-secret {
+    background: #12101d;
+    border-top: 1px dashed rgba(255, 214, 100, 0.3);
+    border-bottom: 1px dashed rgba(255, 214, 100, 0.3);
+    padding: var(--space-4) 0;
+    text-align: center;
+  }
+  .hp-secret__quote {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: clamp(1.2rem, 3vw, 1.7rem);
+    color: #ffd764;
+    margin: 0.3rem 0;
+  }
+  .hp-secret__sub {
+    color: #b7ac8c;
+    margin: 0;
+  }
+
+  /* Protego — a shield bubble over one cover, and Wingardium Leviosa — that cover floats. */
+  .hp-card--shielded::after {
+    content: "";
+    position: absolute;
+    inset: -0.3rem;
+    border-radius: 1rem;
+    border: 2px solid rgba(120, 200, 255, 0.8);
+    background: radial-gradient(circle, rgba(120, 200, 255, 0.18), transparent 70%);
+    box-shadow: 0 0 20px 6px rgba(120, 200, 255, 0.35);
+    animation: hp-shield-pulse 1.6s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes hp-shield-pulse {
+    0%,
+    100% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.03);
+    }
+  }
+  .hp-card--levitate {
+    animation: hp-levitate 2.8s ease-in-out;
+    z-index: 3;
+  }
+  @keyframes hp-levitate {
+    0% {
+      transform: translateY(0) rotate(0deg);
+    }
+    30% {
+      transform: translateY(-1.1rem) rotate(-2deg);
+    }
+    60% {
+      transform: translateY(-0.8rem) rotate(2deg);
+    }
+    100% {
+      transform: translateY(0) rotate(0deg);
+    }
+  }
+
+  /* Crucio — the page itself shudders, with a brief sickly-red pulse. Deliberately harsh and
+     short rather than a spectacle, matching what the curse actually is. */
+  .hp-page.hp-page--crucio {
+    animation: hp-crucio-shake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+  .hp-page.hp-page--crucio::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(140, 0, 20, 0.25);
+    pointer-events: none;
+    z-index: 155;
+    animation: hp-crucio-pulse 0.6s ease-out;
+  }
+  @keyframes hp-crucio-shake {
+    10%,
+    90% {
+      transform: translate3d(-1px, 0, 0);
+    }
+    20%,
+    80% {
+      transform: translate3d(3px, 0, 0);
+    }
+    30%,
+    50%,
+    70% {
+      transform: translate3d(-7px, 0, 0);
+    }
+    40%,
+    60% {
+      transform: translate3d(7px, 0, 0);
+    }
+  }
+  @keyframes hp-crucio-pulse {
+    0% {
+      opacity: 0;
+    }
+    30% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /* Accio — a cover briefly "flies" toward the cursor, then springs back. */
+  .hp-card--accio {
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 3;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hp-nox-overlay,
+    .hp-patronum-flash,
+    .hp-card--shielded::after,
+    .hp-card--levitate,
+    .hp-page.hp-page--crucio,
+    .hp-page.hp-page--crucio::after,
+    .hp-card--accio {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
+  /* Grimorio — a spellbook page listing how to trace every gesture above. Torn-paper look via
+     layered gradients (no image asset needed), slight rotation for a hand-placed feel, revealed
+     with its own small "Revelio" fade-in the moment it scrolls into view. */
+  .hp-grimoire-section {
+    overflow: visible;
+  }
+  .hp-grimoire {
+    position: relative;
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-3);
+    background: linear-gradient(155deg, #efe2b8 0%, #e4d29e 45%, #d9c489 100%);
+    border-radius: 0.4rem;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.4) inset,
+      0 20px 40px -20px rgba(0, 0, 0, 0.6);
+    transform: rotate(-0.6deg);
+    opacity: 0;
+    translate: 0 1.4rem;
+    transition: opacity 0.7s ease, translate 0.7s ease;
+  }
+  .hp-grimoire.hp-grimoire--visible {
+    opacity: 1;
+    translate: 0 0;
+  }
+  .hp-grimoire__seal {
+    position: absolute;
+    top: -1.1rem;
+    right: 1.6rem;
+    margin: 0;
+    width: 2.6rem;
+    height: 2.6rem;
+    line-height: 2.6rem;
+    text-align: center;
+    font-size: 1.3rem;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffe9a8, #b8860b 75%);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+    transform: rotate(8deg);
+  }
+  .hp-grimoire__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .hp-grimoire__list li {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    column-gap: 0.8rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px dashed rgba(90, 60, 20, 0.3);
+  }
+  .hp-grimoire__list li:last-child {
+    border-bottom: none;
+  }
+  .hp-grimoire__icon {
+    flex: 0 0 2.4rem;
+    width: 2.4rem;
+    height: 2.4rem;
+    color: #8a5a2e;
+  }
+  .hp-grimoire__icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .hp-grimoire__spell {
+    flex: 0 0 9.5rem;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 600;
+    color: #5c3a12;
+  }
+  .hp-grimoire__how {
+    flex: 1 1 14rem;
+    color: #4a3820;
+    font-size: 0.92rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hp-grimoire {
+      transition: none;
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+</style>
+
+<script>
+  // The wand needs to work across the whole page, not just #hp-page -- .hp-greathall is a
+  // sibling section before it (can't nest inside, see the note near its markup), so the
+  // active-state class lives on <html> instead of any one section, and position tracking
+  // listens on the document rather than a specific element.
+  const glow = document.getElementById("wand-glow");
+  const wandCursor = document.getElementById("wand-cursor");
+  if (glow && wandCursor && window.matchMedia("(pointer: fine)").matches) {
+    document.documentElement.classList.add("hp-wand-page");
+    document.addEventListener("pointermove", (e) => {
+      glow.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+      wandCursor.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+    });
+  }
+
+  // A small "Revelio" sparkle burst at the click point — purely decorative, self-removing.
+  document.querySelectorAll("[data-revelio]").forEach((card) => {
+    card.addEventListener("click", (e) => {
+      const rect = card.getBoundingClientRect();
+      const sparkle = document.createElement("span");
+      sparkle.className = "hp-sparkle";
+      sparkle.style.left = `${(e as MouseEvent).clientX - rect.left}px`;
+      sparkle.style.top = `${(e as MouseEvent).clientY - rect.top}px`;
+      card.appendChild(sparkle);
+      sparkle.addEventListener("animationend", () => sparkle.remove());
+    });
+  });
+
+  // "Avada kevada" bursts full-screen green toward the viewer on hover, centered on the phrase.
+  const avadaFlash = document.getElementById("avada-flash");
+  document.querySelectorAll("[data-avada]").forEach((phrase) => {
+    phrase.addEventListener("mouseenter", () => {
+      if (!avadaFlash) return;
+      const rect = phrase.getBoundingClientRect();
+      const fx = ((rect.left + rect.width / 2) / window.innerWidth) * 100;
+      const fy = ((rect.top + rect.height / 2) / window.innerHeight) * 100;
+      avadaFlash.style.setProperty("--fx", `${fx}%`);
+      avadaFlash.style.setProperty("--fy", `${fy}%`);
+      avadaFlash.classList.remove("hp-avada-flash--active");
+      void (avadaFlash as HTMLElement).offsetWidth;
+      avadaFlash.classList.add("hp-avada-flash--active");
+    });
+  });
+</script>
+
+<script>
+  // Great Hall: floating candles (positioned + timed randomly so they never look like one
+  // repeating loop) and the scroll-driven "camera descends from the ceiling to the tables" pan.
+  (() => {
+    const layer = document.getElementById("hp-greathall-candles");
+    if (!layer) return;
+
+    const isPhone = window.matchMedia("(max-width: 40rem)").matches;
+    // Fewer candles on phones -- each one reads as a bigger, more legible flame at that size,
+    // and it's a real reduction in animated layers on a device more likely to be lower-powered.
+    const positions = isPhone
+      ? [
+          [18, 30],
+          [50, 18],
+          [78, 34],
+          [35, 45],
+          [65, 42],
+        ]
+      : [
+          [10, 28],
+          [22, 40],
+          [35, 20],
+          [48, 38],
+          [58, 22],
+          [70, 42],
+          [82, 26],
+          [90, 44],
+          [16, 55],
+          [63, 55],
+          [40, 58],
+          [85, 60],
+        ];
+
+    const frag = document.createDocumentFragment();
+    positions.forEach(([left, top]) => {
+      const el = document.createElement("div");
+      el.className = "hp-candle";
+      el.style.left = `${left}%`;
+      el.style.top = `${top}%`;
+      const bobDuration = 5 + Math.random() * 3;
+      const bobDelay = Math.random() * -6;
+      el.style.animationDuration = `${bobDuration}s`;
+      el.style.animationDelay = `${bobDelay}s`;
+      el.innerHTML = `
+        <div class="hp-candle__stick"></div>
+        <div class="hp-candle__glow"></div>
+        <div class="hp-candle__flame">
+          <div class="hp-candle__flame-layer hp-candle__flame-layer--outer"></div>
+          <div class="hp-candle__flame-layer hp-candle__flame-layer--mid"></div>
+          <div class="hp-candle__flame-layer hp-candle__flame-layer--core"></div>
+        </div>
+      `;
+      const flicker = el.querySelector(".hp-candle__flame");
+      const glow = el.querySelector(".hp-candle__glow");
+      const flickerDuration = 1.8 + Math.random() * 1.2;
+      const flickerDelay = Math.random() * -3;
+      if (flicker instanceof HTMLElement) {
+        flicker.style.animationDuration = `${flickerDuration}s`;
+        flicker.style.animationDelay = `${flickerDelay}s`;
+      }
+      if (glow instanceof HTMLElement) {
+        glow.style.animationDuration = `${flickerDuration * 1.3}s`;
+        glow.style.animationDelay = `${flickerDelay}s`;
+      }
+      frag.appendChild(el);
+    });
+    layer.appendChild(frag);
+
+    // Scroll-driven pan: the image is 180% of the sticky viewport's height, so there's 80vh of
+    // vertical range to pan through as the wrapper section scrolls past — 0 at the top (showing
+    // the ceiling) to 1 once the wrapper is fully scrolled (showing the tables).
+    const wrapper = document.getElementById("hp-greathall");
+    const img = document.getElementById("hp-greathall-img");
+    if (!wrapper || !img || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let ticking = false;
+    function updatePan() {
+      ticking = false;
+      const rect = wrapper.getBoundingClientRect();
+      const total = wrapper.offsetHeight - window.innerHeight;
+      if (total <= 0) return;
+      const progress = Math.min(1, Math.max(0, -rect.top / total));
+      const maxTranslate = img.offsetHeight - window.innerHeight;
+      img.style.transform = `translateY(-${progress * maxTranslate}px)`;
+    }
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(updatePan);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    updatePan();
+  })();
+</script>
+
+<script>
+  // Wand spellcasting: trace a shape with the cursor (pointerdown -> move -> up) and it gets
+  // classified into one of the 8 spells picked for this page. Holding still (no real movement)
+  // for ~1.4s is Nox instead, handled by its own timer since "hold" is the opposite of a traced
+  // gesture and can't go through the up-based classifier below.
+  (() => {
+    const page = document.getElementById("hp-page");
+    const noxOverlay = document.getElementById("hp-nox-overlay");
+    const patronumFlash = document.getElementById("hp-patronum-flash");
+    const fxLayer = document.getElementById("hp-fx-layer");
+    const secret = document.getElementById("hp-secret");
+    if (!page || !noxOverlay || !patronumFlash || !fxLayer) return;
+    if (!window.matchMedia("(pointer: fine)").matches) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const HOLD_MS = 1800;
+    const NOX_MS = 10000;
+    // A real trace, even a slow, careful one (Protego's "small" circle, a hesitant pause
+    // before Leviosa/Accio), must cancel the hold almost as soon as it starts moving --
+    // otherwise the time it takes to drift this many pixels can outlast HOLD_MS on its own,
+    // firing Nox mid-gesture and eating the classify() call the real shape needed.
+    const HOLD_MOVE_TOLERANCE = 6;
+
+    let points = [];
+    let isDown = false;
+    let downX = 0;
+    let downY = 0;
+    let holdTimer = null;
+    let holdFired = false;
+    let noxActive = false;
+
+    function clearHoldTimer() {
+      if (holdTimer) {
+        clearTimeout(holdTimer);
+        holdTimer = null;
+      }
+    }
+
+    function fireNox() {
+      if (noxActive) return;
+      noxActive = true;
+      noxOverlay.classList.add("hp-nox-overlay--active");
+      setTimeout(() => {
+        noxOverlay.classList.remove("hp-nox-overlay--active");
+        noxActive = false;
+      }, NOX_MS);
+    }
+
+    function spawnFlame(x, y) {
+      const el = document.createElement("div");
+      el.className = "hp-fx-flame";
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.style.transform = "translate(-50%, -100%)";
+      el.innerHTML =
+        '<div class="hp-candle__flame-layer hp-candle__flame-layer--outer"></div>' +
+        '<div class="hp-candle__flame-layer hp-candle__flame-layer--mid"></div>' +
+        '<div class="hp-candle__flame-layer hp-candle__flame-layer--core"></div>';
+      fxLayer.appendChild(el);
+      setTimeout(() => el.remove(), 2300);
+    }
+
+    function spawnLock(x, y, onDone) {
+      const el = document.createElement("div");
+      el.className = "hp-fx-lock";
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.style.transform = "translate(-50%, -50%)";
+      el.innerHTML = '<div class="hp-fx-lock__shackle"></div><div class="hp-fx-lock__body"></div>';
+      fxLayer.appendChild(el);
+      setTimeout(() => {
+        el.remove();
+        onDone();
+      }, 1600);
+    }
+
+    function triggerAlohomora(x, y) {
+      spawnLock(x, y, () => {
+        if (!secret) return;
+        secret.hidden = false;
+        secret.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+      });
+    }
+
+    function triggerPatronum(x, y) {
+      patronumFlash.style.setProperty("--px", `${x}px`);
+      patronumFlash.style.setProperty("--py", `${y}px`);
+      patronumFlash.classList.remove("hp-patronum-flash--active");
+      void (patronumFlash as HTMLElement).offsetWidth;
+      patronumFlash.classList.add("hp-patronum-flash--active");
+    }
+
+    function triggerProtego(card) {
+      if (!(card instanceof HTMLElement)) return;
+      card.classList.remove("hp-card--shielded");
+      void card.offsetWidth;
+      card.classList.add("hp-card--shielded");
+      setTimeout(() => card.classList.remove("hp-card--shielded"), 1600);
+    }
+
+    function triggerLeviosa(card) {
+      if (!(card instanceof HTMLElement)) return;
+      card.classList.remove("hp-card--levitate");
+      void card.offsetWidth;
+      card.classList.add("hp-card--levitate");
+      setTimeout(() => card.classList.remove("hp-card--levitate"), 2800);
+    }
+
+    function triggerCrucio() {
+      page.classList.remove("hp-page--crucio");
+      void (page as HTMLElement).offsetWidth;
+      page.classList.add("hp-page--crucio");
+      setTimeout(() => page.classList.remove("hp-page--crucio"), 700);
+    }
+
+    function cardNear(x, y) {
+      const el = document.elementFromPoint(x, y);
+      return el ? el.closest(".hp-card") : null;
+    }
+
+    // Classifies the traced path into a spell on release. Order matters: most specific shape
+    // (figure-eight) first, then closed loops, then scribbles/flicks/stabs.
+    function classify() {
+      if (points.length < 4) return;
+      const start = points[0];
+      const end = points[points.length - 1];
+      const duration = end.t - start.t;
+      let dist = 0;
+      let minX = start.x,
+        maxX = start.x,
+        minY = start.y,
+        maxY = start.y;
+      // `local` is the rotation built up since the last time direction reversed — NOT a
+      // single global running total. A real figure-eight is a clockwise loop followed by a
+      // counter-clockwise loop; measured as one cumulative sum the second loop just cancels
+      // the first back toward zero and never registers. Tracking the excursion since the
+      // last reversal lets both loops register independently as their own big swing.
+      let local = 0;
+      let bestPos = 0;
+      let bestNeg = 0;
+      let dxReversals = 0;
+      let prevDx = 0;
+      let prevAngle = null;
+
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1];
+        const b = points[i];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        dist += Math.hypot(dx, dy);
+        minX = Math.min(minX, b.x);
+        maxX = Math.max(maxX, b.x);
+        minY = Math.min(minY, b.y);
+        maxY = Math.max(maxY, b.y);
+        if (Math.abs(dx) > 2) {
+          if (prevDx !== 0 && Math.sign(dx) !== Math.sign(prevDx)) dxReversals++;
+          prevDx = dx;
+        }
+        if (Math.hypot(dx, dy) > 3) {
+          const angle = Math.atan2(dy, dx);
+          if (prevAngle !== null) {
+            let delta = angle - prevAngle;
+            while (delta > Math.PI) delta -= Math.PI * 2;
+            while (delta < -Math.PI) delta += Math.PI * 2;
+            local = local === 0 || Math.sign(delta) === Math.sign(local) ? local + delta : delta;
+            bestPos = Math.max(bestPos, local);
+            bestNeg = Math.min(bestNeg, local);
+          }
+          prevAngle = angle;
+        }
+      }
+
+      if (dist < 30) return; // a tap/click, not a traced gesture
+
+      const bboxW = maxX - minX;
+      const bboxH = maxY - minY;
+      const diagonal = Math.hypot(bboxW, bboxH);
+      const midX = (minX + maxX) / 2;
+      const midY = (minY + maxY) / 2;
+
+      // Figure-eight (Alohomora): a real loop one way, and a real loop the other way.
+      if (bestPos > 5 && bestNeg < -5) {
+        triggerAlohomora(end.x, end.y);
+        return;
+      }
+
+      // Closed loop: a lot of rotation one way, no reversal. Small + over a cover = Protego;
+      // otherwise the big sweep is Expecto Patronum.
+      if (Math.max(bestPos, -bestNeg) > 4.6) {
+        const card = cardNear(midX, midY);
+        if (diagonal < 150 && card) {
+          triggerProtego(card);
+        } else {
+          triggerPatronum(midX, midY);
+        }
+        return;
+      }
+
+      // Zigzag (Incendio): several quick left-right reversals in a short scribble.
+      if (dxReversals >= 3 && bboxW < 260 && duration < 1600) {
+        spawnFlame(end.x, end.y);
+        spawnFlame((start.x + end.x) / 2, (start.y + end.y) / 2 - 10);
+        return;
+      }
+
+      // Swish-and-flick (Wingardium Leviosa): wide and flat, ending on a sharp upward flick.
+      const tailStart = points[Math.max(0, points.length - 4)];
+      const flickDy = end.y - tailStart.y;
+      const flickDx = end.x - tailStart.x;
+      if (bboxW > bboxH * 1.4 && bboxW > 90 && flickDy < -14 && Math.abs(flickDy) > Math.abs(flickDx) * 0.6) {
+        triggerLeviosa(cardNear(midX, midY));
+        return;
+      }
+
+      // Crucio: short, fast, mostly-vertical downward stab.
+      if (duration < 260 && bboxH > bboxW * 1.4 && end.y - start.y > 24) {
+        triggerCrucio();
+        return;
+      }
+    }
+
+    document.addEventListener("pointerdown", (e) => {
+      const ev = e as PointerEvent;
+      isDown = true;
+      holdFired = false;
+      downX = ev.clientX;
+      downY = ev.clientY;
+      points = [{ x: ev.clientX, y: ev.clientY, t: performance.now() }];
+      clearHoldTimer();
+      holdTimer = setTimeout(() => {
+        holdFired = true;
+        fireNox();
+      }, HOLD_MS);
+    });
+
+    document.addEventListener("pointermove", (e) => {
+      if (!isDown) return;
+      const ev = e as PointerEvent;
+      const dx = ev.clientX - downX;
+      const dy = ev.clientY - downY;
+      if (holdTimer && Math.hypot(dx, dy) > HOLD_MOVE_TOLERANCE) clearHoldTimer();
+      points.push({ x: ev.clientX, y: ev.clientY, t: performance.now() });
+    });
+
+    document.addEventListener("pointerup", () => {
+      clearHoldTimer();
+      isDown = false;
+      if (!holdFired) classify();
+      points = [];
+    });
+
+    document.addEventListener("pointercancel", () => {
+      clearHoldTimer();
+      isDown = false;
+      points = [];
+    });
+
+    // Accio — double-click a cover and it springs toward the cursor, then snaps back.
+    document.querySelectorAll(".hp-card").forEach((card) => {
+      card.addEventListener("dblclick", (e) => {
+        if (!(card instanceof HTMLElement)) return;
+        const ev = e as MouseEvent;
+        const rect = card.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = (ev.clientX - cx) * 0.18;
+        const dy = (ev.clientY - cy) * 0.18;
+        card.classList.add("hp-card--accio");
+        card.style.transform = `translate(${dx}px, ${dy}px) scale(0.94)`;
+        requestAnimationFrame(() => {
+          card.style.transform = "";
+        });
+        setTimeout(() => {
+          card.classList.remove("hp-card--accio");
+          card.style.transform = "";
+        }, 450);
+      });
+    });
+  })();
+</script>
+
+<script>
+  // Reveals the grimoire the moment it scrolls into view — a small, quiet echo of Revelio
+  // for the one section that's always visible rather than gesture-triggered.
+  const grimoire = document.getElementById("hp-grimoire");
+  if (grimoire && "IntersectionObserver" in window) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          grimoire.classList.add("hp-grimoire--visible");
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "-10% 0px" }
+    );
+    observer.observe(grimoire);
+  } else if (grimoire) {
+    grimoire.classList.add("hp-grimoire--visible");
+  }
+</script>
+
+<style is:global>
+  .hp-card {
+    cursor: pointer;
+  }
+  .hp-sparkle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+    z-index: 3;
+  }
+  .hp-sparkle::before {
+    content: "";
+    position: absolute;
+    top: -1.5rem;
+    left: -1.5rem;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 214, 100, 0.9) 0%, rgba(255, 214, 100, 0) 70%);
+    animation: hp-sparkle-burst 0.6s ease-out forwards;
+  }
+  @keyframes hp-sparkle-burst {
+    from {
+      opacity: 1;
+      transform: scale(0.2);
+    }
+    to {
+      opacity: 0;
+      transform: scale(1.8);
+    }
+  }
+
+  .hp-candle {
+    position: absolute;
+    animation: hp-candle-bob ease-in-out infinite;
+  }
+  @keyframes hp-candle-bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-0.6rem);
+    }
+  }
+  .hp-candle__stick {
+    width: 0.3rem;
+    height: 1.3rem;
+    margin: 0 auto;
+    background: linear-gradient(180deg, #f6ecd0, #c9b482);
+    border-radius: 1px;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+  }
+  .hp-candle__glow {
+    position: absolute;
+    left: 50%;
+    top: -1.4rem;
+    width: 2.6rem;
+    height: 2.6rem;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 195, 100, 0.5), transparent 70%);
+    filter: blur(7px);
+    animation: hp-candle-glow ease-in-out infinite;
+  }
+  @keyframes hp-candle-glow {
+    0%,
+    100% {
+      opacity: 0.75;
+      transform: translateX(-50%) scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: translateX(-50%) scale(1.12);
+    }
+  }
+  .hp-candle__flame {
+    position: absolute;
+    left: 50%;
+    top: -0.15rem;
+    width: 0.1rem;
+    height: 0.1rem;
+    transform-origin: bottom center;
+    animation: hp-candle-flicker ease-in-out infinite;
+  }
+  .hp-candle__flame-layer {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    border-radius: 50% 0% 50% 50%;
+  }
+  .hp-candle__flame-layer--outer {
+    width: 0.7rem;
+    height: 1.15rem;
+    margin-left: -0.35rem;
+    background: #ff6a1a;
+    transform: rotate(-45deg);
+    box-shadow: 0 0 10px 3px rgba(255, 130, 40, 0.55);
+  }
+  .hp-candle__flame-layer--mid {
+    width: 0.46rem;
+    height: 0.82rem;
+    margin-left: -0.14rem;
+    background: #ffb238;
+    transform: rotate(-45deg);
+  }
+  .hp-candle__flame-layer--core {
+    width: 0.22rem;
+    height: 0.44rem;
+    margin-left: 0.02rem;
+    bottom: 0.3rem;
+    background: #fff6d8;
+    transform: rotate(-45deg);
+    box-shadow: 0 0 6px 2px rgba(255, 255, 255, 0.85);
+  }
+  @keyframes hp-candle-flicker {
+    0%,
+    100% {
+      transform: rotate(0deg) scaleY(1);
+    }
+    22% {
+      transform: rotate(-3deg) scaleY(0.93);
+    }
+    48% {
+      transform: rotate(2deg) scaleY(1.06);
+    }
+    74% {
+      transform: rotate(-1.5deg) scaleY(0.97);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hp-candle,
+    .hp-candle__glow,
+    .hp-candle__flame {
+      animation: none;
+    }
+  }
+
+  /* Incendio and Alohomora spawn these directly into #hp-fx-layer via JS, so — same as the
+     candles above — they need to be global rather than scoped. */
+  .hp-fx-flame {
+    position: fixed;
+    width: 0.1rem;
+    height: 0.1rem;
+    transform-origin: bottom center;
+    animation: hp-fx-flame-flicker 1.8s ease-in-out, hp-fx-flame-fade 2.2s ease-in forwards;
+  }
+  @keyframes hp-fx-flame-flicker {
+    0%,
+    100% {
+      transform: rotate(0deg) scaleY(1);
+    }
+    25% {
+      transform: rotate(-4deg) scaleY(0.92);
+    }
+    50% {
+      transform: rotate(3deg) scaleY(1.08);
+    }
+    75% {
+      transform: rotate(-2deg) scaleY(0.96);
+    }
+  }
+  @keyframes hp-fx-flame-fade {
+    0%,
+    60% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  .hp-fx-lock {
+    position: fixed;
+    width: 2.4rem;
+    height: 2.4rem;
+    z-index: 165;
+    animation: hp-fx-lock-life 1.6s ease-out forwards;
+  }
+  .hp-fx-lock__shackle {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 1.3rem;
+    height: 1.3rem;
+    margin-left: -0.65rem;
+    border: 0.28rem solid #ffd764;
+    border-bottom: none;
+    border-radius: 1rem 1rem 0 0;
+    animation: hp-fx-lock-open 1.6s ease-out forwards;
+    transform-origin: 100% 100%;
+  }
+  .hp-fx-lock__body {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 2.2rem;
+    height: 1.6rem;
+    margin-left: -1.1rem;
+    background: linear-gradient(180deg, #ffd764, #b8860b);
+    border-radius: 0.3rem;
+    box-shadow: 0 0 16px 4px rgba(255, 214, 100, 0.6);
+  }
+  @keyframes hp-fx-lock-open {
+    0%,
+    35% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(-45deg);
+    }
+  }
+  @keyframes hp-fx-lock-life {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    20% {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+    35% {
+      transform: scale(1);
+    }
+    75% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.15);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hp-fx-flame,
+    .hp-fx-lock,
+    .hp-fx-lock__shackle {
+      animation: none;
+    }
+  }
+</style>

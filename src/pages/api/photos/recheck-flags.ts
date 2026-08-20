@@ -18,7 +18,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   const afterId = Number(url.searchParams.get("afterId") ?? 0);
   const { results: pending } = await env.DB.prepare(
-    "SELECT id, r2_key FROM photos WHERE approval_status = 'pending' AND id > ? ORDER BY id LIMIT ?"
+    "SELECT id, r2_key, taken_city FROM photos WHERE approval_status = 'pending' AND id > ? ORDER BY id LIMIT ?"
   )
     .bind(afterId, BATCH_SIZE)
     .all<any>();
@@ -29,7 +29,7 @@ export const POST: APIRoute = async ({ request }) => {
     const object = await env.MEDIA.get(p.r2_key);
     if (!object) continue;
     const bytes = new Uint8Array(await object.arrayBuffer());
-    const { caption, minorFlag } = await captionAndFlag(bytes);
+    const { caption, minorFlag } = await captionAndFlag(bytes, p.taken_city);
     await env.DB.prepare("UPDATE photos SET ai_caption = ?, minor_flag = ? WHERE id = ?")
       .bind(caption, minorFlag, p.id)
       .run();

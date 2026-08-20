@@ -1,0 +1,2450 @@
+---
+import Site from "../layouts/Site.astro";
+import { formatAge } from "../lib/pet-age";
+
+const age = formatAge("es-MX");
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "ImageGallery",
+  name: "Pandilla Jedi — Kilowatto",
+  description: `Luke y Leia, las avestruces de Esteban Rey, y sus amigos de granja Yoda (chapulín), el Escuadrón Rojo (caracaras), Qui-Gon Jinn (mono aullador), el maestro Plo Koon (mapache), la familia Mortis (pavorreales), el Escuadrón Rogue, el Escuadrón Azul (pericos) y los caballos del Clon Fuerza 99.`,
+  associatedMedia: [
+    { "@type": "ImageObject", contentUrl: "https://kilowatto.com/avestruces/luke-v2.jpg", description: "Luke, el avestruz" },
+    { "@type": "ImageObject", contentUrl: "https://kilowatto.com/avestruces/leia.jpg", description: "Leia, la avestruz" },
+    { "@type": "ImageObject", contentUrl: "https://kilowatto.com/avestruces/grillo-1.jpg", description: "Yoda, el chapulín gigante" },
+    { "@type": "ImageObject", contentUrl: "https://kilowatto.com/avestruces/caracara-1.jpg", description: "Red Leader y Red Two, los caracaras" },
+    { "@type": "ImageObject", contentUrl: "https://kilowatto.com/avestruces/mono-1.jpg", description: "Qui-Gon Jinn, el mono aullador negro" },
+    { "@type": "ImageObject", contentUrl: "https://kilowatto.com/avestruces/mapache-9.jpg", description: "El maestro Plo Koon, el mapache" },
+  ],
+};
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "¿Esteban Rey tiene avestruces?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Sí. Luke y Leia son las dos avestruces de Esteban Rey, que llegaron de Mérida con apenas 2 meses de edad y hoy viven en su terreno junto con otros animales de granja.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "¿Cómo se llaman las avestruces de Esteban Rey?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Luke y Leia. Luke actúa como el autoproclamado gerente de seguridad del terreno; Leia es la más sociable y curiosa del par.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "¿Cuánto tiempo viven las avestruces?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Un avestruz puede vivir entre 30 y 40 años, más todavía en cautiverio — es el ave viva más grande y también el ave terrestre más rápida del mundo, con hasta 70 km/h.",
+      },
+    },
+  ],
+};
+
+const INTRO = [
+  `Llegaron de Mérida —sí, otra vez Mérida— con apenas 2 meses de edad, del tamaño de un pavo o una gallina grande. Hoy, con ${age}, son gigantes y no tienen ninguna intención de pasar desapercibidos. Luke y Leia son avestruces, y desde el primer día dejaron claro que en esta casa el que marca el ritmo de la fiesta tiene plumas.`,
+  "Son animales extremadamente sociables: metiches por naturaleza, se acercan a investigar cualquier cosa que se mueva —visitas, cámaras, el control remoto, lo que sea— y no se pierden una reunión familiar. Si hay gente nueva en el jardín, hay avestruz cerca en cuestión de minutos.",
+  "Eso sí: aunque ya son casi tan altos como un adulto, un avestruz puede vivir entre 30 y 40 años, así que apenas van en el equivalente a su kínder. Hay que seguir tratándolos como lo que son — un par de niños que, por accidente genético, miden 1.80.",
+  "Antes de venirse a vivir aquí, hicieron una última visita a la granja donde nacieron —a conocer primos, tíos y a todo el resto de la parentela— antes de empezar su nueva vida como parte de la familia.",
+];
+
+const LUKE_BIO = [
+  "Luke se cree el gerente de seguridad del terreno. Se para junto a la puerta cuando hay visitas, estira el cuello lo más que puede y observa como si estuviera checando credenciales. La primera vez que llegó el jardinero con una podadora nueva, Luke lo siguió a distancia prudente durante toda la tarde, aparentemente convencido de que supervisar la operación era trabajo suyo.",
+  "También tiene debilidad por los objetos brillantes: unos lentes de sol olvidados sobre la mesa no duran ni cinco minutos con Luke cerca. Más de una visita ha tenido que negociar —a distancia, con mucha paciencia— la devolución de sus llaves de coche.",
+];
+
+const LEI_BIO = [
+  "Leia es la fiestera oficial. En cuanto detecta música o risas fuertes, aparece corriendo desde el otro extremo del terreno como si la hubieran invitado formalmente. En una comida familiar se plantó justo en medio del grupo, entre las sillas, como una invitada más esperando a que alguien le pasara algo de la mesa.",
+  "Es también la más curiosa para investigar bolsas, mochilas y cualquier cosa que alguien haya dejado en el pasto por error. Su estilo personal: acercarse despacio, con toda la calma del mundo, y luego mirar directo a los ojos como diciendo \"esto ya es mío\".",
+];
+
+const FACTS = [
+  ["Es el ave viva más grande del mundo.", "Le pisan los talones nomás las expectativas que tengo puestas en ellos."],
+  ["No puede volar — sus alas se usan para equilibrio al correr y en el cortejo.", "Básicamente decorativas, como muchas juntas directivas."],
+  ["Es el ave terrestre más rápida: puede correr hasta 70 km/h.", "Más rápido que cualquier propuesta comercial que me han mandado este año."],
+  ["Puede mantener cerca de 50 km/h durante largas distancias sin cansarse.", "Ojalá mi wifi tuviera esa consistencia."],
+  ["Cada zancada al correr puede medir entre 3 y 5 metros.", "Con esa zancada ya habría llegado caminando a la oficina."],
+  ["Tiene solo dos dedos por pata — el resto de las aves tiene tres o cuatro.", "Menos dedos, cero drama — algo que podríamos aprender todos."],
+  ["Sus patadas son tan fuertes que pueden ser letales incluso para un león.", "Tomen nota: el verdadero guardia de seguridad de esta casa ya está contratado."],
+  ["Tiene los ojos más grandes de cualquier animal terrestre: unos 5 centímetros de diámetro.", "Ven todo. Absolutamente todo. Sí, también esa vez que dejaste la puerta abierta."],
+  ["El ojo de un avestruz es literalmente más grande que su propio cerebro.", "Hay quien publica en LinkedIn con esa misma proporción."],
+  ["Pone los huevos más grandes de cualquier ave viva.", "Ya quisiera yo un ticket promedio así de grande."],
+  ["Un huevo de avestruz equivale aproximadamente a 24 huevos de gallina.", "Para lo que comen mis hermanos, eso ni siquiera cuenta como arranque."],
+  ["La cáscara es tan resistente que un adulto puede pararse encima sin romperla.", "Más resistente que cualquier plan de negocio improvisado en una servilleta."],
+  ["No es cierto que entierren la cabeza en la arena — el mito viene de cuando bajan la cabeza al nivel del suelo para voltear los huevos del nido.", "O sea que ni ellos evaden sus problemas — otra cosa en la que nos superan."],
+  ["Es originario de las sabanas y zonas semiáridas de África.", "Y aun así se adaptaron a Mérida sin quejarse del calor. Todo un ejemplo."],
+  ["Es omnívoro: come sobre todo plantas, semillas y pastos, pero también insectos y pequeños reptiles.", "Come lo que encuentra, como yo en una junta que se alargó demasiado."],
+  ["Como no tiene dientes, traga piedritas (gastrolitos) que le ayudan a moler la comida en la molleja.", "Un sistema digestivo con más disciplina operativa que muchas startups."],
+  ["Puede pasar varios días sin beber agua, obteniendo humedad de las plantas que come.", "Yo sin café dos horas ya soy un peligro público."],
+  ["Su esperanza de vida es de 30 a 40 años — más todavía en cautiverio.", "O sea que esto es una relación a largo plazo, no una pasantía."],
+  ["Alcanza la madurez sexual entre los 2 y los 4 años de edad.", "Maduran más rápido que algunos socios que he tenido."],
+  ["Los machos adultos son mayormente negros con plumas blancas en alas y cola; las hembras son de un café grisáceo.", "El único dress code de esta casa que sí se respeta."],
+  ["Un macho adulto puede pesar entre 90 y 130 kilos — algunos superan los 150.", "Y aun así corren más que yo un lunes por la mañana."],
+  ["Puede medir hasta 2.7 metros de altura.", "Más alto de lo que imaginaba cuando dije 'un par de mascotas nuevas'."],
+  ["Su cuello largo le permite detectar depredadores desde muy lejos en la sabana.", "También útil para ver quién llegó sin avisar al terreno."],
+  ["Tiene un oído y una vista excepcionales.", "Se enteran de todo antes que el grupo de WhatsApp de la familia."],
+  ["Vive y se desplaza en grupos, generalmente de entre 5 y 50 individuos.", "Como una junta de consejo, pero con mejor asistencia."],
+  ["Es curioso por naturaleza: investiga todo lo que se mueve cerca de él.", "Si trabajaran en Ignia Cloud, ya estarían en el equipo de QA."],
+  ["Suele compartir territorio con cebras y ñus, que aprovechan su buena vista para detectar peligro.", "El networking interespecie que a mí tanto trabajo me cuesta hacer."],
+  ["Su nido es apenas un hoyo en la arena, a veces compartido por varias hembras del mismo grupo.", "Menos infraestructura que muchas startups en etapa seed, y aun así funciona."],
+  ["La hembra dominante suele poner sus huevos justo al centro del nido, donde están mejor protegidos.", "Ya quisiera yo esa claridad de jerarquía en una junta directiva."],
+  ["Los machos suelen encargarse de incubar los huevos durante la noche.", "El único que en esta casa hace guardias nocturnas sin quejarse."],
+  ["Puede correr en zigzag para despistar a un depredador durante una persecución.", "La misma técnica que uso yo para evitar juntas que no necesito."],
+  ["Su plumaje, aunque no sirve para volar, ayuda a regular su temperatura bajo el sol.", "Funcional y con estilo — algo que la mayoría de los sacos no logran."],
+  ["Se cría en granjas de varios países —incluido México— por su carne, piel y plumas.", "Tema que Luke y Leia prefieren no tocar en la cena."],
+  ["Un polluelo de avestruz puede crecer hasta 30 centímetros por mes durante su primer año.", "A esa velocidad, mejor no parpadear — o comprar ropa más grande cada mes."],
+  ["Puede vivir perfectamente en pareja o en grupo, y reconoce a quienes lo cuidan todos los días.", "Y aun así, siguen sin reconocer quién les paga la comida — típico."],
+];
+
+const FRIEND_INTRO = [
+  "Luke y Leia también tienen amigos inesperados en el terreno. El más memorable hasta ahora: un chapulín gigante que una tarde decidió posarse en la pared de la terraza y quedarse ahí, inmóvil, del tamaño de una mano completa.",
+  'Le pusimos "Yoda" — entre el tono verde-amarillo, el tamaño descomunal para un insecto y la calma absoluta con la que se dejó cargar, el nombre se sintió inevitable. A diferencia del maestro Jedi, Yoda no reparte consejos: solo se queda quieto, viendo todo con esos ojos enormes, hasta que decide dar un salto que recuerda que, si quisiera, podría desaparecer en un instante.',
+];
+
+const YODA_ID_NOTE =
+  "Por su tamaño, el patrón de red en las alas y el borde anaranjado del tórax, todo apunta a que Yoda es una langosta gigante (Tropidacris cristata) — uno de los saltamontes más grandes de América, cuyas alas traseras son de un rojo intenso que solo se ve cuando vuela.";
+
+const YODA_FACTS = [
+  "Es una de las especies de saltamontes más grandes del continente americano, con hasta 14 centímetros de largo.",
+  "Vive desde México hasta Sudamérica, en climas tropicales y selváticos — como el sureste mexicano.",
+  "En reposo se ve amarillo-verdoso con manchas negras, camuflado entre hojas secas — pero al volar despliega alas traseras de un rojo brillante para sorprender a los depredadores.",
+  "Sus patas traseras le permiten saltar distancias muy superiores al tamaño de su propio cuerpo.",
+  "Se alimenta principalmente de hojas de una gran variedad de plantas tropicales.",
+  "Es completamente inofensivo para las personas — no pica ni muerde, aunque su tamaño intimide a primera vista.",
+  "Puede vivir más de un año en estado silvestre.",
+];
+
+const CARACARA_INTRO = [
+  'Los otros vecinos habituales: un par de rapaces que se paran casi a diario en la misma rama seca, mirando todo el terreno desde arriba como si fueran ellos los que estuvieran al mando. Les pusimos "Red Leader" y "Red Two" — nombres de escuadrón, porque siempre aparecen volando en formación de dos.',
+  "Y el escuadrón creció: lo que empezó como dos siluetas en la misma rama ahora se ve como una formación completa — hasta cuatro o cinco caracaras compartiendo el mismo árbol muerto al mismo tiempo, cada quien en su propia rama, como si tuvieran asientos asignados.",
+];
+
+const CARACARA_ID_NOTE =
+  "Por el cuerpo oscuro, la cabeza y el cuello color crema, y la piel anaranjada alrededor del pico, todo apunta a que Red Leader y Red Two son caracaras crestados (Caracara plancus) — rapaces muy comunes en el sureste de México, aunque casi siempre se les llame simplemente \"águilas\" por su tamaño y su porte.";
+
+const CARACARA_FACTS = [
+  "A pesar de su apariencia de águila, es en realidad un halcónido — pariente más cercano de los halcones que de las águilas verdaderas.",
+  "Es una de las rapaces más comunes del sureste de México, fácil de ver posada en ramas secas o postes a la orilla de potreros y caminos.",
+  "Se alimenta principalmente como carroñero, pero también caza presas pequeñas como insectos, reptiles y roedores.",
+  "A diferencia de la mayoría de las rapaces, camina y corre con soltura por el suelo mientras busca comida.",
+  "La pareja reproductora suele defender el mismo territorio de por vida, pero fuera de la temporada de anidación es común ver grupos sueltos de varios individuos —jóvenes o adultos no reproductores— compartiendo el mismo árbol o posadero.",
+  "Es muy oportunista: no duda en acercarse a zonas habitadas por humanos si hay comida disponible.",
+  "Puede vivir más de 25 años en estado silvestre.",
+];
+
+const BUFFALO_INTRO = [
+  'El terreno también tiene búfalos de agua — con nombres que cualquier fan de una tripulación rebelde reconocería de inmediato: Ezra, Zeb, Sabine... y Hera, la única del grupo con un tono grisáceo que a la luz de la mañana se ve casi verde, como su tocaya.',
+  "Entre las avestruces, el chapulín, las águilas de escuadrón y ahora un batallón completo con nombres de rebeldes armados, con estos amigos estoy frito — si alguna noche deciden organizarse, más vale que tenga un buen abogado y una salida trasera.",
+  "Lo que sí me preocupa un poco es que, entre tanto nombre del mismo bando, en algún momento decidan que aquí el único que sobra —el que anda de traje oscuro dando órdenes— soy yo. Ojalá nadie convoque una rebelión de verdad antes de que amanezca.",
+];
+
+// Fixed UTC-6 offset — central Mexico dropped daylight saving time nationwide in 2022, so this
+// never needs a seasonal adjustment.
+const JACEN_BIRTH_ISO = "2026-07-27T00:23:00-06:00";
+
+const BUFFALO_BIRTH_NOTE =
+  '¡Y hoy la manada creció! Hera tuvo a su cría — un ternero sano que ya se para y camina por su cuenta. Con Hera de mamá y el tema Rebels tan tomado en serio en esta casa, no había otro nombre posible: se llama Jacen, como el hijo que Hera Syndulla tiene en el canon de la serie.';
+
+const BUFFALO_ID_NOTE =
+  "Son búfalos de agua (Bubalus bubalis) — domesticados hace miles de años en Asia, hoy comunes también en granjas del sureste mexicano.";
+
+const BUFFALO_FACTS = [
+  "Puede pesar más de 700 kilos en su edad adulta.",
+  "Le encanta el agua y el lodo — le ayudan a regular su temperatura y a protegerse de insectos.",
+  "Sus cuernos pueden medir más de un metro de punta a punta.",
+  "Es un animal social que vive en manadas con una jerarquía bien definida.",
+  "Se usa en muchas partes del mundo para producir leche, carne y como animal de trabajo en el campo.",
+  "Puede vivir entre 20 y 25 años.",
+  "Es más resistente al calor extremo que el ganado vacuno tradicional.",
+  "Un ternero recién nacido ya puede ponerse de pie y caminar apenas unas horas después de nacer.",
+];
+
+const QUIGON_INTRO = [
+  "El más reciente en sumarse a la fauna del terreno es un mono aullador negro que empezó a aparecer entre las copas de los árboles más altos — casi siempre escondido entre las hojas, dejándose ver apenas unos segundos antes de desaparecer otra vez.",
+  "Antes de verlo, ya lo habíamos escuchado: el aullido de un mono aullador se oye a uno o dos kilómetros de distancia, y la primera vez que retumbó sobre el terreno más de uno preguntó si algo le había pasado al ternero recién nacido. No — era solo el vecino nuevo, anunciándose.",
+  "Le pusimos Qui-Gon Jinn — el Jedi más sereno de todos, el que nunca pierde la calma ni cuando el resto del Consejo se altera. Encaja: se queda quieto en lo más alto del árbol, observando todo como en su propia meditación privada, sin bajar a mezclarse con el resto del reparto — avestruces, chapulín gigante, escuadrón de caracaras y ahora un batallón completo de búfalos con nombres de rebeldes armados.",
+];
+
+const QUIGON_ID_NOTE =
+  "Por el pelaje completamente negro, la cola larga y prensil, y la barba densa bajo la mandíbula, todo apunta a que Qui-Gon es un mono aullador negro o saraguato yucateco (Alouatta pigra) — el primate más grande de México después del ser humano, nativo de la selva de la península de Yucatán.";
+
+const QUIGON_FACTS = [
+  "Es, después del ser humano, el primate más grande de todo el continente americano.",
+  "Su aullido —un bramido grave que sirve para marcar territorio y advertir a otros grupos— puede escucharse a uno o dos kilómetros de distancia.",
+  "Vive casi exclusivamente en los árboles, en selvas bajas y medianas del sureste mexicano: Yucatán, Campeche, Quintana Roo, Chiapas y Tabasco.",
+  "Tiene una cola prensil, tan larga como su propio cuerpo, que usa como una quinta extremidad para sujetarse mientras se alimenta.",
+  "El macho es notablemente más grande que la hembra, y es quien emite los aullidos más fuertes.",
+  "Se alimenta principalmente de hojas, además de frutas y flores.",
+  "Las hembras alcanzan la madurez sexual entre los 26 y 30 meses de edad; los machos, entre los 36 y 40.",
+  "Está clasificado En Peligro de extinción por la IUCN y protegido por la norma mexicana NOM-059 — verlo de cerca no es cosa menor.",
+];
+
+const PLOKOON_INTRO = [
+  "El siguiente en aparecer, otra vez en las copas más altas, justo sobre donde viven las avestruces: un mapache que se pasa el día prácticamente inmóvil entre las ramas, escondido, esperando a que caiga la noche para bajar a hacer de las suyas.",
+  "Le pusimos maestro Plo Koon — el único miembro del Consejo Jedi que, como este mapache, nunca se quita el antifaz. Con Yoda en el jardín y Qui-Gon Jinn en el árbol de al lado, el Consejo Jedi ya se está formando completo en este terreno sin que nadie los haya invitado.",
+  "Y el nombre de maestro, no de padawan, tampoco es casualidad: entre los procyónidos, el mapache tiene fama merecida de listo y travieso — capaz de abrir cerrojos, tapas y básicamente cualquier cosa que le interese, con esas manos de cinco dedos que usa casi como nosotros.",
+];
+
+const PLOKOON_ID_NOTE =
+  "Por el antifaz negro alrededor de los ojos, la cola con franjas oscuras y claras alternadas, y el pelaje gris-café denso, todo apunta a que el maestro Plo Koon es un mapache norteño (Procyon lotor) — el procyónido más extendido de México, presente en los 32 estados del país.";
+
+const PLOKOON_FACTS = [
+  "Es un animal mayormente nocturno: pasa el día refugiado en huecos de árboles o entre el follaje, y sale a buscar comida de noche.",
+  "Su antifaz negro alrededor de los ojos es la característica que lo distingue de cualquier otro mamífero mexicano.",
+  "Tiene cinco dedos largos y sin garras retráctiles en cada mano, con un tacto tan fino que puede identificar objetos casi sin necesidad de verlos.",
+  "Es omnívoro: come desde frutas, nueces y maíz hasta insectos, cangrejos, aves pequeñas y huevos.",
+  "Puede pesar entre 5 y 15 kilos, con la cola representando hasta una cuarta parte de su longitud total.",
+  "Aunque puede vivir en grupo, lo más común es que sea solitario, sobre todo los machos adultos.",
+  "Es una especie arbórea capaz de bajar de un árbol con la cabeza por delante, girando los tobillos casi 180 grados — algo que muy pocos mamíferos trepadores pueden hacer.",
+  "Un pariente cercano, el mapache de Cozumel (Procyon pygmaeus), es endémico de la isla de Cozumel, a solo unos kilómetros de aquí en la costa de Yucatán.",
+];
+
+const MORTIS_ID_NOTE =
+  "Por el plumaje azul-verde metálico del macho, la larga cola de coberteras que se abre en abanico durante el cortejo, y el tono café-grisáceo mucho más discreto de las hembras, todo apunta a que se trata de pavorreales comunes o pavorreales de la India (Pavo cristatus) — la especie ornamental más extendida en jardines y haciendas de México.";
+
+const MORTIS_FACTS = [
+  "Lo que parece su cola no es la cola real — son plumas supracaudales (coberteras) larguísimas que crecen sobre una cola mucho más corta, la cual usan como soporte para abrir el famoso abanico.",
+  "Solo los machos tienen ese plumaje ornamental; las hembras son notablemente más discretas, en tonos café y gris.",
+  "Es originario del subcontinente indio, pero se ha vuelto una especie ornamental común en jardines y haciendas de todo el mundo, incluido México.",
+  "A pesar de lo pesado que se ve su plumaje, puede volar distancias cortas — de hecho, suele dormir en las ramas más altas de los árboles para protegerse de depredadores durante la noche.",
+  "Su canto es extremadamente fuerte y puede escucharse a más de un kilómetro de distancia.",
+  "Es omnívoro: come semillas, insectos y pequeños reptiles — incluidas serpientes venenosas, a las que puede cazar sin problema.",
+  "Durante el cortejo no solo abre el abanico: lo vibra a gran velocidad —un movimiento llamado 'train-rattling'— para producir un traqueteo audible que forma parte del cortejo, además del despliegue visual.",
+  "Un macho puede tardar hasta tres años en desarrollar el abanico completo, y lo pierde y le vuelve a crecer cada año después de la temporada de apareamiento.",
+  "Puede vivir entre 15 y 20 años, tanto en vida silvestre como en cautiverio.",
+  "Es el ave nacional de la India.",
+];
+
+const ROGUE_INTRO = [
+  'El más reciente en unirse al terreno: un pájaro completamente negro que se para en el piso del pasillo, echa la cabeza hacia atrás, abre el pico y suelta un graznido que se escucha por todo el terreno — como si estuviera anunciando su llegada a todo el que quisiera oír.',
+  'La primera reacción de todos fue la misma: "ahí anda un cuervo". Pero no lo es. Con el Consejo Jedi completo y hasta una familia entera de Mortis paseándose por la casa, para este vecino armamos otro homenaje: el Escuadrón Rogue. Y como todo escuadrón necesita un primer vuelo, este es Rogue One.',
+];
+const ROGUE_ID_NOTE =
+  "Por el plumaje negro con brillo iridiscente, la cola larga en forma de quilla, el ojo amarillo pálido y esa postura de cabeza hacia atrás con el pico abierto al graznar, todo apunta a que Rogue One es un zanate mayor (Quiscalus mexicanus) — un ave que casi todo mundo en México llama \"cuervo\" sin serlo: los cuervos de verdad son córvidos, y el zanate pertenece a una familia completamente distinta, la de los tordos y calandrias (Icteridae). En maya yucateco se le conoce como x-kau o pich.";
+const ROGUE_FACTS = [
+  "A pesar del apodo, no tiene ningún parentesco con los cuervos verdaderos (familia Corvidae) — es un icterido, pariente de los tordos, más cercano al zanate que a cualquier córvido.",
+  "Es una de las aves más comunes y visibles de las ciudades mexicanas, especialmente en el sureste — casi cualquier plaza o estacionamiento tiene una colonia ruidosa al atardecer.",
+  "Solo el macho tiene ese plumaje negro con brillo iridiscente azul-morado; la hembra es de un café mucho más discreto y considerablemente más pequeña.",
+  "Su repertorio de sonidos es enorme: graznidos, silbidos, chasquidos y hasta imitaciones — rara vez repite la misma llamada dos veces seguidas.",
+  "La postura de cabeza hacia atrás y pico abierto es un despliegue real, documentado por ornitólogos, que los machos usan sobre todo frente a otros machos o en grupos mixtos.",
+  "Es omnívoro y muy oportunista: come desde insectos y semillas hasta la comida que deja cualquier persona sin vigilancia.",
+  "Su cola en forma de quilla —doblada como un barco al volar— es la característica que le da el nombre en inglés: great-tailed grackle.",
+  "Puede vivir más de 10 años en estado silvestre.",
+  "El nombre 'Rogue Two' no es arbitrario: en la Batalla de Hoth (Star Wars: El Imperio Contraataca), ese fue el indicativo real del piloto Zev Senesca, volando un ala de exploración (snowspeeder) junto a Luke Skywalker —Rogue Leader— contra los AT-AT del Imperio.",
+  "Es reconocible por la franja blanca en el borde del ala, visible incluso con las alas plegadas — el rasgo que finalmente la delató entre las fotos del Escuadrón Rojo.",
+  "Es una de las aves más comunes del sureste de México y el sur de Estados Unidos, y suele alimentarse en el suelo de semillas y frutos, a diferencia del zanate, más oportunista y urbano.",
+  "A diferencia del zanate, no imita sonidos ni tiene un repertorio vocal amplio — su llamado es un arrullo grave y constante, mucho más discreto.",
+];
+
+const ROGUE_TWO_INTRO = [
+  'Y esta semana el escuadrón sumó a su segundo miembro — aunque llegó sin invitación: se coló entre las fotos del Escuadrón Rojo, posada en el mismo tendido eléctrico de siempre, silueteada contra el cielo. Nadie se dio cuenta hasta revisar las imágenes con calma. Nombre en clave: Rogue Two.',
+];
+
+const ROGUE_TWO_ID_NOTE =
+  "Por el cuerpo rechoncho, la cola corta y redondeada —muy distinta a la cola larga y en punta de una tórtola común— y ese filo blanco apenas visible en el borde del ala cuando la tiene plegada, todo apunta a que Rogue Two es una paloma aliblanca (Zenaida asiatica) — un ave muy común en la península de Yucatán, aunque casi siempre pase desapercibida entre zanates y caracaras.";
+
+const BLUE_SQUADRON_INTRO = [
+  'En la terraza vive otro grupo que no anda volando libre por el terreno, sino en su propia jaula: un grupo de pericos de colores —azul cielo, verde, amarillo— que en la casa todos llaman "los canarios" de cariño. No lo son, pero el apodo ya se quedó tan fijo como cualquier otro en esta pandilla.',
+  "Con el Escuadrón Rojo (los caracaras) y el Escuadrón Rogue ya bautizados, a este grupo con jaula propia y colores de uniforme le tocaba, casi por obligación, ser el Escuadrón Azul.",
+];
+
+const BLUE_SQUADRON_ID_NOTE =
+  "Por el patrón de barras oscuras en forma de escamas sobre la cabeza y el dorso, la cera —la piel sobre el pico— de color azul o café según el sexo, y el tamaño pequeño con cola larga y puntiaguda, todo apunta a que el Escuadrón Azul son periquitos australianos o pericos (Melopsittacus undulatus) — no canarios de verdad (Serinus canaria), que son fringílidos de plumaje mucho más simple y sin ese patrón escamado.";
+
+const BLUE_SQUADRON_FACTS = [
+  "A pesar del apodo, no tienen ningún parentesco cercano con el canario de verdad (Serinus canaria) — son periquitos, de la familia de los loros (Psittaculidae); el canario es un fringílido, pariente de los pinzones.",
+  "En estado silvestre son originarios de las zonas áridas del interior de Australia, donde viven en bandadas nómadas de cientos o incluso miles de individuos, siguiendo la lluvia y el pasto verde.",
+  "El color de la cera —la piel sobre el pico— delata el sexo: azul o violeta en los machos, café o rosado en las hembras.",
+  "Es, según varias estimaciones, una de las mascotas más populares del mundo, justo detrás del perro y el gato.",
+  "Puede aprender a imitar palabras humanas — el récord Guinness al mayor vocabulario de un ave lo tiene un periquito llamado Puck, con 1,728 palabras registradas.",
+  "Es un ave muy social: en cautiverio forma vínculos fuertes tanto con otros periquitos como con las personas que lo cuidan a diario.",
+  "Sus colores silvestres originales son verde y amarillo con barras negras — el resto de los colores (azul, blanco, violeta) son variaciones logradas después por criadores.",
+  "Puede vivir entre 8 y 15 años en cautiverio con buenos cuidados.",
+];
+
+const BADBATCH_INTRO = [
+  "Los últimos en sumarse al reparto de este terreno no tienen plumas ni jaula: son caballos, pastando del otro lado de la cerca de alambre de púas, cada uno con la personalidad tan marcada que no hizo falta pensar mucho para saber a qué tripulación pertenecían.",
+  "Con escuadrones de vuelo por todos lados —Rojo, Rogue, Azul— a estos les tocó ser el equipo de tierra: el Clon Fuerza 99, mejor conocidos como los Bad Batch, los clones modificados genéticamente que nunca encajaron del todo en el ejército regular... y que por lo mismo terminaron siendo mejores que el resto.",
+];
+
+const BADBATCH_ID_NOTE =
+  "Son caballos (Equus caballus) — sin necesidad de identificación más fina, aunque por su tamaño, complexión y el tipo de trabajo que hacen en el potrero, todo apunta a cruzas criollas, el caballo de rancho más común en el sureste mexicano.";
+
+const BADBATCH_FACTS = [
+  "Un caballo adulto duerme solo entre 3 y 5 horas al día, casi siempre de pie — un sistema de ligamentos y tendones en sus patas (el 'stay apparatus') le permite mantenerse dormido sin gastar energía en sostenerse.",
+  "Solo se acuesta por completo para entrar en sueño profundo (REM), y solo por ratos cortos — si nunca llega a acostarse, con el tiempo puede sufrir privación de sueño.",
+  "Puede ponerse de pie y caminar en menos de una hora después de nacer.",
+  "Su gestación dura unos 11 meses — de las más largas entre los mamíferos domésticos.",
+  "Tiene el ojo más grande de cualquier mamífero terrestre, con un campo de visión de casi 350 grados gracias a la posición lateral de sus ojos.",
+  "La edad de un caballo se puede estimar por el desgaste y la forma de sus dientes — de ahí el dicho \"a caballo regalado no se le mira el diente\".",
+  "En libertad forma manadas jerárquicas lideradas casi siempre por una yegua dominante, no por un semental.",
+  "Puede vivir entre 25 y 30 años con buenos cuidados.",
+];
+---
+
+<Site
+  title="Pandilla Jedi — Esteban Rey"
+  description="Luke y Leia, las avestruces de Esteban Rey, y sus amigos de granja: Yoda el chapulín gigante, el Escuadrón Rojo de caracaras, los búfalos de agua, Qui-Gon Jinn el mono aullador, el maestro Plo Koon el mapache, la familia de pavorreales de Mortis, el Escuadrón Rogue (zanate y paloma), el Escuadrón Azul de pericos, y los caballos del Clon Fuerza 99."
+  active="/avestruces"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+  <script is:inline>
+    // Mobile browsers (Safari especially) restore the previous scroll position on a plain
+    // reload, not just on back/forward. With a 400vh pinned hero, that means a reload can land
+    // you deep inside the article text with no obvious hero above it — looks broken even though
+    // nothing actually is. Force reloads/direct visits to start at the very top; leave deep-link
+    // hashes (e.g. #yoda from the cast-nav) alone since those are an intentional destination.
+    if (!location.hash) {
+      console.log("[hero-scrub] forcing scroll to top, initial scrollY was", window.scrollY);
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+      window.scrollTo(0, 0);
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+        console.log("[hero-scrub] rAF scroll-to-top, scrollY now", window.scrollY);
+      });
+      // iOS can re-apply its own restored offset asynchronously right around first paint —
+      // pageshow also covers the bfcache-restore case (swipe-back navigation).
+      window.addEventListener("pageshow", (e) => {
+        console.log("[hero-scrub] pageshow fired, persisted:", e.persisted, "scrollY:", window.scrollY);
+        if (!location.hash) window.scrollTo(0, 0);
+      });
+    }
+  </script>
+
+  <section
+    class="scrub-hero"
+    id="scrub-hero"
+    data-frame-count="41"
+    data-frame-base="/media/avestruces/hero-scrub/frames/frame-"
+    data-frame-width="900"
+  >
+    <div class="scrub-hero__sticky">
+      <img
+        src="/media/avestruces/hero-scrub/frames/frame-001.jpg?w=900"
+        alt="Leia picotea la cámara mientras Luke observa desde atrás"
+        class="scrub-hero__fallback"
+        id="scrub-fallback"
+        fetchpriority="high"
+      />
+      <canvas class="scrub-hero__canvas" id="scrub-canvas" aria-hidden="true"></canvas>
+      <div class="scrub-hero__scrim" aria-hidden="true"></div>
+      <div class="scrub-hero__overlay" id="scrub-overlay">
+        <p class="eyebrow">Los nuevos de la casa</p>
+        <h1>Pandilla Jedi</h1>
+        <p class="scrub-hero__hint">Sigue bajando →</p>
+      </div>
+      <div class="scrub-hero__phrases" id="scrub-phrases" aria-hidden="true">
+        <p class="scrub-phrase" data-effect="slide-left" data-start="0.40" data-end="0.55">Llegaron de Mérida</p>
+        <p class="scrub-phrase" data-effect="fade" data-start="0.58" data-end="0.72">Tienen una pandilla Jedi</p>
+        <p class="scrub-phrase" data-effect="letters" data-start="0.75" data-end="0.88">Sus patas son enormes</p>
+        <p class="scrub-phrase" data-effect="scale" data-start="0.90" data-end="1.0">¡Miden 1.80!</p>
+      </div>
+    </div>
+  </section>
+
+  <nav class="cast-nav" aria-label="Saltar a cada amigo del terreno">
+    <a href="#luke-leia">Luke y Leia</a>
+    <a href="#yoda">Yoda</a>
+    <a href="#caracaras">Red Leader y Red Two</a>
+    <a href="#bufalos">La manada</a>
+    <a href="#qui-gon">Qui-Gon Jinn</a>
+    <a href="#plo-koon">Maestro Plo Koon</a>
+    <a href="#mortis">El Padre, el Hijo y la Hija</a>
+    <a href="#rogue">Escuadrón Rogue</a>
+    <a href="#azul">Escuadrón Azul</a>
+    <a href="#badbatch">Clone Force 99</a>
+  </nav>
+
+  <section class="chapter" id="luke-leia">
+    <div class="container reveal editorial">
+      {INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+      <blockquote class="pull">"En esta casa el que marca el ritmo de la fiesta tiene plumas."</blockquote>
+      <img src="/avestruces/granja.jpg" alt="La granja de Mérida donde nacieron Luke y Leia, con cientos de avestruces" loading="lazy" class="granja-photo" />
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist">
+    <div class="container reveal">
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/luke-v2.jpg" alt="Luke, el avestruz" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">Gerente de seguridad (autoproclamado)</p>
+                <h3>Luke</h3>
+                <p>Debilidad: objetos brillantes. Escolta a cualquier visita con podadora nueva.</p>
+                <a class="jedi-card__link" href="https://en.wikipedia.org/wiki/Luke_Skywalker" target="_blank" rel="noopener">Ver en Wikipedia ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text editorial">
+          <h2>Luke</h2>
+          {LUKE_BIO.map((p) => <p>{p}</p>)}
+        </div>
+      </div>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/leia.jpg" alt="Leia, la avestruz" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">La fiestera oficial</p>
+                <h3>Leia</h3>
+                <p>Aparece corriendo en cuanto hay música. Investiga bolsas ajenas sin pedir permiso.</p>
+                <a class="jedi-card__link" href="https://en.wikipedia.org/wiki/Princess_Leia" target="_blank" rel="noopener">Ver en Wikipedia ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text editorial">
+          <h2>Leia</h2>
+          {LEI_BIO.map((p) => <p>{p}</p>)}
+        </div>
+      </div>
+
+      <video controls poster="/avestruces/grupo-poster.jpg" class="grupo-video gallery-video" data-alt="Video de Luke y Leia con el resto del grupo">
+        <source src="/avestruces/grupo.mp4" type="video/mp4" />
+      </video>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container reveal">
+      <p class="eyebrow">De cerca</p>
+      <h2>Sus patas (sí, también son enormes)</h2>
+      <div class="bento-gallery" data-gallery="patas">
+        <button class="bento-tile" type="button" data-alt="Patas de las avestruces, de cerca">
+          <img src="/avestruces/legs-1.jpg" alt="Patas de las avestruces, de cerca" loading="lazy" />
+        </button>
+        <button class="bento-tile" type="button" data-alt="Ojo y pestañas de una avestruz, de cerca">
+          <img src="/avestruces/eye-closeup.jpg" alt="Ojo y pestañas de una avestruz, de cerca" loading="lazy" />
+        </button>
+        <button class="bento-tile" type="button" data-alt="Luke y Leia asomándose por la cerca">
+          <img src="/avestruces/pair-fence.jpg" alt="Luke y Leia asomándose por la cerca" loading="lazy" />
+        </button>
+        <button class="bento-tile" type="button" data-alt="Leia caminando entre el pasto alto">
+          <img src="/avestruces/hero-leia-grass.jpg" alt="Leia caminando entre el pasto alto" loading="lazy" />
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist" id="yoda">
+    <div class="container reveal">
+      <p class="eyebrow">Amigos de la casa</p>
+      <h2>Yoda</h2>
+      <p class="field-tag">Tropidacris cristata</p>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/grillo-1.jpg" alt="Yoda, el chapulín gigante, sobre una mano" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">Miembro del consejo (silencioso)</p>
+                <h3>Yoda</h3>
+                <p>Chapulín gigante. No reparte consejos, solo se queda muy quieto.</p>
+                <a class="jedi-card__link" href="https://www.starwars.com/databank/yoda" target="_blank" rel="noopener">Ver en StarWars.com ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text editorial">
+          {FRIEND_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <blockquote class="pull">"Yoda no reparte consejos: solo se queda quieto, viendo todo con esos ojos enormes."</blockquote>
+        </div>
+      </div>
+
+      <div class="gallery-layout">
+        <div class="gallery-layout__gallery">
+          <div class="bento-gallery" data-gallery="yoda">
+            <button class="bento-tile" type="button" data-alt="Yoda, el chapulín gigante, sobre una mano">
+              <img src="/avestruces/grillo-1.jpg" alt="Yoda, el chapulín gigante, sobre una mano" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Yoda de perfil, mostrando sus alas">
+              <img src="/avestruces/grillo-3.jpg" alt="Yoda de perfil, mostrando sus alas" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Yoda visto de frente sobre una pared">
+              <img src="/avestruces/grillo-2-v2.jpg" alt="Yoda visto de frente sobre una pared" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Yoda de cerca, mostrando sus ojos y antenas">
+              <img src="/avestruces/grillo-4.jpg" alt="Yoda de cerca, mostrando sus ojos y antenas" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Yoda sobre una mano, mostrando sus alas plegadas">
+              <img src="/avestruces/grillo-5.jpg" alt="Yoda sobre una mano, mostrando sus alas plegadas" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Yoda de perfil sobre una mano">
+              <img src="/avestruces/grillo-6.jpg" alt="Yoda de perfil sobre una mano" loading="lazy" />
+            </button>
+          </div>
+          <video controls poster="/avestruces/grillo-poster.jpg" class="grillo-video gallery-video" data-alt="Video de Yoda, el chapulín gigante">
+            <source src="/avestruces/grillo.mp4" type="video/mp4" />
+          </video>
+        </div>
+        <div class="gallery-layout__notes">
+          <p class="hero__sub">{YODA_ID_NOTE}</p>
+        </div>
+      </div>
+      <ul class="facts-list facts-list--wide">
+        {YODA_FACTS.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist" id="caracaras">
+    <div class="container reveal">
+      <p class="eyebrow">Amigos de la casa</p>
+      <h2>Red Leader, Red Two... y el resto del Escuadrón Rojo</h2>
+      <p class="field-tag">Caracara plancus</p>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/caracara-5.jpg" alt="El Escuadrón Rojo completo, varios caracaras posados en el mismo árbol muerto" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">Escuadrón de vuelo (ampliado)</p>
+                <h3>Red Leader &amp; Red Two</h3>
+                <p>Caracaras crestados. Ya no vuelan solo en par — ahora es formación completa.</p>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text editorial">
+          {CARACARA_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <blockquote class="pull">"Siempre aparecen volando en formación — ahora, de hasta cinco."</blockquote>
+        </div>
+      </div>
+
+      <div class="gallery-layout">
+        <div class="gallery-layout__gallery">
+          <div class="bento-gallery" data-gallery="caracaras">
+            <button class="bento-tile" type="button" data-alt="El Escuadrón Rojo completo, varios caracaras posados en el mismo árbol muerto">
+              <img src="/avestruces/caracara-5.jpg" alt="El Escuadrón Rojo completo, varios caracaras posados en el mismo árbol muerto" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El escuadrón, otro ángulo del mismo árbol">
+              <img src="/avestruces/caracara-10.jpg" alt="El escuadrón, otro ángulo del mismo árbol" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El escuadrón visto desde el suelo, con el nido a la vista">
+              <img src="/avestruces/caracara-9.jpg" alt="El escuadrón visto desde el suelo, con el nido a la vista" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Red Leader y Red Two posados en una rama">
+              <img src="/avestruces/caracara-1.jpg" alt="Red Leader y Red Two posados en una rama" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Red Leader y Red Two, otro ángulo">
+              <img src="/avestruces/caracara-2.jpg" alt="Red Leader y Red Two, otro ángulo" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Red Leader y Red Two de cerca">
+              <img src="/avestruces/caracara-3.jpg" alt="Red Leader y Red Two de cerca" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Red Two despegando desde la rama">
+              <img src="/avestruces/caracara-4.jpg" alt="Red Two despegando desde la rama" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Uno del escuadrón, retrato de cerca">
+              <img src="/avestruces/caracara-6.jpg" alt="Uno del escuadrón, retrato de cerca" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Otro del escuadrón, llamando desde la rama">
+              <img src="/avestruces/caracara-7.jpg" alt="Otro del escuadrón, llamando desde la rama" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Uno más del escuadrón, en lo alto del árbol">
+              <img src="/avestruces/caracara-8.jpg" alt="Uno más del escuadrón, en lo alto del árbol" loading="lazy" />
+            </button>
+          </div>
+        </div>
+        <div class="gallery-layout__notes">
+          <p class="hero__sub">{CARACARA_ID_NOTE}</p>
+        </div>
+      </div>
+      <ul class="facts-list facts-list--wide">
+        {CARACARA_FACTS.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter" id="bufalos">
+    <div class="container reveal">
+      <p class="eyebrow">Amigos de la casa</p>
+      <h2>Ezra, Zeb, Sabine, Hera... y Jacen</h2>
+      <p class="field-tag">Bubalus bubalis</p>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/buffalo-1.jpg" alt="Uno de los búfalos, de frente" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">El batallón rebelde</p>
+                <h3>Ezra, Zeb, Sabine &amp; Hera</h3>
+                <p>Búfalos de agua. Ahora con un nuevo recluta: Jacen.</p>
+                <a class="jedi-card__link" href="https://www.starwars.com/databank/hera-syndulla" target="_blank" rel="noopener">Ver en StarWars.com ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text editorial">
+          {BUFFALO_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <blockquote class="pull">"Si alguna noche deciden organizarse, más vale que tenga un buen abogado y una salida trasera."</blockquote>
+        </div>
+      </div>
+
+      <div class="gallery-layout">
+        <div class="gallery-layout__gallery">
+          <div class="bento-gallery" data-gallery="bufalos">
+            <button class="bento-tile" type="button" data-alt="Uno de los búfalos, de frente">
+              <img src="/avestruces/buffalo-1.jpg" alt="Uno de los búfalos, de frente" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Búfalo mirando de frente, con otro asomándose atrás">
+              <img src="/avestruces/buffalo-2.jpg" alt="Búfalo mirando de frente, con otro asomándose atrás" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Búfalo de cerca junto a la cerca">
+              <img src="/avestruces/buffalo-3.jpg" alt="Búfalo de cerca junto a la cerca" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Los cuatro búfalos caminando en fila">
+              <img src="/avestruces/buffalo-4.jpg" alt="Los cuatro búfalos caminando en fila" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Uno de los búfalos adultos junto a la cerca">
+              <img src="/avestruces/buffalo-5.jpg" alt="Uno de los búfalos adultos junto a la cerca" loading="lazy" />
+            </button>
+          </div>
+        </div>
+        <div class="gallery-layout__notes">
+          <p class="eyebrow">¡Bienvenido, Jacen! 🎉</p>
+          <p class="hero__sub">{BUFFALO_BIRTH_NOTE}</p>
+          <p class="jacen-age" id="jacen-age" data-birth={JACEN_BIRTH_ISO} aria-live="off">calculando...</p>
+          <div class="calf-photo-wrap" tabindex="0">
+            <img
+              src="/avestruces/buffalo-6.jpg"
+              alt="La manada con el nuevo ternero recién nacido, hijo de Hera"
+              loading="lazy"
+              class="calf-photo"
+            />
+            <span class="calf-balloons" aria-hidden="true">
+              <span class="calf-balloons__emoji">🎈</span>
+              <span class="calf-balloons__text">It's a boy!</span>
+              <span class="calf-balloons__emoji">🎈</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <p class="hero__sub">{BUFFALO_ID_NOTE}</p>
+      <ul class="facts-list facts-list--wide">
+        {BUFFALO_FACTS.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist" id="qui-gon">
+    <div class="container reveal">
+      <p class="eyebrow">Amigos de la casa</p>
+      <h2>Qui-Gon Jinn</h2>
+      <p class="field-tag">Alouatta pigra</p>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/mono-1.jpg" alt="Qui-Gon Jinn, el mono aullador, entre las hojas" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">El más sereno del consejo</p>
+                <h3>Qui-Gon Jinn</h3>
+                <p>Mono aullador. Se escucha antes de verse — hasta 2 km de distancia.</p>
+                <a class="jedi-card__link" href="https://www.starwars.com/databank/qui-gon-jinn" target="_blank" rel="noopener">Ver en StarWars.com ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text editorial">
+          {QUIGON_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <blockquote class="pull">"El Jedi más sereno de todos, el que nunca pierde la calma."</blockquote>
+        </div>
+      </div>
+
+      <div class="gallery-layout">
+        <div class="gallery-layout__gallery">
+          <div class="bento-gallery" data-gallery="quigon">
+            <button class="bento-tile" type="button" data-alt="Qui-Gon Jinn, el mono aullador, entre las hojas">
+              <img src="/avestruces/mono-1.jpg" alt="Qui-Gon Jinn, el mono aullador, entre las hojas" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Qui-Gon Jinn asomándose entre el follaje">
+              <img src="/avestruces/mono-2.jpg" alt="Qui-Gon Jinn asomándose entre el follaje" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Qui-Gon Jinn trepando por una rama">
+              <img src="/avestruces/mono-3.jpg" alt="Qui-Gon Jinn trepando por una rama" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Qui-Gon Jinn descansando en lo alto del árbol">
+              <img src="/avestruces/mono-4.jpg" alt="Qui-Gon Jinn descansando en lo alto del árbol" loading="lazy" />
+            </button>
+          </div>
+        </div>
+        <div class="gallery-layout__notes">
+          <p class="hero__sub">{QUIGON_ID_NOTE}</p>
+        </div>
+      </div>
+      <ul class="facts-list facts-list--wide">
+        {QUIGON_FACTS.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter" id="plo-koon">
+    <div class="container reveal">
+      <p class="eyebrow">Amigos de la casa</p>
+      <h2>El maestro Plo Koon</h2>
+      <p class="field-tag">Procyon lotor</p>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/mapache-9.jpg" alt="El maestro Plo Koon, el mapache, de cerca mostrando su antifaz" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">Nunca se quita el antifaz</p>
+                <h3>Maestro Plo Koon</h3>
+                <p>Mapache norteño. Activo de noche, escondido de día.</p>
+                <a class="jedi-card__link" href="https://www.starwars.com/databank/plo-koon" target="_blank" rel="noopener">Ver en StarWars.com ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text editorial">
+          {PLOKOON_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <blockquote class="pull">"El único miembro del Consejo Jedi que, como este mapache, nunca se quita el antifaz."</blockquote>
+        </div>
+      </div>
+
+      <div class="gallery-layout">
+        <div class="gallery-layout__gallery">
+          <div class="bento-gallery" data-gallery="plokoon">
+            <button class="bento-tile" type="button" data-alt="El maestro Plo Koon, el mapache, de cerca mostrando su antifaz">
+              <img src="/avestruces/mapache-9.jpg" alt="El maestro Plo Koon, el mapache, de cerca mostrando su antifaz" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El maestro Plo Koon entre las ramas">
+              <img src="/avestruces/mapache-1.jpg" alt="El maestro Plo Koon entre las ramas" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El maestro Plo Koon escondido en lo alto del árbol">
+              <img src="/avestruces/mapache-3.jpg" alt="El maestro Plo Koon escondido en lo alto del árbol" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El maestro Plo Koon asomándose entre el follaje">
+              <img src="/avestruces/mapache-4.jpg" alt="El maestro Plo Koon asomándose entre el follaje" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El maestro Plo Koon recostado sobre una rama">
+              <img src="/avestruces/mapache-6.jpg" alt="El maestro Plo Koon recostado sobre una rama" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El maestro Plo Koon mirando hacia abajo desde la rama">
+              <img src="/avestruces/mapache-8.jpg" alt="El maestro Plo Koon mirando hacia abajo desde la rama" loading="lazy" />
+            </button>
+          </div>
+        </div>
+        <div class="gallery-layout__notes">
+          <p class="hero__sub">{PLOKOON_ID_NOTE}</p>
+        </div>
+      </div>
+      <ul class="facts-list facts-list--wide">
+        {PLOKOON_FACTS.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist" id="mortis">
+    <div class="container reveal editorial">
+      <p class="eyebrow">Amigos de la casa</p>
+      <h2>El Padre, el Hijo y la Hija</h2>
+      <p class="field-tag">Pavo cristatus</p>
+
+      <p class="hero__sub">Los últimos en sumarse al terreno: una familia de pavorreales que empezó a pasearse por los pasillos como si el lugar llevara años siendo suyo. Con el Consejo Jedi ya completo entre avestruces, chapulín, mono aullador y mapache, para esta familia buscamos algo distinto — y lo encontramos en el mismo universo, en un rincón mucho menos conocido: Mortis.</p>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/pavorreal-padre-2.webp" alt="El Padre, el pavorreal macho de plumaje azul-verde completo" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">El que sostiene el equilibrio</p>
+                <h3>El Padre</h3>
+                <p>Pavorreal macho. Media entre la luz y la oscuridad de sus dos hijos.</p>
+                <a class="jedi-card__link" href="https://www.starwars.com/databank/father" target="_blank" rel="noopener">Ver en StarWars.com ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text">
+          <p class="hero__sub">Mortis es un planeta oculto que aparece en Star Wars: The Clone Wars, poco conocido fuera del fandom más clavado. Ahí viven tres seres con forma humana que son, literalmente, la encarnación de la Fuerza: el Padre, el Hijo y la Hija.</p>
+          <p class="hero__sub">El Padre es quien sostiene el equilibrio entre sus dos hijos — el Hijo representa el lado oscuro, la Hija el lado luminoso — y quien, al sentir que sus fuerzas se acaban, busca a alguien capaz de tomar su lugar como mediador.</p>
+          <p class="hero__sub">Lo que casi nadie recuerda del arco de Mortis: existe una sola arma capaz de matar a un ser de la Fuerza como el Padre, el Hijo o la Hija —de otro modo, prácticamente inmortales—: una daga forjada de la propia Fuerza, que el Padre mantiene escondida como su verdadero método de control sobre sus hijos. Al final del arco, es el propio Padre quien la usa contra sí mismo, después de arrebatársela al Hijo, para cerrar el ciclo que amenazaba con destruirlos a los tres.</p>
+          <p class="hero__sub">Aquí es el más vistoso de los tres: el macho de plumaje azul-verde completo, que lo abre en abanico cuando quiere presumir.</p>
+        </div>
+      </div>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/pavorreal-hija.webp" alt="La Hija, la pavorreal con un toque de azul-verde en el cuello" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">La luz del trío</p>
+                <h3>La Hija</h3>
+                <p>Se sacrifica por Ahsoka Tano. Su esencia sigue viva en el búho Morai.</p>
+                <a class="jedi-card__link" href="https://www.starwars.com/databank/daughter" target="_blank" rel="noopener">Ver en StarWars.com ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text">
+          <p class="hero__sub">La Hija representa el lado luminoso de la Fuerza. En el arco de Mortis se sacrifica para salvar a Ahsoka Tano de un ataque de su hermano — y en sus últimos momentos, su esencia pasa a la propia Ahsoka.</p>
+          <p class="hero__sub">Años después, esa esencia se manifiesta como un búho espectral —conocido en el canon como Morai— que aparece en los momentos más importantes de la vida de Ahsoka, como si la Hija siguiera cuidándola a la distancia.</p>
+          <blockquote class="pull">"Su esencia queda ligada a Ahsoka, manifestada como un búho que la cuida a la distancia."</blockquote>
+          <p class="hero__sub">Ese búho tiene nombre propio en el canon: <strong>Morai</strong>, un ser místico y misterioso de la Fuerza. No hay foto suya aquí a propósito — cada vez que intentamos tomarle una, desaparece justo antes del clic. <a class="inline-link" href="https://www.starwars.com/databank/morai" target="_blank" rel="noopener">Ver a Morai en StarWars.com ↗</a></p>
+          <p class="hero__sub">Aquí es la que conserva un guiño de ese mismo azul-verde familiar en el cuello, aunque sin el plumaje completo del Padre.</p>
+        </div>
+      </div>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/pavorreal-hijo-2.webp" alt="El Hijo, ya con su propio plumaje azul-verde completo" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">El lado oscuro</p>
+                <h3>El Hijo</h3>
+                <p>El más discreto de los tres — pero en el arco original, el más peligroso.</p>
+                <a class="jedi-card__link" href="https://www.starwars.com/databank/son" target="_blank" rel="noopener">Ver en StarWars.com ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text">
+          <p class="hero__sub">El Hijo representa el lado oscuro de la Fuerza. Es el más agresivo de los tres, y buena parte del arco de Mortis gira alrededor de sus intentos por escapar del equilibrio que su padre le impone.</p>
+          <p class="hero__sub">La tentación a Anakin que inspiró el apodo no fue nada sutil: el Hijo se le apareció primero disfrazado como Shmi, su madre, y después le mostró una visión de en quién se convertiría —Darth Vader— para intentar arrastrarlo al lado oscuro. A quien sí llegó a poseer de verdad, usándola como títere contra el propio Anakin, fue a Ahsoka Tano — no fue Anakin el poseído, aunque la confusión es común incluso entre fans del canon.</p>
+          <p class="hero__sub">Al llegar de nuevo entre las fotos, ya no es el de plumaje discreto que conocimos primero: ahora luce su propio abanico azul-verde completo, tan vistoso como el de su padre — señal de que, con el tiempo, terminó desarrollándose igual de completo que el resto de la familia.</p>
+        </div>
+      </div>
+
+      <div class="gallery-layout">
+        <div class="gallery-layout__gallery">
+          <div class="bento-gallery" data-gallery="mortis">
+            <button class="bento-tile" type="button" data-alt="El Padre, el Hijo y la Hija juntos en el pasillo">
+              <img src="/avestruces/pavorreal-4.webp" alt="El Padre, el Hijo y la Hija juntos en el pasillo" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Padre con su plumaje completo abierto">
+              <img src="/avestruces/pavorreal-5.webp" alt="El Padre con su plumaje completo abierto" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Padre, perfil completo entre las bananeras">
+              <img src="/avestruces/pavorreal-6.webp" alt="El Padre, perfil completo entre las bananeras" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Padre junto al columpio del jardín">
+              <img src="/avestruces/pavorreal-7.webp" alt="El Padre junto al columpio del jardín" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Padre entre la maleza, cerca de la leñera">
+              <img src="/avestruces/pavorreal-8.webp" alt="El Padre entre la maleza, cerca de la leñera" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Hijo, retrato de cerca entre las hojas secas">
+              <img src="/avestruces/pavorreal-9.webp" alt="El Hijo, retrato de cerca entre las hojas secas" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Hijo con la cresta erguida, mirando hacia el cielo">
+              <img src="/avestruces/pavorreal-10.webp" alt="El Hijo con la cresta erguida, mirando hacia el cielo" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Hijo, cabeza y cuello de perfil">
+              <img src="/avestruces/pavorreal-11.webp" alt="El Hijo, cabeza y cuello de perfil" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Padre parado en el claro quemado del terreno">
+              <img src="/avestruces/pavorreal-12.webp" alt="El Padre parado en el claro quemado del terreno" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Padre llamando con el pico abierto">
+              <img src="/avestruces/pavorreal-13.webp" alt="El Padre llamando con el pico abierto" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Padre con el cuello estirado hacia arriba">
+              <img src="/avestruces/pavorreal-14.webp" alt="El Padre con el cuello estirado hacia arriba" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Padre caminando entre la maleza">
+              <img src="/avestruces/pavorreal-15.webp" alt="El Padre caminando entre la maleza" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Padre de perfil completo, cola incluida">
+              <img src="/avestruces/pavorreal-16.webp" alt="El Padre de perfil completo, cola incluida" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="La Hija, casi escondida entre el pasto alto">
+              <img src="/avestruces/pavorreal-17.webp" alt="La Hija, casi escondida entre el pasto alto" loading="lazy" />
+            </button>
+          </div>
+          <video controls poster="/avestruces/pavorreal-poster.jpg" class="grillo-video gallery-video" data-alt="Video de la familia de pavorreales paseando por el terreno">
+            <source src="/avestruces/pavorreal.mp4" type="video/mp4" />
+          </video>
+        </div>
+        <div class="gallery-layout__notes">
+          <p class="hero__sub">{MORTIS_ID_NOTE}</p>
+        </div>
+      </div>
+      <ul class="facts-list facts-list--wide">
+        {MORTIS_FACTS.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter" id="rogue">
+    <div class="container reveal">
+      <p class="eyebrow">Amigos de la casa</p>
+      <h2>Escuadrón Rogue</h2>
+      <p class="field-tag">Quiscalus mexicanus</p>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/zanate-1.jpg" alt="Rogue One, el zanate, llamando con el pico abierto" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">Primer vuelo del escuadrón</p>
+                <h3>Rogue One</h3>
+                <p>Zanate mayor. Todos le decían "cuervo" — no lo es.</p>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text editorial">
+          {ROGUE_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <blockquote class="pull">"Ahí anda un cuervo — pero no lo es."</blockquote>
+        </div>
+      </div>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/paloma-1.jpg" alt="Rogue Two, la paloma aliblanca, posada en el cableado" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">Segundo al mando (sin invitación)</p>
+                <h3>Rogue Two</h3>
+                <p>Paloma aliblanca. Se coló entre las fotos del Escuadrón Rojo.</p>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text editorial">
+          {ROGUE_TWO_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <blockquote class="pull">"El indicativo real de un piloto que voló contra los AT-AT en Hoth."</blockquote>
+        </div>
+      </div>
+
+      <div class="gallery-layout">
+        <div class="gallery-layout__gallery">
+          <div class="bento-gallery" data-gallery="rogue">
+            <button class="bento-tile" type="button" data-alt="Rogue One llamando con la cabeza hacia atrás y el pico abierto">
+              <img src="/avestruces/zanate-1.jpg" alt="Rogue One llamando con la cabeza hacia atrás y el pico abierto" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Rogue One caminando por el pasillo">
+              <img src="/avestruces/zanate-2.jpg" alt="Rogue One caminando por el pasillo" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Rogue One entre las columnas del terreno">
+              <img src="/avestruces/zanate-3.jpg" alt="Rogue One entre las columnas del terreno" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Rogue Two, silueteada contra el cielo">
+              <img src="/avestruces/paloma-1.jpg" alt="Rogue Two, silueteada contra el cielo" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Rogue Two entre las hojas, con la franja del ala visible">
+              <img src="/avestruces/paloma-2.jpg" alt="Rogue Two entre las hojas, con la franja del ala visible" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Rogue Two alerta, posada en el cableado">
+              <img src="/avestruces/paloma-3.jpg" alt="Rogue Two alerta, posada en el cableado" loading="lazy" />
+            </button>
+          </div>
+        </div>
+        <div class="gallery-layout__notes">
+          <p class="hero__sub">{ROGUE_ID_NOTE}</p>
+          <p class="hero__sub">{ROGUE_TWO_ID_NOTE}</p>
+        </div>
+      </div>
+      <ul class="facts-list facts-list--wide">
+        {ROGUE_FACTS.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist" id="azul">
+    <div class="container reveal">
+      <p class="eyebrow">Amigos de la casa</p>
+      <h2>Escuadrón Azul</h2>
+      <p class="field-tag">Melopsittacus undulatus</p>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/perico-1.jpg" alt="El Escuadrón Azul, retrato de uno de los pericos" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">Escuadrón completo</p>
+                <h3>Escuadrón Azul</h3>
+                <p>Periquitos australianos. Les dicen "canarios" — no lo son.</p>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text editorial">
+          {BLUE_SQUADRON_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <blockquote class="pull">"Les dicen 'canarios' de cariño. No lo son — pero el apodo ya se quedó."</blockquote>
+        </div>
+      </div>
+
+      <div class="gallery-layout">
+        <div class="gallery-layout__gallery">
+          <div class="bento-gallery" data-gallery="azul">
+            <button class="bento-tile" type="button" data-alt="Retrato de uno de los pericos, plumaje azul cielo">
+              <img src="/avestruces/perico-1.jpg" alt="Retrato de uno de los pericos, plumaje azul cielo" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Perico azul, de cerca, mirando hacia el frente">
+              <img src="/avestruces/perico-2.jpg" alt="Perico azul, de cerca, mirando hacia el frente" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Dos pericos verdes conversando en el mismo posadero">
+              <img src="/avestruces/perico-3.jpg" alt="Dos pericos verdes conversando en el mismo posadero" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Dos pericos verdes, cara a cara">
+              <img src="/avestruces/perico-4.jpg" alt="Dos pericos verdes, cara a cara" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Perico verde, retrato de perfil">
+              <img src="/avestruces/perico-5.jpg" alt="Perico verde, retrato de perfil" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="El Escuadrón Azul dentro de su jaula, en la terraza">
+              <img src="/avestruces/perico-6.jpg" alt="El Escuadrón Azul dentro de su jaula, en la terraza" loading="lazy" />
+            </button>
+          </div>
+        </div>
+        <div class="gallery-layout__notes">
+          <p class="hero__sub">{BLUE_SQUADRON_ID_NOTE}</p>
+        </div>
+      </div>
+      <ul class="facts-list facts-list--wide">
+        {BLUE_SQUADRON_FACTS.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter" id="badbatch">
+    <div class="container reveal">
+      <p class="eyebrow">Amigos de la casa</p>
+      <h2>Clon Fuerza 99 — "los Bad Batch"</h2>
+      <p class="field-tag">Equus caballus</p>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/horse-hunter.jpg" alt="Hunter, el caballo castaño, pastando junto a la cerca" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">Líder del escuadrón</p>
+                <h3>Hunter</h3>
+                <p>El castaño solitario. Rastreador nato, siempre el primero en el potrero.</p>
+                <a class="jedi-card__link" href="https://www.starwars.com/databank/hunter" target="_blank" rel="noopener">Ver en StarWars.com ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text editorial">
+          {BADBATCH_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <blockquote class="pull">"Clones que nunca encajaron del todo... y por lo mismo terminaron siendo mejores que el resto."</blockquote>
+        </div>
+      </div>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/horse-techecho.jpg" alt="Tech y Echo, los dos caballos que siempre andan juntos" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">El dúo inseparable</p>
+                <h3>Tech &amp; Echo</h3>
+                <p>Siempre pastando codo a codo — nunca se les ve por separado.</p>
+                <a class="jedi-card__link" href="https://www.starwars.com/databank/tech" target="_blank" rel="noopener">Ver en StarWars.com ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text">
+          <p class="hero__sub">Tech es el cerebro técnico del grupo original, el que resuelve cualquier problema con lógica antes que con fuerza; Echo es mitad clon, mitad máquina, después de haber sido dado por muerto y reconstruido con implantes cibernéticos. En el potrero, los dos aparecen casi siempre en la misma toma, caminando al mismo paso — el par más metódico del rancho.</p>
+        </div>
+      </div>
+
+      <div class="jedi-layout">
+        <div class="jedi-layout__card">
+          <div class="jedi-card" tabindex="0" role="button" aria-pressed="false">
+            <div class="jedi-card__inner">
+              <div class="jedi-card__face jedi-card__face--front">
+                <img src="/avestruces/horse-wrecker.jpg" alt="Wrecker, el caballo oscuro, apenas visible detrás de un tronco" loading="lazy" />
+              </div>
+              <div class="jedi-card__face jedi-card__face--back">
+                <p class="jedi-card__rank">La fuerza bruta</p>
+                <h3>Wrecker</h3>
+                <p>El más grande y fuerte del grupo — tan corpulento que apenas cabe en cuadro.</p>
+                <a class="jedi-card__link" href="https://www.starwars.com/databank/wrecker" target="_blank" rel="noopener">Ver en StarWars.com ↗</a>
+              </div>
+            </div>
+          </div>
+          <p class="jedi-layout__hint">Toca la credencial para voltearla</p>
+        </div>
+        <div class="jedi-layout__text">
+          <p class="hero__sub">En el escuadrón original, Wrecker es el músculo del grupo: grandote, ruidoso y prácticamente sin miedo, salvo por un detalle muy suyo —le aterran las alturas—. Aquí el parecido es casi literal: es el caballo más corpulento de los tres, y en la única foto que tenemos de él aparece medio tapado por un tronco muerto, como si el encuadre mismo se le quedara chico.</p>
+        </div>
+      </div>
+
+      <div class="gallery-layout">
+        <div class="gallery-layout__gallery">
+          <div class="bento-gallery" data-gallery="badbatch">
+            <button class="bento-tile" type="button" data-alt="Hunter, pastando junto a la cerca de alambre">
+              <img src="/avestruces/horse-hunter.jpg" alt="Hunter, pastando junto a la cerca de alambre" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Hunter, retrato de cerca">
+              <img src="/avestruces/horse-hunter-2.jpg" alt="Hunter, retrato de cerca" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Tech y Echo caminando juntos por el potrero">
+              <img src="/avestruces/horse-techecho.jpg" alt="Tech y Echo caminando juntos por el potrero" loading="lazy" />
+            </button>
+            <button class="bento-tile" type="button" data-alt="Wrecker, apenas visible detrás de un tronco">
+              <img src="/avestruces/horse-wrecker.jpg" alt="Wrecker, apenas visible detrás de un tronco" loading="lazy" />
+            </button>
+          </div>
+        </div>
+        <div class="gallery-layout__notes">
+          <p class="hero__sub">{BADBATCH_ID_NOTE}</p>
+        </div>
+      </div>
+      <ul class="facts-list facts-list--wide">
+        {BADBATCH_FACTS.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist">
+    <div class="container reveal">
+      <h2>35 datos sobre los avestruces</h2>
+      <ol class="facts-list facts-list--wide">
+        {FACTS.map(([fact, joke]) => <li>{fact} <span class="fact-joke">{joke}</span></li>)}
+      </ol>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container reveal">
+      <p class="eyebrow">Preguntas frecuentes</p>
+      <h2>Sobre Luke y Leia.</h2>
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>¿Esteban Rey tiene avestruces?</summary>
+          <p>
+            Sí. Luke y Leia son las dos avestruces de Esteban Rey, que llegaron de Mérida con apenas 2 meses de edad
+            y hoy viven en su terreno junto con otros animales de granja.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>¿Cómo se llaman las avestruces de Esteban Rey?</summary>
+          <p>
+            Luke y Leia. Luke actúa como el autoproclamado gerente de seguridad del terreno; Leia es la más sociable
+            y curiosa del par.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>¿Cuánto tiempo viven las avestruces?</summary>
+          <p>
+            Un avestruz puede vivir entre 30 y 40 años, más todavía en cautiverio — es el ave viva más grande y
+            también el ave terrestre más rápida del mundo, con hasta 70 km/h.
+          </p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <dialog class="gallery-lightbox" id="galleryLightbox" aria-label="Galería ampliada">
+    <div class="gl-inner" id="glInner">
+      <div class="gl-track" id="glTrack">
+        <div class="gl-slide" id="glSlidePrev"></div>
+        <div class="gl-slide" id="glSlideCurrent"></div>
+        <div class="gl-slide" id="glSlideNext"></div>
+      </div>
+      <button class="gl-close" id="glClose" type="button" aria-label="Cerrar">✕</button>
+      <button class="gl-btn gl-prev" id="glPrev" type="button" aria-label="Anterior">‹</button>
+      <button class="gl-btn gl-next" id="glNext" type="button" aria-label="Siguiente">›</button>
+      <span class="gl-counter" id="glCounter"></span>
+      <p class="gl-caption" id="glCaption"></p>
+    </div>
+  </dialog>
+
+  <script>
+    const UNITS = [
+      ["año", "años"],
+      ["mes", "meses"],
+      ["día", "días"],
+      ["hora", "horas"],
+      ["min", "min"],
+      ["seg", "seg"],
+    ] as const;
+
+    function breakdown(birth: Date, now: Date) {
+      let years = now.getUTCFullYear() - birth.getUTCFullYear();
+      let months = now.getUTCMonth() - birth.getUTCMonth();
+      let anchor = new Date(
+        Date.UTC(birth.getUTCFullYear() + years, birth.getUTCMonth() + months, birth.getUTCDate(), birth.getUTCHours(), birth.getUTCMinutes(), birth.getUTCSeconds())
+      );
+      if (anchor.getTime() > now.getTime()) {
+        months -= 1;
+        if (months < 0) {
+          months = 11;
+          years -= 1;
+        }
+        anchor = new Date(
+          Date.UTC(birth.getUTCFullYear() + years, birth.getUTCMonth() + months, birth.getUTCDate(), birth.getUTCHours(), birth.getUTCMinutes(), birth.getUTCSeconds())
+        );
+      }
+      let rest = now.getTime() - anchor.getTime();
+      const days = Math.floor(rest / 86_400_000);
+      rest -= days * 86_400_000;
+      const hours = Math.floor(rest / 3_600_000);
+      rest -= hours * 3_600_000;
+      const minutes = Math.floor(rest / 60_000);
+      rest -= minutes * 60_000;
+      const seconds = Math.floor(rest / 1000);
+      return [years, months, days, hours, minutes, seconds];
+    }
+
+    function render(el: HTMLElement, birth: Date) {
+      const values = breakdown(birth, new Date());
+      // "Inteligente": no arrastra "0 años, 0 meses..." mientras es recién nacido — empieza a
+      // mostrar desde la primera unidad distinta de cero y ya no vuelve a ocultar nada después.
+      let started = false;
+      const parts: string[] = [];
+      values.forEach((v, i) => {
+        if (!started && v === 0 && i < values.length - 1) return;
+        started = true;
+        const [one, many] = UNITS[i];
+        parts.push(`${v} ${v === 1 ? one : many}`);
+      });
+      const text =
+        parts.length > 1 ? `${parts.slice(0, -1).join(", ")} y ${parts[parts.length - 1]}` : parts[0];
+      el.textContent = text;
+    }
+
+    const el = document.getElementById("jacen-age");
+    const birthAttr = el?.dataset.birth;
+    if (el && birthAttr) {
+      const birth = new Date(birthAttr);
+      render(el, birth);
+      setInterval(() => render(el, birth), 1000);
+    }
+  </script>
+
+  <script>
+    // Scroll-scrubbed hero: a tall sticky section maps scroll progress to a frame index in an
+    // image sequence, drawn to a <canvas>. History here (see git log on this file): a first pass
+    // used exactly this technique but blocked canvas readiness on nothing and preloaded all 50
+    // frames in one blind loop — the failure mode on real mobile connections was frames arriving
+    // too slowly to keep up with scroll, not a flaw in the image-sequence idea itself. A second
+    // pass switched to a single scrubbed <video>, which fixed the loading-speed problem but traded
+    // it for three separate real bugs, each confirmed live: no Range support meant `seekable`
+    // reported [0,0] forever; sparse keyframes made arbitrary seeks slow; and Chrome's power-saving
+    // policy can flat-out reject the muted "prime" autoplay (`AbortError: video-only background
+    // media was paused to save power`) with no fallback. Images have none of those failure modes —
+    // no autoplay policy, no seek/keyframe mechanics — so this reverts to an image sequence, fixing
+    // the ORIGINAL problem instead: frames are served via Cloudflare Images (AVIF/WebP negotiated
+    // per Accept header, ~75-110KB each instead of a flat 130-160KB WebP), and drawing always uses
+    // the nearest already-loaded frame rather than freezing on a stale one while the target frame
+    // is still in flight. The <img> fallback is the DEFAULT rendered state — this script only
+    // hides it once the canvas has a real first frame to show.
+    (() => {
+      const heroSection = document.getElementById("scrub-hero") as HTMLElement | null;
+      const canvas = document.getElementById("scrub-canvas") as HTMLCanvasElement | null;
+      const fallback = document.getElementById("scrub-fallback") as HTMLImageElement | null;
+      const overlay = document.getElementById("scrub-overlay") as HTMLElement | null;
+      if (!heroSection || !canvas || !fallback) return;
+
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const conn = (navigator as any).connection;
+      const dataSaverOn = !!(conn && (conn.saveData || /^(slow-2g|2g)$/.test(conn.effectiveType ?? "")));
+      console.log("[hero-scrub] init", { prefersReducedMotion, dataSaverOn, effectiveType: conn?.effectiveType });
+      if (prefersReducedMotion || dataSaverOn) return; // keep the static fallback exactly as rendered
+
+      const frameCount = Number(heroSection.dataset.frameCount ?? "0");
+      const frameBase = heroSection.dataset.frameBase ?? "";
+      const frameWidth = heroSection.dataset.frameWidth ?? "900";
+      if (!frameCount) return;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      function frameUrl(i: number) {
+        return `${frameBase}${String(i + 1).padStart(3, "0")}.jpg?w=${frameWidth}`;
+      }
+
+      const images: HTMLImageElement[] = new Array(frameCount);
+      const requested: boolean[] = new Array(frameCount).fill(false);
+      let loadedCount = 0;
+
+      function requestFrame(i: number) {
+        if (i < 0 || i >= frameCount || requested[i]) return;
+        requested[i] = true;
+        const img = new Image();
+        img.src = frameUrl(i);
+        img.onload = () => {
+          loadedCount++;
+        };
+        images[i] = img;
+      }
+
+      function isLoaded(i: number): boolean {
+        const img = images[i];
+        return !!img && img.complete && img.naturalWidth > 0;
+      }
+
+      // Background queue for everything else, capped concurrency-by-order (the browser already
+      // limits real concurrent connections per host; this just keeps request order sane so early
+      // frames — the ones a visitor reaches first — tend to arrive first).
+      function fillQueue() {
+        for (let i = 0; i < frameCount; i++) requestFrame(i);
+      }
+
+      function sizeCanvas() {
+        if (!canvas) return;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = window.innerWidth * dpr;
+        canvas.height = window.innerHeight * dpr;
+      }
+
+      function drawImage(img: HTMLImageElement) {
+        if (!ctx || !canvas) return;
+        const cw = canvas.width;
+        const ch = canvas.height;
+        const ir = img.naturalWidth / img.naturalHeight;
+        const cr = cw / ch;
+        let dw = cw;
+        let dh = ch;
+        if (ir > cr) {
+          dh = ch;
+          dw = ch * ir;
+        } else {
+          dw = cw;
+          dh = cw / ir;
+        }
+        const dx = (cw - dw) / 2;
+        const dy = (ch - dh) / 2;
+        ctx.clearRect(0, 0, cw, ch);
+        ctx.drawImage(img, dx, dy, dw, dh);
+      }
+
+      let displayedFrame = -1;
+
+      // If the exact target frame hasn't arrived yet, show the nearest one that HAS — a fast
+      // scroll on a slow connection then advances in visible (if slightly coarse) steps instead of
+      // freezing dead on whatever loaded first until the exact target finally shows up.
+      function draw(target: number) {
+        requestFrame(target);
+        if (isLoaded(target)) {
+          if (target !== displayedFrame) {
+            drawImage(images[target]);
+            displayedFrame = target;
+          }
+          return;
+        }
+        for (let radius = 1; radius < frameCount; radius++) {
+          const before = target - radius;
+          const after = target + radius;
+          if (before >= 0 && isLoaded(before)) {
+            if (before !== displayedFrame) {
+              drawImage(images[before]);
+              displayedFrame = before;
+            }
+            return;
+          }
+          if (after < frameCount && isLoaded(after)) {
+            if (after !== displayedFrame) {
+              drawImage(images[after]);
+              displayedFrame = after;
+            }
+            return;
+          }
+          if (before < 0 && after >= frameCount) break;
+        }
+      }
+
+      let currentFrame = 0;
+      let ticking = false;
+
+      function frameForScroll(): number {
+        const rect = heroSection!.getBoundingClientRect();
+        const total = heroSection!.offsetHeight - window.innerHeight;
+        const scrolled = -rect.top;
+        const progress = Math.min(1, Math.max(0, total > 0 ? scrolled / total : 0));
+        return Math.min(frameCount - 1, Math.floor(progress * frameCount));
+      }
+
+      // Short phrases that take over from the title once it's faded, each with its own
+      // entrance/exit style and its own [start, end] slice of overall scroll progress (see the
+      // data-start/data-end/data-effect attributes on each .scrub-phrase in the markup). Within a
+      // phrase's own window, the first quarter is its entrance, the last quarter its exit, and the
+      // middle half is a hold — except "letters", which staggers each character's own reveal
+      // across the first 60% of the window instead of moving the whole line at once.
+      const phraseEls = Array.from(document.querySelectorAll<HTMLElement>(".scrub-phrase"));
+      for (const el of phraseEls) {
+        if (el.dataset.effect !== "letters") continue;
+        const text = el.textContent ?? "";
+        el.textContent = "";
+        for (const ch of text) {
+          const span = document.createElement("span");
+          span.className = "letter";
+          span.textContent = ch === " " ? " " : ch;
+          el.appendChild(span);
+        }
+      }
+
+      function updatePhrases(progress: number) {
+        for (const el of phraseEls) {
+          const start = parseFloat(el.dataset.start ?? "0");
+          const end = parseFloat(el.dataset.end ?? "1");
+          const span = end - start;
+          if (progress < start || progress > end || span <= 0) {
+            el.style.opacity = "0";
+            continue;
+          }
+          const local = (progress - start) / span;
+          const inT = Math.min(1, local / 0.25);
+          const outT = Math.min(1, Math.max(0, (local - 0.75) / 0.25));
+          const visibility = Math.min(inT, 1 - outT);
+          const effect = el.dataset.effect;
+
+          // Non-letters phrases are vertically centered via "top: 50%" in CSS (see the comment
+          // there on why they aren't flex-centered), so every transform here carries that
+          // translateY(-50%) base alongside its own effect-specific offset.
+          if (effect === "slide-left") {
+            el.style.opacity = String(visibility);
+            el.style.transform = `translateY(-50%) translateX(${(1 - inT) * 40 - outT * 40}px)`;
+          } else if (effect === "scale") {
+            const scale = Math.max(0.4, 0.5 + 0.5 * inT - 0.5 * outT);
+            el.style.opacity = String(visibility);
+            el.style.transform = `translateY(-50%) scale(${scale})`;
+          } else if (effect === "letters") {
+            el.style.opacity = "1";
+            el.style.transform = "none";
+            const letters = el.querySelectorAll<HTMLElement>(".letter");
+            letters.forEach((letter, i) => {
+              const letterStart = (i / letters.length) * 0.6;
+              const letterLocal = Math.min(1, Math.max(0, (local - letterStart) / 0.15));
+              const letterVisible = Math.max(0, letterLocal - outT);
+              letter.style.opacity = String(letterVisible);
+              letter.style.transform = `translateY(${(1 - letterLocal) * 0.3}em)`;
+            });
+          } else {
+            el.style.opacity = String(visibility);
+            el.style.transform = "translateY(-50%)";
+          }
+        }
+      }
+
+      function onScroll() {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+          currentFrame = frameForScroll();
+          draw(currentFrame);
+          // Also warm the next couple of frames in the scroll direction so continued scrolling
+          // (not just the current position) tends to already have its frame ready.
+          requestFrame(currentFrame + 1);
+          requestFrame(currentFrame + 2);
+
+          const rect = heroSection!.getBoundingClientRect();
+          const total = heroSection!.offsetHeight - window.innerHeight;
+          const progress = Math.min(1, Math.max(0, total > 0 ? -rect.top / total : 0));
+
+          // Parallax + fade for the title overlay — gone by ~35% into the scrub so it doesn't
+          // fight with the peck-zoom moment.
+          if (overlay) {
+            const fade = Math.max(0, 1 - progress / 0.35);
+            overlay.style.opacity = String(fade);
+            overlay.style.transform = `translateY(${(1 - fade) * -24}px)`;
+          }
+          updatePhrases(progress);
+          ticking = false;
+        });
+      }
+
+      // Only swap in the canvas once the first frame has actually decoded — otherwise a slow
+      // connection would show a blank canvas over the (already-visible) fallback image.
+      const first = new Image();
+      requested[0] = true;
+      images[0] = first;
+      first.src = frameUrl(0);
+      first.decode?.()
+        .catch(() => {})
+        .finally(() => {
+          sizeCanvas();
+          draw(0);
+          canvas.classList.add("is-ready");
+          fallback!.setAttribute("aria-hidden", "true");
+          console.log("[hero-scrub] first frame ready, loading the rest");
+          fillQueue();
+        });
+
+      window.addEventListener("resize", sizeCanvas);
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+    })();
+
+    // Scroll-reveal: fade/slide sections in as they enter view. Only applied when the visitor
+    // hasn't asked for reduced motion — see the CSS, which keeps .reveal at full opacity by
+    // default and only introduces the hidden starting state inside a
+    // prefers-reduced-motion:no-preference query, so this script is a pure enhancement.
+    //
+    // Plain scroll+rAF instead of IntersectionObserver — confirmed live that Chrome fully
+    // suppresses IntersectionObserver callbacks while document.hidden is true (e.g. a
+    // backgrounded tab), which would leave sections stuck invisible. A scroll listener has no
+    // such dependency and degrades gracefully either way.
+    (() => {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const targets = Array.from(document.querySelectorAll<HTMLElement>(".reveal"));
+      if (targets.length === 0) return;
+      let remaining = targets.slice();
+      let ticking = false;
+
+      function checkTargets() {
+        const vh = window.innerHeight;
+        remaining = remaining.filter((el) => {
+          const rect = el.getBoundingClientRect();
+          const visible = rect.top < vh * 0.92 && rect.bottom > 0;
+          if (visible) el.classList.add("is-visible");
+          return !visible;
+        });
+        if (remaining.length === 0) {
+          window.removeEventListener("scroll", onScroll);
+          window.removeEventListener("resize", onScroll);
+        }
+      }
+
+      function onScroll() {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+          checkTargets();
+          ticking = false;
+        });
+      }
+
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll);
+      checkTargets();
+    })();
+  </script>
+
+  <script>
+    // Jedi ID cards: click, or Enter/Space, flips the card between photo and rank/facts. Plain
+    // CSS 3D transform (rotateY + preserve-3d), no library.
+    //
+    // This is a role="button" div, not a real <button> — the back face can hold a real <a> link
+    // out to StarWars.com/Wikipedia, and an <a> nested inside a <button> is invalid HTML (browsers
+    // and screen readers handle nested interactive controls unpredictably). The link's own click
+    // handler stops propagation so following it doesn't also toggle the flip.
+    (() => {
+      const cards = document.querySelectorAll<HTMLElement>(".jedi-card");
+      cards.forEach((card) => {
+        function flip() {
+          const flipped = card.classList.toggle("is-flipped");
+          card.setAttribute("aria-pressed", String(flipped));
+        }
+        card.addEventListener("click", flip);
+        card.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            flip();
+          }
+        });
+        card.querySelectorAll<HTMLAnchorElement>(".jedi-card__link").forEach((link) => {
+          link.addEventListener("click", (e) => e.stopPropagation());
+        });
+      });
+    })();
+
+    // Shared lightbox: every .bento-tile AND every .gallery-video on the page shares ONE gallery,
+    // in document order (top to bottom, across every animal's section) — not scoped per animal —
+    // so swiping from a photo keeps going into the next section's photos and videos. Clicking a
+    // video plays it in place as always (unchanged); it only joins the lightbox sequence so
+    // swiping past its position from a neighboring photo reaches it. ← → arrows, keyboard, and a
+    // real drag-following swipe, via the native <dialog> element (focus trap and Escape-to-close
+    // come free, no library needed).
+    //
+    // The swipe is a 3-slide track (prev/current/next side by side), not a start/end position
+    // check: on pointerdown the track stops transitioning and follows the finger 1:1 via
+    // pointermove, so the adjacent photo is already visible sliding in from the side — confirmed
+    // live on a real phone that a release-only check (no visual feedback during the drag, and no
+    // touch-action set) made the browser spend the first touch deciding whether it was a scroll
+    // or a custom gesture, so it needed two tries. Claiming touch-action: pan-y on the container
+    // fixes that; the live drag-follow is what makes it feel like "moving the photo".
+    (() => {
+      type MediaItem =
+        | { type: "image"; src: string; alt: string }
+        | { type: "video"; poster: string; videoSrc: string; alt: string };
+
+      const dialog = document.getElementById("galleryLightbox") as HTMLDialogElement | null;
+      const inner = document.getElementById("glInner") as HTMLElement | null;
+      const track = document.getElementById("glTrack") as HTMLElement | null;
+      const slidePrev = document.getElementById("glSlidePrev") as HTMLElement | null;
+      const slideCurrent = document.getElementById("glSlideCurrent") as HTMLElement | null;
+      const slideNext = document.getElementById("glSlideNext") as HTMLElement | null;
+      const glCaption = document.getElementById("glCaption");
+      const glCounter = document.getElementById("glCounter");
+      const glPrev = document.getElementById("glPrev");
+      const glNext = document.getElementById("glNext");
+      const glClose = document.getElementById("glClose");
+      if (!dialog || !inner || !track || !slidePrev || !slideCurrent || !slideNext || !glCaption || !glCounter || !glPrev || !glNext || !glClose) return;
+
+      const mediaItems: MediaItem[] = [];
+      let currentIndex = 0;
+
+      function at(i: number) {
+        const len = mediaItems.length;
+        return mediaItems[((i % len) + len) % len];
+      }
+
+      function slideMarkup(item: MediaItem) {
+        if (item.type === "video") {
+          return `<img src="${item.poster}" alt="${item.alt}" /><button class="gl-play" type="button" aria-label="Reproducir video">▶</button>`;
+        }
+        return `<img src="${item.src}" alt="${item.alt}" />`;
+      }
+
+      function renderSlides() {
+        const prev = at(currentIndex - 1);
+        const cur = at(currentIndex);
+        const next = at(currentIndex + 1);
+        slidePrev!.innerHTML = slideMarkup(prev);
+        slideCurrent!.innerHTML = slideMarkup(cur);
+        slideNext!.innerHTML = slideMarkup(next);
+        glCaption!.textContent = cur.alt;
+        glCounter!.textContent = `${currentIndex + 1} / ${mediaItems.length}`;
+        if (cur.type === "video") {
+          slideCurrent!.querySelector(".gl-play")?.addEventListener(
+            "click",
+            () => {
+              slideCurrent!.innerHTML = `<video controls autoplay playsinline src="${cur.videoSrc}"></video>`;
+            },
+            { once: true }
+          );
+        }
+      }
+
+      function resetTrackPosition() {
+        track!.classList.remove("is-settling", "is-dragging");
+        track!.style.transform = "translateX(-33.3333%)";
+      }
+
+      // transitionend is the normal completion signal, but it's not guaranteed to fire (a
+      // backgrounded/throttled tab, an interrupted transition, or any number of edge cases can
+      // swallow it) — runOnce() below also arms a timeout slightly longer than the transition
+      // itself, so the swipe/arrow/keyboard navigation always completes instead of occasionally
+      // getting stuck mid-slide with no way to tell whether it's "still animating" or just dead.
+      function runOnce(fn: () => void) {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          track!.removeEventListener("transitionend", onEnd);
+          clearTimeout(timer);
+          fn();
+        };
+        const onEnd = () => finish();
+        track!.addEventListener("transitionend", onEnd, { once: true });
+        const timer = setTimeout(finish, 400);
+      }
+
+      function goTo(index: number, dir: 1 | -1) {
+        track!.classList.remove("is-dragging");
+        track!.classList.add("is-settling");
+        track!.style.transform = `translateX(${dir === 1 ? -66.6666 : 0}%)`;
+        runOnce(() => {
+          currentIndex = index;
+          renderSlides();
+          resetTrackPosition();
+        });
+      }
+
+      function snapBack() {
+        track!.classList.remove("is-dragging");
+        track!.classList.add("is-settling");
+        track!.style.transform = "translateX(-33.3333%)";
+        runOnce(() => {
+          track!.classList.remove("is-settling");
+        });
+      }
+
+      document.querySelectorAll<HTMLElement>(".bento-tile, .gallery-video").forEach((el) => {
+        if (el.classList.contains("bento-tile")) {
+          const img = el.querySelector("img");
+          if (!img) return;
+          const idx = mediaItems.length;
+          mediaItems.push({ type: "image", src: img.src, alt: img.alt });
+          el.addEventListener("click", () => {
+            currentIndex = idx;
+            resetTrackPosition();
+            renderSlides();
+            dialog.showModal();
+          });
+        } else {
+          const video = el as HTMLVideoElement;
+          const source = video.querySelector("source");
+          mediaItems.push({
+            type: "video",
+            poster: video.getAttribute("poster") ?? "",
+            videoSrc: source?.getAttribute("src") ?? "",
+            alt: video.dataset.alt ?? "",
+          });
+        }
+      });
+
+      glPrev.addEventListener("click", () => goTo((currentIndex - 1 + mediaItems.length) % mediaItems.length, -1));
+      glNext.addEventListener("click", () => goTo((currentIndex + 1) % mediaItems.length, 1));
+      glClose.addEventListener("click", () => dialog.close());
+      dialog.addEventListener("click", (e) => {
+        if (e.target === dialog) dialog.close();
+      });
+      dialog.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowLeft") goTo((currentIndex - 1 + mediaItems.length) % mediaItems.length, -1);
+        if (e.key === "ArrowRight") goTo((currentIndex + 1) % mediaItems.length, 1);
+      });
+
+      let dragging = false;
+      let dragStartX = 0;
+      let containerWidth = 0;
+
+      track.addEventListener("pointerdown", (e) => {
+        dragging = true;
+        dragStartX = e.clientX;
+        containerWidth = inner!.getBoundingClientRect().width;
+        track!.classList.add("is-dragging");
+        track!.classList.remove("is-settling");
+        track!.setPointerCapture(e.pointerId);
+      });
+      track.addEventListener("pointermove", (e) => {
+        if (!dragging || !containerWidth) return;
+        const dx = e.clientX - dragStartX;
+        const dragPercent = (dx / containerWidth) * 33.3333;
+        track!.style.transform = `translateX(${-33.3333 + dragPercent}%)`;
+      });
+      function endDrag(e: PointerEvent) {
+        if (!dragging) return;
+        dragging = false;
+        const dx = e.clientX - dragStartX;
+        const threshold = containerWidth * 0.18;
+        if (dx <= -threshold) goTo((currentIndex + 1) % mediaItems.length, 1);
+        else if (dx >= threshold) goTo((currentIndex - 1 + mediaItems.length) % mediaItems.length, -1);
+        else snapBack();
+      }
+      track.addEventListener("pointerup", endDrag);
+      track.addEventListener("pointercancel", endDrag);
+    })();
+  </script>
+</Site>
+
+<style>
+  /* --- Scroll-scrubbed hero --- */
+  .scrub-hero {
+    position: relative;
+    height: 400vh;
+    height: 400svh;
+  }
+  .scrub-hero__sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    background: #0d0f0a;
+  }
+  .scrub-hero__fallback {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .scrub-hero__canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .scrub-hero__canvas.is-ready {
+    opacity: 1;
+  }
+  .scrub-hero__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(10, 12, 8, 0.55) 0%, rgba(10, 12, 8, 0.05) 35%, rgba(10, 12, 8, 0.15) 100%);
+    pointer-events: none;
+  }
+  .scrub-hero__overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 12%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.4rem;
+    padding: 0 var(--space-3);
+    color: #fff;
+    will-change: opacity, transform;
+  }
+  .scrub-hero__overlay .eyebrow {
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .scrub-hero__overlay h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2.4rem, 9vw, 4.6rem);
+    line-height: 1.02;
+    letter-spacing: -0.01em;
+    margin: 0.1em 0;
+    text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35);
+  }
+  .scrub-hero__hint {
+    margin-top: var(--space-2);
+    font-size: 0.85rem;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.75);
+  }
+  .scrub-hero__phrases {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .scrub-phrase {
+    /* Deliberately NOT display:flex here: a couple of these phrases can get a site entity link
+       (e.g. "Mérida") spliced into their text by the auto-linking middleware, mixing a raw text
+       run with an injected <a> — flex/grid promote that text run to an anonymous item and trim
+       the whitespace at the boundary, visually eating the space before the link. Plain centering
+       avoids that; only the "letters" effect (all real <span> children, no bare text runs) uses
+       flex below. */
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    text-align: center;
+    padding: 0 var(--space-3);
+    margin: 0;
+    color: #fff;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(1.8rem, 6vw, 3.2rem);
+    line-height: 1.1;
+    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    will-change: opacity, transform;
+  }
+  .scrub-phrase[data-effect="letters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 0.1em;
+    top: 0;
+    bottom: 0;
+    align-items: center;
+  }
+  .scrub-phrase .letter {
+    display: inline-block;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .scrub-hero__phrases {
+      display: none;
+    }
+    .scrub-hero {
+      height: 100vh;
+      height: 100dvh;
+    }
+    .scrub-hero__canvas {
+      display: none;
+    }
+  }
+
+  /* --- "Cast of characters" quick nav --- */
+  .cast-nav {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .cast-nav a {
+    scroll-snap-align: start;
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    color: var(--ink-soft);
+    text-decoration: none;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .cast-nav a:hover,
+  .cast-nav a:focus-visible {
+    color: var(--ember);
+    border-color: var(--ember);
+  }
+
+  /* --- Field-tag specimen chip (signature motif shared by every animal section) --- */
+  .field-tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.03em;
+    font-style: italic;
+    color: #4d5c3a;
+    background: #eef1e6;
+    border: 1px solid #d3dac2;
+    padding: 0.2rem 0.6rem;
+    border-radius: 0.3rem;
+    margin: var(--space-3) 0 0.6rem;
+  }
+
+  /* --- Scroll-reveal --- */
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: var(--space-3);
+    max-width: var(--measure);
+  }
+  .faq-item {
+    border: 1px solid var(--line);
+    padding: 0.9rem 1.1rem;
+  }
+  .faq-item summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+  }
+  .faq-item p {
+    margin: 0.75rem 0 0;
+    color: var(--ink-soft);
+  }
+  .facts-list {
+    margin: var(--space-3) 0 0;
+    padding-left: 1.4rem;
+    display: grid;
+    gap: 0.55rem;
+    color: var(--ink-soft);
+    max-width: var(--measure);
+  }
+  @media (min-width: 700px) {
+    .facts-list--wide {
+      max-width: none;
+      grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+      column-gap: var(--space-4);
+    }
+  }
+
+  /* ---------- Jedi layout: flip-card + editorial text ---------- */
+  .jedi-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    margin: var(--space-3) 0;
+    align-items: start;
+  }
+  @media (min-width: 720px) {
+    .jedi-layout {
+      grid-template-columns: minmax(0, 13rem) 1fr;
+    }
+    .jedi-layout__card {
+      position: sticky;
+      top: 5rem;
+    }
+  }
+  .jedi-layout__hint {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    margin: 0.4rem 0 0;
+  }
+
+  /* --- Gallery + field notes side by side — without this, the photo grid and the ID note/
+     facts list both stay narrow (measure-width) and stack, leaving the whole right half of a
+     desktop viewport empty below the jedi-layout row above it. --- */
+  .gallery-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    margin: var(--space-3) 0;
+    align-items: start;
+  }
+  @media (min-width: 720px) {
+    .gallery-layout {
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    }
+    .gallery-layout__gallery {
+      position: sticky;
+      top: 5rem;
+    }
+  }
+  .gallery-layout__gallery .bento-gallery,
+  .gallery-layout__gallery video {
+    max-width: none;
+    margin: 0 0 var(--space-2);
+  }
+  .jedi-card {
+    display: block;
+    width: 100%;
+    max-width: 13rem;
+    aspect-ratio: 3 / 4;
+    perspective: 1200px;
+    border: none;
+    background: none;
+    padding: 0;
+    margin: 0 auto;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+  }
+  .jedi-card__inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+    transform-style: preserve-3d;
+  }
+  .jedi-card.is-flipped .jedi-card__inner {
+    transform: rotateY(180deg);
+  }
+  .jedi-card__face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    border-radius: 0.6rem;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .jedi-card__face img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .jedi-card__face--back {
+    transform: rotateY(180deg);
+    background: var(--paper);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--space-2);
+    text-align: left;
+    gap: 0.3rem;
+  }
+  .jedi-card__rank {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #4d5c3a;
+    margin: 0;
+  }
+  .jedi-card__face--back h3 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+  }
+  .jedi-card__face--back p {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+  }
+  .jedi-card__link {
+    margin-top: 0.3rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--ember);
+    text-decoration: none;
+  }
+  .jedi-card__link:hover,
+  .jedi-card__link:focus-visible {
+    text-decoration: underline;
+  }
+
+  .inline-link {
+    color: var(--ember);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+  .inline-link:hover,
+  .inline-link:focus-visible {
+    text-decoration-thickness: 2px;
+  }
+
+  /* ---------- Editorial text: drop cap + pull quote ---------- */
+  .editorial p:first-of-type::first-letter {
+    font-family: var(--font-display);
+    font-size: 3.2rem;
+    float: left;
+    line-height: 0.82;
+    padding: 0.05rem 0.35rem 0 0;
+    color: var(--ember);
+    font-weight: 700;
+  }
+  blockquote.pull {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-style: italic;
+    color: #4d5c3a;
+    border-left: 3px solid var(--ember);
+    margin: var(--space-3) 0;
+    padding: 0.1rem 0 0.1rem 1.1rem;
+    text-wrap: balance;
+  }
+
+  /* ---------- Bento gallery + shared lightbox ---------- */
+  .bento-gallery {
+    display: grid;
+    /* auto-fit (not auto-fill): with only 2-3 photos in a section, auto-fill still reserves
+       empty column tracks up to max-width, leaving a wide blank gap next to the tiles — auto-fit
+       collapses the unused tracks so the real tiles stretch to fill the row instead. */
+    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+    grid-auto-rows: 6.5rem;
+    grid-auto-flow: dense;
+    gap: 0.55rem;
+    margin: var(--space-3) 0;
+    max-width: 40rem;
+  }
+  .bento-tile {
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    position: relative;
+    background: var(--mist);
+  }
+  .bento-tile:first-child {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+  .bento-tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.3s ease;
+  }
+  .bento-tile:hover img,
+  .bento-tile:focus-visible img {
+    transform: scale(1.06);
+  }
+  @media (max-width: 480px) {
+    .bento-tile:first-child {
+      grid-column: span 1;
+      grid-row: span 1;
+    }
+  }
+  dialog.gallery-lightbox {
+    border: none;
+    padding: 0;
+    background: transparent;
+    max-width: 94vw;
+    max-height: 94vh;
+  }
+  dialog.gallery-lightbox::backdrop {
+    background: rgba(10, 10, 8, 0.9);
+  }
+  .gl-inner {
+    position: relative;
+    width: min(94vw, 42rem);
+    height: min(82vh, 32rem);
+    border-radius: 0.6rem;
+    overflow: hidden;
+    background: #000;
+    /* Claim horizontal gestures immediately for the drag-swipe below — without this, the browser
+       spends the first touch deciding whether it's a scroll or a custom gesture and "eats" it,
+       which is exactly what made swiping feel like it needed two tries. */
+    touch-action: pan-y;
+  }
+  .gl-track {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    width: 300%;
+    height: 100%;
+    transform: translateX(-33.3333%);
+  }
+  .gl-track.is-dragging {
+    transition: none;
+  }
+  .gl-track.is-settling {
+    transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  .gl-slide {
+    position: relative;
+    flex: 0 0 33.3333%;
+    width: 33.3333%;
+    height: 100%;
+    background: #000;
+    user-select: none;
+  }
+  .gl-slide img,
+  .gl-slide video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    background: #000;
+    -webkit-user-drag: none;
+  }
+  .gl-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 3.2rem;
+    height: 3.2rem;
+    border-radius: 999px;
+    border: none;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .gl-play:hover {
+    background: rgba(0, 0, 0, 0.75);
+  }
+  .gl-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    border: none;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 999px;
+    font-size: 1.3rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .gl-btn:hover {
+    background: rgba(0, 0, 0, 0.7);
+  }
+  .gl-prev {
+    left: 0.6rem;
+  }
+  .gl-next {
+    right: 0.6rem;
+  }
+  .gl-close {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    border: none;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 1rem;
+  }
+  .gl-caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0.6rem 3rem;
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0.7), transparent);
+    color: #fff;
+    font-size: 0.85rem;
+    text-align: center;
+  }
+  .gl-counter {
+    position: absolute;
+    top: 0.7rem;
+    left: 0.8rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .grillo-video {
+    display: block;
+    width: 100%;
+    max-width: 20rem;
+    border-radius: 0.5rem;
+    margin: var(--space-3) 0;
+    background: #000;
+  }
+  .fact-joke {
+    font-style: italic;
+    color: var(--ember);
+  }
+  .granja-photo {
+    width: 100%;
+    max-width: 26rem;
+    display: block;
+    margin: var(--space-3) 0 0;
+    border-radius: 0.5rem;
+  }
+  .grupo-video {
+    display: block;
+    width: 100%;
+    max-width: 20rem;
+    border-radius: 0.5rem;
+    margin: 0 auto;
+    background: #000;
+  }
+
+  .jacen-age {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--ember);
+    font-size: 1rem;
+    margin: 0.3rem 0 var(--space-2);
+  }
+
+  /* Easter egg: hover/focus the new calf's photo to see animated balloons announce the birth. */
+  .calf-photo-wrap {
+    position: relative;
+    display: block;
+    width: 100%;
+    margin: var(--space-3) 0;
+    border-radius: 0.5rem;
+    outline: none;
+  }
+  .calf-photo {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 0.5rem;
+    display: block;
+  }
+  .calf-balloons {
+    position: absolute;
+    bottom: calc(100% + 0.6rem);
+    left: 50%;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--ember);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 5;
+  }
+  .calf-photo-wrap:hover .calf-balloons,
+  .calf-photo-wrap:focus .calf-balloons,
+  .calf-photo-wrap:focus-visible .calf-balloons {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  .calf-photo-wrap:hover .calf-balloons__emoji,
+  .calf-photo-wrap:focus .calf-balloons__emoji {
+    animation: calf-balloon-float 1.4s ease-in-out infinite;
+  }
+  .calf-balloons__emoji:first-child {
+    animation-delay: 0s;
+  }
+  .calf-balloons__emoji:last-child {
+    animation-delay: 0.3s;
+  }
+  @keyframes calf-balloon-float {
+    0%,
+    100% {
+      transform: translateY(0) rotate(-4deg);
+    }
+    50% {
+      transform: translateY(-10px) rotate(4deg);
+    }
+  }
+</style>

@@ -44,15 +44,36 @@ async function recordMetrics(brandPostId: number, platform: string, externalId: 
   }
 }
 
-export const POST: APIRoute = async ({ request }) => {
-  const url = new URL(request.url);
-  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
-    return new Response("unauthorized", { status: 401 });
-  }
+// Publishes one specific approved row right now, regardless of daily caps/scheduling —
+// shared by the normal queue-order loop below AND the news-reaction auto-publish path
+// (src/lib/news-reaction-trust.ts), so there's exactly one place that knows how to turn a
+// brand_posts row into a real post.
+export async function publishBrandPost(post: any, platform: "x" | "linkedin", autoPublished = false) {
+  const fixedHashtags = (await env.KILOWATTO_KV.get("brand_fixed_hashtags")) ?? "";
+  const finalContent = [post.content, post.hashtags, fixedHashtags].filter(Boolean).join("\n\n");
 
+  const result = await publishPost(env, platform, finalContent);
+  if (result.ok) {
+    await env.DB.prepare(
+      `UPDATE brand_posts SET status = 'posted', posted_at = datetime('now'), external_post_id = ?, external_url = ?, auto_published = ? WHERE id = ?`
+    )
+      .bind(result.externalId ?? null, result.externalUrl ?? null, autoPublished ? 1 : 0, post.id)
+      .run();
+  } else {
+    await env.DB.prepare(`UPDATE brand_posts SET status = 'failed', rejection_reason = ? WHERE id = ?`)
+      .bind(result.error ?? "unknown error", post.id)
+      .run();
+  }
+  return result;
+}
+
+// Exported as a plain function so tick.ts can call it directly in-process instead of
+// self-fetching its own public URL — see the note on runReshare() in reshare.ts for why
+// that chain of nested self-fetches was silently killing the autopilot cadence (522s).
+export async function runPublish() {
   const paused = await env.KILOWATTO_KV.get(KILL_SWITCH_KEY);
   if (paused === "true") {
-    return new Response(JSON.stringify({ ok: true, skipped: "paused" }), { headers: { "content-type": "application/json" } });
+    return { ok: true, skipped: "paused" };
   }
 
   const published: any[] = [];
@@ -71,21 +92,10 @@ export const POST: APIRoute = async ({ request }) => {
       .first<any>();
     if (!next) continue;
 
-    const fixedHashtags = (await env.KILOWATTO_KV.get("brand_fixed_hashtags")) ?? "";
-    const finalContent = [next.content, next.hashtags, fixedHashtags].filter(Boolean).join("\n\n");
-
-    const result = await publishPost(env, platform, finalContent);
+    const result = await publishBrandPost(next, platform);
     if (result.ok) {
-      await env.DB.prepare(
-        `UPDATE brand_posts SET status = 'posted', posted_at = datetime('now'), external_post_id = ?, external_url = ? WHERE id = ?`
-      )
-        .bind(result.externalId ?? null, result.externalUrl ?? null, next.id)
-        .run();
       published.push({ id: next.id, platform, externalUrl: result.externalUrl });
     } else {
-      await env.DB.prepare(`UPDATE brand_posts SET status = 'failed', rejection_reason = ? WHERE id = ?`)
-        .bind(result.error ?? "unknown error", next.id)
-        .run();
       published.push({ id: next.id, platform, error: result.error });
     }
   }
@@ -99,7 +109,14 @@ export const POST: APIRoute = async ({ request }) => {
     await recordMetrics(p.id, p.platform, p.external_post_id);
   }
 
-  return new Response(JSON.stringify({ ok: true, published, measured: toMeasure?.length ?? 0 }), {
-    headers: { "content-type": "application/json" },
-  });
+  return { ok: true, published, measured: toMeasure?.length ?? 0 };
+}
+
+export const POST: APIRoute = async ({ request }) => {
+  const url = new URL(request.url);
+  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
+    return new Response("unauthorized", { status: 401 });
+  }
+  const result = await runPublish();
+  return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
 };

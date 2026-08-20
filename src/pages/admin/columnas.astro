@@ -1,0 +1,179 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import AdminLogin from "../../components/AdminLogin.astro";
+import { env } from "cloudflare:workers";
+import { checkAdminAuth } from "../../lib/admin-auth";
+import { displayViewCount } from "../../lib/columns-query";
+
+const token = await checkAdminAuth(Astro, env);
+const authorized = !!token;
+
+let pending: any[] = [];
+let published: any[] = [];
+let topics: any[] = [];
+
+if (authorized && env?.DB) {
+  const [pendingRes, publishedRes, topicsRes] = await Promise.all([
+    env.DB.prepare(`SELECT * FROM columns WHERE status = 'pending_approval' ORDER BY created_at DESC`).all(),
+    env.DB.prepare(
+      `SELECT id, slug, title, published_at, view_count, display_seed FROM columns WHERE status = 'published' ORDER BY published_at DESC LIMIT 10`
+    ).all(),
+    env.DB.prepare(`SELECT id, label FROM brand_topics WHERE active = 1 ORDER BY sort_order`).all(),
+  ]);
+  pending = pendingRes.results ?? [];
+  published = publishedRes.results ?? [];
+  topics = topicsRes.results ?? [];
+}
+---
+
+{
+  !authorized ? (
+    <AdminLogin />
+  ) : (
+    <AdminLayout title="Columnas — Admin" active="/admin/columnas">
+      <section class="panel">
+        <div class="panel__head">
+          <h1>Columnas generadas por IA</h1>
+          <button type="button" id="generate-btn" class="btn btn--primary">
+            ✨ Generar columna nueva
+          </button>
+        </div>
+        <p class="hint">
+          Redacta una columna larga de opinión imitando tu voz (posts + columnas reales) sobre un tema activo. Nunca se
+          publica sola — siempre queda aquí para tu aprobación.
+        </p>
+
+        <h2>Pendientes de aprobar ({pending.length})</h2>
+        {pending.length === 0 ? (
+          <p class="empty">No hay borradores esperando aprobación ahora mismo.</p>
+        ) : (
+          <div class="drafts">
+            {pending.map((c: any) => (
+              <div class="draft" data-id={c.id}>
+                {c.rejection_reason && <p class="flag">⚠️ {c.rejection_reason}</p>}
+                {c.cover_r2_key && <img src={`/media/${c.cover_r2_key}?w=450`} alt="" class="draft__cover" />}
+                <input type="text" class="draft__title" value={c.title} />
+                <input type="text" class="draft__subtitle" placeholder="Subtítulo (opcional)" value={c.subtitle ?? ""} />
+                <textarea class="draft__body" rows={14} set:text={c.body_html} />
+                <div class="draft__actions">
+                  <button type="button" class="btn btn--approve" data-action="approve" data-id={c.id}>
+                    ✅ Aprobar y publicar
+                  </button>
+                  <button type="button" class="btn btn--reject" data-action="reject" data-id={c.id}>
+                    ✕ Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <h2>Publicadas recientemente</h2>
+        <p class="hint">
+          &ldquo;Lecturas&rdquo; es lo que ve el público (arranca en un número aleatorio de 4 dígitos por columna +
+          las lecturas reales). &ldquo;Reales&rdquo; es el conteo verdadero desde que se publicó.
+        </p>
+        <ul class="recent">
+          {published.map((c: any) => (
+            <li>
+              <a href={`/columnas/${c.slug}`} target="_blank" rel="noopener">
+                {c.title}
+              </a>{" "}
+              — {c.published_at} · {displayViewCount(c).toLocaleString("es-MX")} lecturas ({c.view_count} reales, semilla{" "}
+              {c.display_seed})
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <script define:vars={{ token }}>
+        document.getElementById("generate-btn")?.addEventListener("click", async (e) => {
+          const btn = e.target;
+          btn.disabled = true;
+          btn.textContent = "Generando… (puede tardar un minuto)";
+          try {
+            const res = await fetch(`/api/columns/generate?token=${encodeURIComponent(token)}`, { method: "POST" });
+            const data = await res.json();
+            if (data.error) {
+              alert("No se pudo generar: " + data.error);
+              btn.disabled = false;
+              btn.textContent = "✨ Generar columna nueva";
+              return;
+            }
+            location.reload();
+          } catch {
+            alert("Se perdió la conexión generando la columna. Intenta de nuevo.");
+            btn.disabled = false;
+            btn.textContent = "✨ Generar columna nueva";
+          }
+        });
+
+        document.querySelectorAll('[data-action="approve"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const id = btn.dataset.id;
+            const draft = document.querySelector(`.draft[data-id="${id}"]`);
+            const title = draft.querySelector(".draft__title").value;
+            const subtitle = draft.querySelector(".draft__subtitle").value;
+            const body_html = draft.querySelector(".draft__body").value;
+            btn.disabled = true;
+            btn.textContent = "Publicando…";
+            try {
+              await fetch(`/api/columns/${id}/approve?token=${encodeURIComponent(token)}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ title, subtitle, body_html }),
+              });
+              location.reload();
+            } catch {
+              alert("Se perdió la conexión al aprobar. Intenta de nuevo.");
+              btn.disabled = false;
+              btn.textContent = "✅ Aprobar y publicar";
+            }
+          });
+        });
+
+        document.querySelectorAll('[data-action="reject"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const id = btn.dataset.id;
+            const reason = prompt("¿Por qué la rechazas? (opcional, ayuda a que la IA aprenda)") ?? "";
+            btn.disabled = true;
+            btn.textContent = "Rechazando…";
+            try {
+              await fetch(`/api/columns/${id}/reject?token=${encodeURIComponent(token)}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ reason }),
+              });
+              location.reload();
+            } catch {
+              alert("Se perdió la conexión al rechazar. Intenta de nuevo.");
+              btn.disabled = false;
+              btn.textContent = "✕ Rechazar";
+            }
+          });
+        });
+      </script>
+
+      <style>
+        .panel { max-width: 56rem; margin: 0 auto; padding: 1.5rem; }
+        .panel__head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+        .hint { color: var(--ink-soft, #666); font-size: 0.9rem; margin-top: 0.25rem; }
+        .empty { color: var(--ink-soft, #666); }
+        .btn { border: none; border-radius: 0.5rem; padding: 0.6rem 1rem; font-weight: 600; cursor: pointer; }
+        .btn--primary { background: var(--rhino, #ff5f14); color: #fff; }
+        .btn--approve { background: #1a7f37; color: #fff; }
+        .btn--reject { background: #b83b09; color: #fff; }
+        .btn:disabled { opacity: 0.6; cursor: default; }
+        .drafts { display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem; }
+        .draft { border: 1px solid var(--line, #ddd); border-radius: 0.75rem; padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+        .draft__cover { width: 100%; max-width: 20rem; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 0.5rem; }
+        .draft__title { font-size: 1.1rem; font-weight: 700; padding: 0.5rem; border: 1px solid var(--line, #ddd); border-radius: 0.4rem; }
+        .draft__subtitle { padding: 0.5rem; border: 1px solid var(--line, #ddd); border-radius: 0.4rem; }
+        .draft__body { font-family: var(--font-mono, monospace); font-size: 0.85rem; padding: 0.5rem; border: 1px solid var(--line, #ddd); border-radius: 0.4rem; }
+        .draft__actions { display: flex; gap: 0.6rem; }
+        .flag { background: #fff3cd; color: #664d03; padding: 0.4rem 0.6rem; border-radius: 0.4rem; font-size: 0.85rem; }
+        .recent { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+      </style>
+    </AdminLayout>
+  )
+}

@@ -20,6 +20,15 @@ Allow: /
 User-agent: Google-Extended
 Allow: /
 
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
 User-agent: Applebot-Extended
 Allow: /
 
@@ -27,3 +36,4 @@ User-agent: CCBot
 Allow: /
 
 Sitemap: https://kilowatto.com/sitemap.xml
+Sitemap: https://kilowatto.com/sitemap-news.xml

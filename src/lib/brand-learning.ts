@@ -15,7 +15,7 @@ async function embed(text: string): Promise<number[]> {
 }
 
 export async function recordFeedback(params: {
-  type: "rejection" | "edit";
+  type: "rejection" | "edit" | "low_performance";
   text: string;
   topicId?: number | null;
   platform: string;
@@ -46,8 +46,13 @@ export async function retrieveLearningContext(topicLabel: string, topicDescripti
     const relevant = (matches?.matches ?? []).filter((m: any) => m.score > 0.5);
     if (relevant.length === 0) return "";
 
+    const TYPE_LABELS: Record<string, string> = {
+      rejection: "rechazado",
+      edit: "editado",
+      low_performance: "bajo rendimiento real",
+    };
     const block = relevant
-      .map((m: any) => `- (${m.metadata.type === "rejection" ? "rechazado" : "editado"}) ${m.metadata.text}`)
+      .map((m: any) => `- (${TYPE_LABELS[m.metadata.type] ?? m.metadata.type}) ${m.metadata.text}`)
       .join("\n");
 
     return `Aprende de esto — correcciones y rechazos reales de Esteban MÁS RELEVANTES para este tema específico, para no repetir los mismos errores:\n${block}`;

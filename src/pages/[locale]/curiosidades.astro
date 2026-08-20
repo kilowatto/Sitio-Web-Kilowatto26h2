@@ -1,0 +1,91 @@
+---
+import Site from "../../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+import { localeFromParam } from "../../lib/locales";
+import { navLabels } from "../../lib/nav-labels";
+import { loadTranslations, t } from "../../lib/i18n";
+
+const locale = localeFromParam(Astro.params.locale);
+// See src/pages/[locale]/index.astro for why this is split — an unrecognized single path
+// segment must 404, not silently redirect home as if it were a locale.
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+if (locale.canonical) return Astro.redirect("/curiosidades", 302);
+const nl = navLabels(locale.code);
+
+const CATEGORY_LABELS: Record<string, Record<string, string>> = {
+  "es-MX": { filosofia: "Filosofía", formacion: "Formación", negocio: "Negocio", curiosidades: "Rápidas" },
+  en: { filosofia: "Philosophy", formacion: "Formative years", negocio: "Business", curiosidades: "Quick ones" },
+};
+const CATEGORY_ORDER = ["filosofia", "formacion", "negocio", "curiosidades"];
+const labels = CATEGORY_LABELS[locale.code] ?? CATEGORY_LABELS["es-MX"];
+
+let quotes: any[] = [];
+let tr = new Map<string, string>();
+if (env?.DB) {
+  const res = await env.DB.prepare("SELECT * FROM quotes ORDER BY category, sort_order").all();
+  quotes = res?.results ?? [];
+  tr = await loadTranslations(env.DB, "quotes", locale.code);
+}
+
+const grouped = CATEGORY_ORDER.map((cat) => ({
+  key: cat,
+  label: labels[cat] ?? cat,
+  items: quotes.filter((q: any) => q.category === cat),
+})).filter((g) => g.items.length > 0);
+---
+
+<Site
+  title={`${nl.curiosidades} — Kilowatto`}
+  description="Citas y reflexiones de Esteban Rey (Kilowatto) sobre filosofía, formación, negocios y la vida en general."
+  active="/curiosidades"
+  locale={locale.code}
+  dir={locale.rtl ? "rtl" : "ltr"}
+>
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Kilowatto</p>
+      <h1>Kilowatto</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      {
+        grouped.map((g) => (
+          <div class="quote-group">
+            <p class="eyebrow">{g.label}</p>
+            <ul class="quote-list">
+              {g.items.map((q: any) => (
+                <li class="quote-item">“{t(tr, q.id, "text", q.text)}”</li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+</Site>
+
+<style>
+  .quote-group {
+    margin-bottom: var(--space-4);
+  }
+  .quote-list {
+    list-style: none;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+  }
+  .quote-item {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-style: italic;
+    line-height: 1.45;
+    padding-left: var(--space-2);
+    border-left: 3px solid var(--rhino);
+  }
+</style>

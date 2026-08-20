@@ -1,0 +1,713 @@
+---
+// Shared between /biblioteca and /biblioteca/[page] — same SEO-friendly pattern as
+// PressList.astro: real server-rendered pages with plain <a href> pagination a crawler can
+// follow, progressively enhanced into infinite scroll for human visitors via IntersectionObserver.
+//
+// A real dense catalog table (not a card grid) — matches the "ficha de biblioteca" ledger
+// aesthetic of the sidebar next to it. Rich per-book content (summary/dedication/Larry's
+// quip) lives inside a collapsed toggle within the title cell, not a separate table row, so
+// the client-side shuffle below can safely reorder <tr>s without ever separating a book's
+// details from its own row. Quotes render as their own full-width (colspan) row at the same
+// cadence as before.
+import { filtersToQueryString, type BookFilters } from "../lib/books-query";
+
+interface Props {
+  books: any[];
+  currentPage: number;
+  totalPages: number;
+  basePath: string; // e.g. "/biblioteca"
+  filters: BookFilters;
+  quotes?: any[];
+}
+
+const { books, currentPage, totalPages, basePath, filters, quotes = [] } = Astro.props;
+const qs = filtersToQueryString(filters);
+
+function pageUrl(n: number) {
+  return (n <= 1 ? basePath : `${basePath}/${n}`) + qs;
+}
+
+function hasExtra(b: any) {
+  return !!(b.summary || b.comment || b.larry_quip || b.has_dedication);
+}
+
+function money(n: number) {
+  return `$${n.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`;
+}
+
+const hasNext = currentPage < totalPages;
+const nextPage = currentPage + 1;
+
+// Intersperse quotes every ~5 books. Only on page 1 so a quote doesn't feel orphaned at the
+// top of page 2+, and so infinite-scroll appends (which only bring in .book-row <tr>s) stay simple.
+const QUOTE_INTERVAL = 5;
+type Entry = { kind: "book"; data: any } | { kind: "quote"; data: any };
+const entries: Entry[] = [];
+if (currentPage === 1 && quotes.length > 0) {
+  let quoteIdx = 0;
+  books.forEach((b, i) => {
+    entries.push({ kind: "book", data: b });
+    if ((i + 1) % QUOTE_INTERVAL === 0 && quoteIdx < quotes.length) {
+      entries.push({ kind: "quote", data: quotes[quoteIdx] });
+      quoteIdx++;
+    }
+  });
+} else {
+  books.forEach((b) => entries.push({ kind: "book", data: b }));
+}
+---
+
+<div class="book-table-wrap">
+  <table class="book-table">
+    <thead>
+      <tr>
+        <th class="bt-col-cover" aria-hidden="true"></th>
+        <th>Libro</th>
+        <th class="bt-col-year">Año</th>
+        <th class="bt-col-price">Precio</th>
+      </tr>
+    </thead>
+    <tbody id="book-list">
+      {entries.map((entry) => {
+        if (entry.kind === "quote") {
+          const q = entry.data;
+          return (
+            <tr class="quote-row">
+              <td colspan="4">
+                <blockquote class="quote-card">
+                  <span class="quote-mark" aria-hidden="true">"</span>
+                  <p class="quote-text">{q.quote_text}</p>
+                  {q.attributed_to && <cite class="quote-attribution">— {q.attributed_to}</cite>}
+                </blockquote>
+              </td>
+            </tr>
+          );
+        }
+        const b = entry.data;
+        const extra = hasExtra(b);
+        return (
+          <tr class="book-row">
+            <td class="bt-col-cover">
+              {b.cover_r2_key ? (
+                <img
+                  src={`/media/${b.cover_r2_key}?w=150`}
+                  alt={`Portada de ${b.title}`}
+                  class="bt-cover"
+                  data-cover-trigger
+                  data-full={`/media/${b.cover_r2_key}?w=800`}
+                  data-caption={`${b.title} — ${b.author ?? ""}`}
+                />
+              ) : (
+                <span class="bt-cover bt-cover--placeholder" aria-hidden="true">📕</span>
+              )}
+            </td>
+            <td class="bt-main">
+              <p class="bt-genre">{b.genre}</p>
+              <p class="bt-title">
+                {b.title}
+                {extra && (
+                  <button type="button" class="bt-toggle" aria-expanded="false" data-more="+ más" data-less="− menos">
+                    + más
+                  </button>
+                )}
+              </p>
+              <p class="bt-author">
+                {b.author}
+                {b.publisher ? ` · ${b.publisher}` : ""}
+              </p>
+              {extra && (
+                <div class="bt-details" hidden>
+                  {b.summary && <p>{b.summary}</p>}
+                  {b.comment && <p class="bt-comment">💬 {b.comment}</p>}
+                  {b.larry_quip && (
+                    <p class="bt-larry">
+                      🚀 <strong>Larry dice:</strong> {b.larry_quip}
+                    </p>
+                  )}
+                  {!!b.has_dedication && (
+                    <div class="bt-dedication">
+                      <p class="bt-dedication__label">✒️ Tiene dedicatoria</p>
+                      <blockquote>
+                        "{b.dedication_text}"
+                        <cite>— {b.dedication_from}</cite>
+                      </blockquote>
+                      {b.dedication_r2_key && (
+                        <img
+                          src={`/media/${b.dedication_r2_key}?w=500`}
+                          alt={`Dedicatoria en ${b.title}`}
+                          loading="lazy"
+                          class="bt-dedication__photo"
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </td>
+            <td class="bt-col-year">{b.release_year ?? "—"}</td>
+            <td class="bt-col-price">
+              {typeof b.price_paid === "number" ? (
+                <span>{money(b.price_paid)}</span>
+              ) : typeof b.price_current === "number" ? (
+                <span class="bt-price__estimate">
+                  ~{money(b.price_current)}
+                  {b.price_checked_at ? <span class="bt-price__checked">{b.price_checked_at}</span> : null}
+                </span>
+              ) : (
+                <span class="bt-price__none">—</span>
+              )}
+            </td>
+          </tr>
+        );
+      })}
+    </tbody>
+  </table>
+</div>
+
+{books.length === 0 && <p class="hero__sub">Sin resultados con estos filtros.</p>}
+
+<div id="cover-lightbox" class="cover-lightbox" hidden>
+  <button class="cover-lightbox__close" type="button" aria-label="Cerrar">×</button>
+  <figure class="cover-lightbox__figure">
+    <img id="cover-lightbox-img" alt="" />
+    <figcaption id="cover-lightbox-caption"></figcaption>
+  </figure>
+</div>
+
+<script>
+  // Click any cover thumbnail in the table to see it full-size -- the table shrinks covers
+  // down to ~3-4.6rem for density, too small to actually look at the artwork.
+  (() => {
+    const lightbox = document.getElementById("cover-lightbox");
+    const img = document.getElementById("cover-lightbox-img") as HTMLImageElement | null;
+    const caption = document.getElementById("cover-lightbox-caption");
+    if (!lightbox || !img || !caption) return;
+
+    function open(trigger: HTMLElement) {
+      if (!img || !caption || !lightbox) return;
+      img.src = trigger.dataset.full ?? "";
+      img.alt = trigger.dataset.caption ?? "";
+      caption.textContent = trigger.dataset.caption ?? "";
+      lightbox.hidden = false;
+    }
+    function close() {
+      if (!img || !lightbox) return;
+      lightbox.hidden = true;
+      img.src = "";
+    }
+
+    document.addEventListener("click", (e) => {
+      const trigger = (e.target as HTMLElement)?.closest?.("[data-cover-trigger]") as HTMLElement | null;
+      if (trigger) open(trigger);
+    });
+    lightbox.querySelector(".cover-lightbox__close")?.addEventListener("click", close);
+    lightbox.addEventListener("click", (e) => {
+      if (e.target === lightbox) close();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !lightbox.hidden) close();
+    });
+  })();
+</script>
+
+<script>
+  // Purely a client-side visual shuffle — the server always renders a stable order (by
+  // sort_order/reading_order), which is what search crawlers and paginated offsets see.
+  // Details live INSIDE their own row's cell (not a sibling row), so shuffling <tr>s here
+  // can never separate a book's expandable content from its row.
+  (() => {
+    const list = document.getElementById("book-list");
+    if (!list) return;
+    const nodes = Array.from(list.children);
+    for (let i = nodes.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [nodes[i], nodes[j]] = [nodes[j], nodes[i]];
+    }
+    nodes.forEach((n) => list.appendChild(n));
+  })();
+
+  document.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement)?.closest?.(".bt-toggle") as HTMLButtonElement | null;
+    if (!btn) return;
+    const details = btn.closest(".bt-main")?.querySelector<HTMLElement>(".bt-details");
+    if (!details) return;
+    details.hidden = !details.hidden;
+    btn.setAttribute("aria-expanded", String(!details.hidden));
+    btn.textContent = details.hidden ? (btn.dataset.more ?? "+ más") : (btn.dataset.less ?? "− menos");
+  });
+</script>
+
+{totalPages > 1 && (
+  <nav class="pagination" aria-label="Paginación de la biblioteca">
+    {currentPage > 1 ? (
+      <a href={pageUrl(currentPage - 1)} rel="prev">← Anterior</a>
+    ) : (
+      <span />
+    )}
+    <span class="pagination__pages">
+      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) =>
+        p === currentPage ? (
+          <span class="pagination__current" aria-current="page">{p}</span>
+        ) : (
+          <a href={pageUrl(p)}>{p}</a>
+        )
+      )}
+    </span>
+    {hasNext ? (
+      <a href={pageUrl(nextPage)} rel="next" id="book-next-link" data-next-page={nextPage}>Siguiente →</a>
+    ) : (
+      <span />
+    )}
+  </nav>
+)}
+
+{hasNext && <div id="book-scroll-sentinel"></div>}
+
+{hasNext && (
+  <button type="button" id="book-load-more" class="load-more-btn">Cargar más libros</button>
+)}
+
+{hasNext && (
+  <script define:vars={{ basePath, nextPage, qs }}>
+    (() => {
+      let loading = false;
+      let nextPageNum = nextPage;
+      const sentinel = document.getElementById("book-scroll-sentinel");
+      const list = document.getElementById("book-list");
+      const loadMoreBtn = document.getElementById("book-load-more");
+      if (!list) return;
+
+      // Shared by both the scroll-triggered observer AND the manual "Cargar más" button —
+      // the button is a guaranteed-to-work fallback in case IntersectionObserver doesn't
+      // fire on some device/browser (it's the same code path either way, not a separate one).
+      async function loadNextPage() {
+        if (loading) return;
+        loading = true;
+        if (loadMoreBtn) loadMoreBtn.textContent = "Cargando…";
+        const nextUrl = (nextPageNum <= 1 ? basePath : `${basePath}/${nextPageNum}`) + qs;
+        try {
+          const res = await fetch(nextUrl);
+          if (!res.ok) {
+            observer?.disconnect();
+            if (loadMoreBtn) loadMoreBtn.remove();
+            return;
+          }
+          const html = await res.text();
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          const newItems = doc.querySelectorAll("#book-list > .book-row");
+          newItems.forEach((row) => list.appendChild(row.cloneNode(true)));
+          history.pushState({}, "", nextUrl);
+
+          const nav = document.querySelector(".pagination");
+          if (nav) nav.style.display = "none";
+
+          if (doc.getElementById("book-next-link")) {
+            nextPageNum += 1;
+            if (loadMoreBtn) loadMoreBtn.textContent = "Cargar más libros";
+          } else {
+            observer?.disconnect();
+            sentinel?.remove();
+            loadMoreBtn?.remove();
+          }
+        } catch {
+          if (loadMoreBtn) loadMoreBtn.textContent = "Cargar más libros";
+        } finally {
+          loading = false;
+        }
+      }
+
+      loadMoreBtn?.addEventListener("click", loadNextPage);
+
+      let observer;
+      if (sentinel && "IntersectionObserver" in window) {
+        observer = new IntersectionObserver(
+          (entries) => {
+            if (entries[0].isIntersecting) loadNextPage();
+          },
+          { rootMargin: "800px" }
+        );
+        observer.observe(sentinel);
+      }
+    })();
+  </script>
+)}
+
+<style>
+  .book-table-wrap {
+    /* Explicit width -- a block element with container-type:inline-size + overflow-x:auto
+       does not reliably default to 100% of its parent on every browser (confirmed on real
+       iOS Safari: it shrink-wrapped to content width, leaving the rest of .lib-main empty and
+       forcing horizontal scroll on a table that would otherwise fit). */
+    width: 100%;
+    max-width: 100%;
+    container-type: inline-size;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+  }
+  .book-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  .bt-main {
+    /* Auto-layout would size this column from its longest unbroken content (a genre label,
+       an author name) and can force the whole table wider than its container even with
+       every other column pinned — fixed layout + an explicit width here is what actually
+       guarantees the table never exceeds .book-table-wrap, forcing long text to wrap instead. */
+    width: auto;
+    overflow-wrap: break-word;
+  }
+  .book-table thead th {
+    text-align: left;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.68rem;
+    color: var(--ink-soft);
+    padding: 0.6rem 0.7rem;
+    border-bottom: 1px solid var(--line);
+    background: var(--mist);
+  }
+  .bt-col-cover {
+    /* Cell width must be the image width PLUS its own horizontal padding (0.7rem each side) --
+       otherwise the padding eats into the space the image needs and shrinks it below 3.6rem. */
+    width: 5rem;
+  }
+  .bt-col-year {
+    width: 3.4rem;
+  }
+  .bt-col-price {
+    width: 6.2rem;
+    text-align: right;
+    overflow-wrap: break-word;
+  }
+  .bt-col-year {
+    /* No nowrap here on purpose — a stray long value (a data slip, a future edit) must wrap
+       inside its fixed 3.4rem column instead of forcing the whole table wider, the way one
+       book's overlong release_year once did before this was caught. */
+    overflow-wrap: break-word;
+    text-align: right;
+  }
+  .book-row {
+    border-bottom: 1px dashed var(--line);
+  }
+  .book-row td {
+    padding: 0.6rem 0.7rem;
+    vertical-align: top;
+  }
+  .bt-cover {
+    display: block;
+    width: 3.6rem;
+    height: 5rem;
+    /* The site-wide `img { max-width: 100% }` reset (global.css) was silently shrinking this
+       below its intended size whenever the padded cell was narrower than 3.6rem -- override it
+       so the explicit width above always wins. */
+    max-width: none;
+    /* contain, not cover -- these are casual photos of the physical book (often with a bit of
+       background/table around it, not a flat scan), so cropping to fill a tight box was
+       cutting off real cover art. Letterboxing against a neutral fill keeps the whole photo
+       visible instead. */
+    object-fit: contain;
+    background: var(--mist);
+    border-radius: 0.25rem;
+    border: 1px solid var(--line);
+    cursor: zoom-in;
+  }
+  .cover-lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 8, 6, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: var(--space-2);
+  }
+  /* [hidden] and .cover-lightbox{display:flex} share the same specificity, so author CSS wins
+     the cascade and the modal stays visible regardless of the attribute unless this rule
+     (attribute + class = higher specificity) explicitly restores the native behavior -- the
+     exact bug that once made the gallery lightbox render as a black screen. */
+  .cover-lightbox[hidden] {
+    display: none;
+  }
+  .cover-lightbox__figure {
+    max-width: 90vw;
+    max-height: 90vh;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .cover-lightbox__figure img {
+    max-width: 90vw;
+    max-height: 78vh;
+    object-fit: contain;
+    border-radius: 0.4rem;
+  }
+  .cover-lightbox__figure figcaption {
+    color: #fff;
+    font-size: 0.9rem;
+    padding-top: 0.6rem;
+    text-align: center;
+  }
+  .cover-lightbox__close {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .cover-lightbox__close:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  .bt-cover--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--mist);
+    font-size: 1.1rem;
+  }
+  .bt-genre {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+  }
+  .bt-title {
+    margin: 0.1rem 0 0;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1.3;
+  }
+  .bt-author {
+    margin: 0.15rem 0 0;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+  }
+  .bt-toggle {
+    margin-left: 0.5rem;
+    border: none;
+    background: none;
+    color: var(--ember);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    cursor: pointer;
+    padding: 0;
+    vertical-align: middle;
+  }
+  .bt-details {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--line);
+    font-size: 0.88rem;
+    max-width: 34rem;
+  }
+  .bt-details > p {
+    margin: 0 0 0.5rem;
+  }
+  .bt-comment {
+    font-style: italic;
+  }
+  .bt-larry {
+    padding: 0.5rem 0.7rem;
+    background: var(--mist);
+    border-radius: 0.4rem;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: var(--ink-soft);
+  }
+  .bt-larry strong {
+    font-style: normal;
+    color: var(--ink);
+  }
+  .bt-dedication {
+    margin-top: 0.5rem;
+  }
+  .bt-dedication__label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin: 0 0 0.3rem;
+  }
+  .bt-dedication blockquote {
+    margin: 0;
+    padding-left: 0.8rem;
+    border-left: 2px solid var(--ember);
+    font-style: italic;
+    font-size: 0.88rem;
+  }
+  .bt-dedication cite {
+    display: block;
+    margin-top: 0.3rem;
+    font-style: normal;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+  .bt-dedication__photo {
+    width: 100%;
+    max-width: 16rem;
+    height: auto;
+    display: block;
+    margin-top: 0.6rem;
+    border-radius: 0.4rem;
+    border: 1px solid var(--line);
+  }
+  .bt-price__estimate {
+    color: var(--ink-soft);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .bt-price__checked {
+    font-size: 0.68rem;
+  }
+  .bt-price__none {
+    color: var(--ink-soft);
+  }
+
+  /* Below a certain container width, the year column is the least essential — drop it
+     rather than let the table force horizontal scroll on every device. */
+  @container (max-width: 34rem) {
+    .bt-col-year {
+      display: none;
+    }
+  }
+
+  /* Phone-width tightening: smaller cover, tighter padding, smaller type — the three
+     remaining columns (cover/title/price) still need to comfortably fit ~320-360px of
+     real usable width after page padding, with no horizontal scroll required. */
+  @container (max-width: 26rem) {
+    .book-table {
+      font-size: 0.82rem;
+    }
+    .book-row td {
+      padding: 0.5rem 0.4rem;
+    }
+    .bt-cover {
+      width: 4.6rem;
+      height: 6.5rem;
+    }
+    .bt-col-cover {
+      /* Same padding math as the base rule, but with this breakpoint's 0.4rem side padding. */
+      width: 5.4rem;
+    }
+    .bt-title {
+      font-size: 0.92rem;
+    }
+    .bt-toggle {
+      display: block;
+      margin-left: 0;
+      margin-top: 0.2rem;
+    }
+    .bt-col-price {
+      width: 4.4rem;
+      font-size: 0.74rem;
+    }
+  }
+
+  /* Quote rows — the one deliberately loud moment in an otherwise quiet ledger. */
+  .quote-row td {
+    padding: 0;
+  }
+  .quote-card {
+    display: block;
+    margin: 0;
+    padding: var(--space-3) var(--space-2) var(--space-2);
+    background: var(--rhino);
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+  .quote-mark {
+    position: absolute;
+    top: -1.2rem;
+    left: 0.6rem;
+    font-family: var(--font-display);
+    font-size: 7rem;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.18);
+    pointer-events: none;
+  }
+  .quote-text {
+    position: relative;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.25rem;
+    line-height: 1.4;
+    margin: 0.6rem 0 0;
+  }
+  .quote-attribution {
+    display: block;
+    margin-top: 0.8rem;
+    font-style: normal;
+    font-size: 0.82rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    opacity: 0.85;
+  }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+  }
+  .pagination a {
+    color: var(--ember);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .pagination__pages {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+  .pagination__pages a,
+  .pagination__current {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 0.4rem;
+    border-radius: 0.4rem;
+  }
+  .pagination__current {
+    background: var(--rhino);
+    color: #fff;
+    font-weight: 700;
+  }
+  #book-scroll-sentinel {
+    height: 1px;
+  }
+  .load-more-btn {
+    display: block;
+    margin: var(--space-3) auto 0;
+    padding: 0.65rem 1.4rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .load-more-btn:hover {
+    border-color: var(--ember);
+    color: var(--ember);
+  }
+</style>

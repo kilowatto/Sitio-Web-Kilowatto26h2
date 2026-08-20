@@ -1,0 +1,155 @@
+---
+// Mirrors PressList.astro's pagination + progressive-enhancement infinite-scroll pattern
+// (see that file for the SEO rationale) — real server-rendered pages at /columnas,
+// /columnas/2, /columnas/3..., each independently crawlable and canonical, with JS layered
+// on top to fetch-and-append for human visitors.
+import { excerptFrom, type ColumnRow } from "../lib/columns-query";
+
+interface Props {
+  columns: ColumnRow[];
+  currentPage: number;
+  totalPages: number;
+  basePath: string; // e.g. "/columnas" — no trailing slash
+}
+
+const { columns, currentPage, totalPages, basePath } = Astro.props;
+
+function pageUrl(n: number) {
+  return n <= 1 ? basePath : `${basePath}/${n}`;
+}
+
+const hasNext = currentPage < totalPages;
+const nextPage = currentPage + 1;
+---
+
+<ol class="rows" id="column-list">
+  {columns.map((c) => (
+    <li class="row">
+      <span class="row__range">{c.published_at}</span>
+      <div class="column-item">
+        {c.cover_r2_key && (
+          <a href={`${basePath}/${c.slug}`} class="column-thumb-link">
+            <img
+              src={`/media/${c.cover_r2_key}?w=250`}
+              srcset={`/media/${c.cover_r2_key}?w=250 250w, /media/${c.cover_r2_key}?w=450 450w`}
+              sizes="11rem"
+              alt=""
+              class="column-thumb"
+              loading="lazy"
+            />
+          </a>
+        )}
+        <div class="column-item__text">
+          <h3>
+            <a href={`${basePath}/${c.slug}`}>{c.title}</a>
+          </h3>
+          {c.subtitle && <p class="row__summary">{c.subtitle}</p>}
+          <p class="row__summary column-item__excerpt">{excerptFrom(c.body_html)}</p>
+        </div>
+      </div>
+    </li>
+  ))}
+</ol>
+
+{totalPages > 1 && (
+  <nav class="pagination" aria-label="Paginación de columnas">
+    {currentPage > 1 ? (
+      <a href={pageUrl(currentPage - 1)} rel="prev">← Anterior</a>
+    ) : (
+      <span />
+    )}
+    <span class="pagination__pages">
+      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) =>
+        p === currentPage ? (
+          <span class="pagination__current" aria-current="page">{p}</span>
+        ) : (
+          <a href={pageUrl(p)}>{p}</a>
+        )
+      )}
+    </span>
+    {hasNext ? (
+      <a href={pageUrl(nextPage)} rel="next" id="column-next-link" data-next-page={nextPage}>Siguiente →</a>
+    ) : (
+      <span />
+    )}
+  </nav>
+)}
+
+{hasNext && <div id="column-scroll-sentinel"></div>}
+
+{hasNext && (
+  <script define:vars={{ basePath, nextPage }}>
+    (() => {
+      let loading = false;
+      let nextPageNum = nextPage;
+      const sentinel = document.getElementById("column-scroll-sentinel");
+      const list = document.getElementById("column-list");
+      if (!sentinel || !list) return;
+
+      const observer = new IntersectionObserver(
+        async (entries) => {
+          if (!entries[0].isIntersecting || loading) return;
+          loading = true;
+          const nextUrl = nextPageNum <= 1 ? basePath : `${basePath}/${nextPageNum}`;
+          try {
+            const res = await fetch(nextUrl);
+            if (!res.ok) {
+              observer.disconnect();
+              return;
+            }
+            const html = await res.text();
+            const doc = new DOMParser().parseFromString(html, "text/html");
+            const newItems = doc.querySelectorAll("#column-list > li");
+            newItems.forEach((li) => list.appendChild(li.cloneNode(true)));
+            history.pushState({}, "", nextUrl);
+
+            const nav = document.querySelector(".pagination");
+            if (nav) nav.style.display = "none";
+
+            if (doc.getElementById("column-next-link")) {
+              nextPageNum += 1;
+            } else {
+              observer.disconnect();
+              sentinel.remove();
+            }
+          } catch {
+            observer.disconnect();
+          } finally {
+            loading = false;
+          }
+        },
+        { rootMargin: "800px" }
+      );
+      observer.observe(sentinel);
+    })();
+  </script>
+)}
+
+<style>
+  .column-item { display: flex; gap: 1rem; align-items: flex-start; }
+  .column-item__text { min-width: 0; flex: 1; }
+  .column-thumb-link { flex-shrink: 0; display: block; }
+  .column-thumb { width: 6.5rem; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 0.5rem; }
+  @media (min-width: 480px) { .column-thumb { width: 9rem; } }
+  @media (min-width: 720px) { .column-thumb { width: 11rem; } }
+  .column-item__excerpt { color: var(--ink-soft); }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+  }
+  .pagination a { color: var(--ember); font-weight: 600; text-decoration: none; white-space: nowrap; }
+  .pagination__pages { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+  .pagination__pages a,
+  .pagination__current {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 2rem; height: 2rem; padding: 0 0.4rem; border-radius: 0.4rem;
+  }
+  .pagination__current { background: var(--rhino); color: #fff; font-weight: 700; }
+  #column-scroll-sentinel { height: 1px; }
+</style>

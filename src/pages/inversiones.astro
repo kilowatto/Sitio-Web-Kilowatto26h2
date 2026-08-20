@@ -1,5 +1,6 @@
 ---
 import Site from "../layouts/Site.astro";
+import PullQuote from "../components/PullQuote.astro";
 import { env } from "cloudflare:workers";
 
 let investments: any[] = [];
@@ -12,7 +13,11 @@ const orangeRhino = investments.find((i: any) => i.slug === "orange-rhino-invest
 const rest = investments.filter((i: any) => i.slug !== "orange-rhino-investments");
 ---
 
-<Site title="Inversiones — Orange Rhino Investments" active="/inversiones">
+<Site
+  title="Inversiones — Orange Rhino Investments"
+  description="Orange Rhino Investments: el vehículo de inversión de Esteban Rey (Kilowatto)."
+  active="/inversiones"
+>
   <section class="page-head">
     <div class="container">
       <p class="eyebrow">Orange Rhino Investments</p>
@@ -20,6 +25,8 @@ const rest = investments.filter((i: any) => i.slug !== "orange-rhino-investments
       {orangeRhino?.summary && <p class="hero__sub">{orangeRhino.summary}</p>}
     </div>
   </section>
+
+  <PullQuote placement="inversiones" />
 
   <section class="chapter">
     <div class="container">

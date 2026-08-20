@@ -1,0 +1,229 @@
+---
+// Dual-purpose route: a numeric param is a pagination page ("/columnas/2"), anything else is
+// a column slug ("/columnas/mis-aventuras-con-fable"). Folded into one file because Astro
+// can't route two separate [param].astro files to the same "/columnas/:x" pattern — unlike
+// /prensa, which has no per-article detail page (it just links out to the source), Columnas
+// needs both a real article page AND numbered listing pages at the same path depth.
+import Site from "../../layouts/Site.astro";
+import ColumnList from "../../components/ColumnList.astro";
+import ScrollBarChart from "../../components/ScrollBarChart.astro";
+import ColumnShare from "../../components/ColumnShare.astro";
+import CommentSection from "../../components/CommentSection.astro";
+import { getColumnsPage, getColumnBySlug, incrementColumnView, displayViewCount, excerptFrom, type ColumnRow } from "../../lib/columns-query";
+import { renderColumnBody } from "../../lib/column-layout";
+import { env } from "cloudflare:workers";
+
+const raw = Astro.params.param ?? "";
+const isNumeric = /^\d+$/.test(raw);
+
+let pageNum = 1;
+let columns: ColumnRow[] = [];
+let totalPages = 1;
+let column: ColumnRow | null = null;
+
+if (isNumeric) {
+  pageNum = Number(raw);
+  // Page 1 lives at /columnas itself — /columnas/1 would be a duplicate URL for the same
+  // content. Anything else non-numeric-looking never reaches this branch at all.
+  if (pageNum < 2) {
+    if (pageNum === 1) return Astro.redirect("/columnas", 301);
+    Astro.response.status = 404;
+    return Astro.rewrite("/404");
+  }
+  if (env?.DB) {
+    const page = await getColumnsPage(env, pageNum);
+    columns = page.rows;
+    totalPages = page.totalPages;
+  }
+  if (pageNum > totalPages || columns.length === 0) {
+    Astro.response.status = 404;
+    return Astro.rewrite("/404");
+  }
+} else {
+  if (env?.DB) {
+    column = await getColumnBySlug(env, raw);
+    if (column) await incrementColumnView(env, column.id);
+  }
+  if (!column) {
+    Astro.response.status = 404;
+    return Astro.rewrite("/404");
+  }
+}
+
+const articleJsonLd = column
+  ? {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      headline: column.title,
+      description: column.subtitle || excerptFrom(column.body_html),
+      datePublished: column.published_at,
+      author: { "@type": "Person", name: "Esteban Rey", alternateName: "Kilowatto", url: "https://kilowatto.com" },
+      publisher: { "@type": "Organization", name: "Kilowatto" },
+      mainEntityOfPage: `https://kilowatto.com/columnas/${column.slug}`,
+    }
+  : null;
+
+const bodyWithImages = column
+  ? renderColumnBody(column.body_html, {
+      infographicUrl: column.infographic_r2_key ? `/media/${column.infographic_r2_key}` : null,
+      illustrationUrl: column.illustration_r2_key ? `/media/${column.illustration_r2_key}` : null,
+    })
+  : "";
+---
+
+{
+  column ? (
+    <Site
+      title={`${column.title} — Esteban Rey`}
+      description={column.subtitle || excerptFrom(column.body_html)}
+      active="/columnas"
+      ogType="article"
+      image={column.og_r2_key ? `/media/${column.og_r2_key}` : column.cover_r2_key ? `/media/${column.cover_r2_key}` : undefined}
+    >
+      <script type="application/ld+json" set:html={JSON.stringify(articleJsonLd)} />
+
+      {column.cover_r2_key ? (
+        <div class="column-hero">
+          <img
+            src={`/media/${column.cover_r2_key}?w=1200`}
+            srcset={`/media/${column.cover_r2_key}?w=800 800w, /media/${column.cover_r2_key}?w=1400 1400w, /media/${column.cover_r2_key}?w=2000 2000w`}
+            sizes="100vw"
+            alt=""
+            class="column-hero__img"
+          />
+          <div class="column-hero__gradient" />
+          <div class="column-hero__text">
+            <div class="container">
+              <p class="eyebrow column-hero__eyebrow">
+                <a href="/columnas">Columnas</a>
+              </p>
+              <h1>{column.title}</h1>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <section class="page-head">
+          <div class="container">
+            <p class="eyebrow">
+              <a href="/columnas">Columnas</a>
+            </p>
+            <h1>{column.title}</h1>
+          </div>
+        </section>
+      )}
+
+      <section class="chapter">
+        <div class="container">
+          {column.subtitle && <p class="hero__sub">{column.subtitle}</p>}
+          <p class="row__range">
+            {column.published_at} · Por Esteban Rey (
+            <a href="https://x.com/kilowatto" target="_blank" rel="noopener me">
+              @Kilowatto
+            </a>
+            ) · {displayViewCount(column).toLocaleString("es-MX")} lecturas
+          </p>
+          <div class="column-article" set:html={bodyWithImages} />
+          <ColumnShare url={`https://kilowatto.com/columnas/${column.slug}`} title={column.title} subtitle={column.subtitle} />
+          <CommentSection columnId={column.id} />
+        </div>
+      </section>
+      <ScrollBarChart />
+    </Site>
+  ) : (
+    <Site title={`Columnas — página ${pageNum} — Esteban Rey`} active="/columnas">
+      <section class="page-head">
+        <div class="container">
+          <p class="eyebrow">Columnas</p>
+          <h1>Lo que escribo sobre tecnología, IA y negocios</h1>
+        </div>
+      </section>
+      <section class="chapter">
+        <div class="container">
+          <ColumnList columns={columns} currentPage={pageNum} totalPages={totalPages} basePath="/columnas" />
+        </div>
+      </section>
+    </Site>
+  )
+}
+
+<style>
+  .column-article {
+    max-width: 42rem;
+    font-size: 1.05rem;
+    line-height: 1.7;
+  }
+  .column-article h2 {
+    margin-top: var(--space-4);
+    font-family: var(--font-display);
+  }
+  .column-article p {
+    margin-top: var(--space-2);
+  }
+  .column-article p.column-callout {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--ember);
+    border-radius: 0.5rem;
+    padding: 0.9rem 1.1rem;
+    font-size: 0.98rem;
+  }
+  /* Full-bleed cinematic banner — breaks out of the centered container to span the whole
+     viewport, capped to a modest height via clamp() rather than aspect-ratio so it stays a real
+     "banner" at any viewport width instead of scaling into a huge tall block on wide desktops
+     (confirmed live 2026-07-27: a 1:1 square cover at container width was reported "too big"). */
+  .column-hero {
+    position: relative;
+    width: 100vw;
+    left: 50%;
+    margin-left: -50vw;
+    height: clamp(13rem, 30vw, 22rem);
+    overflow: hidden;
+    margin-bottom: var(--space-3);
+  }
+  .column-hero__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .column-hero__gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.45) 40%, rgba(0, 0, 0, 0) 75%);
+  }
+  .column-hero__text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding-bottom: var(--space-2);
+  }
+  .column-hero__eyebrow {
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .column-hero__eyebrow a {
+    color: inherit;
+  }
+  .column-hero__text h1 {
+    color: #fff;
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 4vw, 2.75rem);
+    line-height: 1.08;
+    max-width: 42rem;
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
+  }
+
+  /* Images interleaved mid-article via renderColumnBody() — a real break in the reading column,
+     but not full-bleed like the hero; that boldness is reserved for one element per page. */
+  .column-break-img {
+    margin: var(--space-4) 0;
+    max-width: 42rem;
+  }
+  .column-break-img img {
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid var(--line);
+    display: block;
+  }
+</style>

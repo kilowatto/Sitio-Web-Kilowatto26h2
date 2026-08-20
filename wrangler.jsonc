@@ -41,10 +41,21 @@
     {
       "binding": "BRAND_FEEDBACK",
       "index_name": "kilowatto-brand-feedback"
+    },
+    {
+      "binding": "PHOTO_VOICE",
+      "index_name": "kilowatto-photo-voice"
+    },
+    {
+      "binding": "PHOTO_DEDUP",
+      "index_name": "kilowatto-photo-dedup"
     }
   ],
   "ai": {
     "binding": "AI"
+  },
+  "images": {
+    "binding": "IMAGES"
   },
   "analytics_engine_datasets": [
     {

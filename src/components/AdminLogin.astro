@@ -91,6 +91,9 @@
 
   // Conditional UI: silently offer the passkey the moment the email field is focused,
   // without waiting for a button click — this is what 1Password/iCloud Keychain hook into.
+  // (Chased a real bug here 2026-07-22 that turned out to be unrelated — root cause was a
+  // D1 query in /admin referencing a column that doesn't exist, which crashed the SSR render
+  // and fell back to serving the homepage. This code was never at fault.)
   (async () => {
     if (!(await PublicKeyCredential.isConditionalMediationAvailable?.())) return;
     try {

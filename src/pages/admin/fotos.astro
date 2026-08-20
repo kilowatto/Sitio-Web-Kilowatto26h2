@@ -1,5 +1,5 @@
 ---
-import Base from "../../layouts/Base.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
 import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
 import { checkAdminAuth } from "../../lib/admin-auth";
@@ -32,7 +32,7 @@ if (authorized && env?.DB) {
 const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length;
 ---
 
-<Base title="Revisión de fotos — Admin">
+<AdminLayout title="Revisión de fotos — Admin" active="/admin/fotos" authorized={authorized}>
   <div class="container admin">
     {
       !authorized ? (
@@ -46,12 +46,32 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
             una por una — nunca se publican de golpe. Las demás sí puedes seleccionarlas y aprobarlas en lote.
           </p>
 
-          <form id="upload-form" class="upload-form">
-            <input type="file" id="zip-input" accept=".zip" required />
+          <div class="upload-album-row">
+            <label for="album-input">Álbum</label>
             <input type="text" id="album-input" placeholder="álbum (ej: familia)" value="familia" />
-            <button type="submit">Subir zip</button>
-            <span id="upload-status"></span>
-          </form>
+          </div>
+
+          <div id="dropzone" class="dropzone">
+            <input type="file" id="batch-input" accept="image/*" multiple hidden />
+            <p class="dropzone-label">
+              <strong>Arrastra tus fotos aquí</strong> (1 a 150 a la vez) <br class="dropzone-br" />
+              o toca para elegirlas desde tu iPhone/computadora
+            </p>
+            <div id="upload-progress" class="upload-progress" hidden>
+              <div class="upload-progress-bar"><div id="upload-progress-fill" class="upload-progress-fill"></div></div>
+              <p id="upload-status" class="upload-status"></p>
+            </div>
+          </div>
+
+          <details class="zip-fallback">
+            <summary>¿Prefieres subir un .zip?</summary>
+            <form id="upload-form" class="upload-form">
+              <input type="file" id="zip-input" accept=".zip" required />
+              <button type="submit">Subir zip</button>
+              <span id="zip-upload-status"></span>
+            </form>
+          </details>
+
           <p class="hint upload-note">
             JPG/PNG se procesan aquí mismo (caption + EXIF + flag de menor, igual que siempre). HEIC y video todavía
             necesitan el script local — este formulario los reporta como omitidos en vez de fallar.
@@ -74,7 +94,7 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
               return (
                 <div class={`photo-card ${flagged ? "photo-card--flagged" : ""}`} data-id={p.id}>
                   {!flagged && <input type="checkbox" class="select-box" data-id={p.id} />}
-                  <img src={`/media/${p.r2_key}`} alt="" loading="lazy" />
+                  <img src={`/media/${p.r2_key}?w=400`} alt={p.ai_caption || ""} loading="lazy" />
                   <p class="caption">{p.ai_caption || "(sin caption)"}</p>
                   <p class="meta">
                     {p.taken_city ?? "ciudad desconocida"} · {p.taken_date ?? "fecha desconocida"}
@@ -106,6 +126,11 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
             al grupo que rota en el home (junto con las que la IA ya detectó solas).
           </p>
 
+          <div class="reprocess-bar">
+            <button id="reprocess-btn" type="button">🔄 Reprocesar todas con la IA nueva (lugar, naranja, tono)</button>
+            <p id="reprocess-status" class="hint"></p>
+          </div>
+
           <datalist id="people-datalist">
             {allPeopleNames.map((n: string) => <option value={n} />)}
           </datalist>
@@ -113,18 +138,19 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
           <div class="grid">
             {approved.map((p: any) => (
               <div class="photo-card" data-id={p.id}>
-                <img src={`/media/${p.r2_key}`} alt="" loading="lazy" />
+                <img src={`/media/${p.r2_key}?w=400`} alt={p.caption || p.ai_caption || ""} loading="lazy" />
 
                 <label class="profile-check">
                   <input type="checkbox" class="profile-toggle" data-id={p.id} checked={!!p.is_profile_photo} />
                   Foto de perfil (home)
                 </label>
 
-                <textarea class="caption-edit" data-id={p.id} rows="2">{p.caption ?? ""}</textarea>
+                <textarea class="caption-edit" data-id={p.id} rows="2">{p.caption ?? p.ai_caption ?? ""}</textarea>
                 <button class="polish-caption" data-id={p.id} type="button">
                   ✨ Pulir y traducir
                 </button>
                 <p class="polish-status" data-id={p.id} />
+                <p class="hint mention-hint">Escribe @ seguido del nombre real de la persona en el texto (ej. "@Rocío") para etiquetarla — no escribas @Nombre literal.</p>
 
                 <p class="meta">
                   {p.taken_city ?? "ciudad desconocida"} · {p.taken_date ?? "fecha desconocida"}
@@ -170,11 +196,45 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
   </div>
 
   <script define:vars={{ token }}>
+    document.getElementById("reprocess-btn")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const status = document.getElementById("reprocess-status");
+      if (btn.disabled) return;
+      btn.disabled = true;
+      let afterId = 0;
+      let total = 0;
+      try {
+        while (true) {
+          status.textContent = `Reprocesando… ${total} hechas hasta ahora.`;
+          const res = await fetch(
+            `/api/photos/reprocess-approved?token=${encodeURIComponent(token)}&afterId=${afterId}`,
+            { method: "POST" }
+          );
+          const data = await res.json();
+          if (!res.ok) {
+            status.textContent = "Error: " + (data.error || res.statusText);
+            break;
+          }
+          total += data.total;
+          afterId = data.lastId;
+          if (data.done) {
+            status.textContent = `Listo: ${total} fotos reprocesadas.`;
+            setTimeout(() => location.reload(), 1500);
+            break;
+          }
+        }
+      } catch (err) {
+        status.textContent = "Se perdió la conexión — intenta de nuevo (retoma donde se quedó).";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     document.getElementById("upload-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fileInput = document.getElementById("zip-input");
       const albumInput = document.getElementById("album-input");
-      const status = document.getElementById("upload-status");
+      const status = document.getElementById("zip-upload-status");
       const file = fileInput.files[0];
       if (!file) return;
 
@@ -192,13 +252,99 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
           status.textContent = "Error: " + (data.error || res.statusText);
           return;
         }
-        status.textContent = `Listo: ${data.processed} procesadas, ${data.skipped} omitidas (HEIC/video/error).`;
+        const dupNote = data.duplicates ? `, ${data.duplicates} duplicadas` : "";
+        status.textContent = `Listo: ${data.processed} procesadas, ${data.skipped} omitidas${dupNote} (HEIC/video/error/duplicado).`;
         if (data.skippedFiles?.length) console.log("Omitidas:", data.skippedFiles);
         setTimeout(() => location.reload(), 2000);
       } catch (err) {
         status.textContent = "Error de red: " + err.message;
       }
     });
+
+    // Direct multi-file upload: drag-and-drop 1-150 photos, or tap to pick from the
+    // iPhone's native multi-select photo picker (no zip step needed). Uploaded in small
+    // chunks (8 files/request) rather than one giant request, both to stay well under
+    // Workers' request-size limits and to show real incremental progress.
+    (() => {
+      const dropzone = document.getElementById("dropzone");
+      const input = document.getElementById("batch-input");
+      const progress = document.getElementById("upload-progress");
+      const progressFill = document.getElementById("upload-progress-fill");
+      const status = document.getElementById("upload-status");
+      if (!dropzone || !input) return;
+
+      const CHUNK_SIZE = 8;
+      let uploading = false;
+
+      dropzone.addEventListener("click", () => {
+        if (!uploading) input.click();
+      });
+      dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropzone.classList.add("dropzone--active");
+      });
+      dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dropzone--active"));
+      dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("dropzone--active");
+        if (!uploading && e.dataTransfer?.files?.length) uploadFiles([...e.dataTransfer.files]);
+      });
+      input.addEventListener("change", () => {
+        if (input.files?.length) uploadFiles([...input.files]);
+      });
+
+      async function uploadFiles(files) {
+        const images = files.filter((f) => f.type.startsWith("image/") || /\.(jpe?g|png)$/i.test(f.name));
+        if (images.length === 0) {
+          alert("No se encontraron JPG/PNG en lo que soltaste/elegiste.");
+          return;
+        }
+        uploading = true;
+        dropzone.classList.add("dropzone--busy");
+        progress.hidden = false;
+
+        const album = document.getElementById("album-input")?.value || "familia";
+        let done = 0;
+        let processedTotal = 0;
+        let skippedTotal = 0;
+        let duplicatesTotal = 0;
+        const allSkipped = [];
+
+        for (let i = 0; i < images.length; i += CHUNK_SIZE) {
+          const chunk = images.slice(i, i + CHUNK_SIZE);
+          const fd = new FormData();
+          chunk.forEach((f) => fd.append("files", f));
+
+          status.textContent = `Subiendo ${done}/${images.length}…`;
+          try {
+            const res = await fetch(
+              `/api/photos/upload-batch?token=${encodeURIComponent(token)}&album=${encodeURIComponent(album)}`,
+              { method: "POST", body: fd }
+            );
+            const data = await res.json();
+            if (res.ok) {
+              processedTotal += data.processed ?? 0;
+              skippedTotal += data.skipped ?? 0;
+              duplicatesTotal += data.duplicates ?? 0;
+              if (data.skippedFiles?.length) allSkipped.push(...data.skippedFiles);
+            } else {
+              allSkipped.push(`(lote ${i / CHUNK_SIZE + 1}: ${data.error || res.statusText})`);
+            }
+          } catch (err) {
+            allSkipped.push(`(lote ${i / CHUNK_SIZE + 1}: error de red — ${err.message})`);
+          }
+          done += chunk.length;
+          progressFill.style.width = `${Math.round((done / images.length) * 100)}%`;
+        }
+
+        const dupNote = duplicatesTotal ? `, ${duplicatesTotal} duplicadas` : "";
+        status.textContent = `Listo: ${processedTotal} procesadas, ${skippedTotal} omitidas${dupNote}.`;
+        if (allSkipped.length) console.log("Omitidas:", allSkipped);
+        uploading = false;
+        dropzone.classList.remove("dropzone--busy");
+        setTimeout(() => location.reload(), 1500);
+      }
+    })();
 
     function removeCard(id) {
       document.querySelector(`.photo-card[data-id="${id}"]`)?.remove();
@@ -400,7 +546,7 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
       location.reload();
     });
   </script>
-</Base>
+</AdminLayout>
 
 <style>
   .admin {
@@ -417,22 +563,74 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
     max-width: var(--measure);
   }
 
+  .mention-hint {
+    font-size: 0.72rem;
+    margin: 0.2rem 0 0.5rem;
+  }
+
+  .upload-album-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: var(--space-2);
+  }
+  .upload-album-row label { font-size: 0.85rem; color: var(--ink-soft); }
+  .upload-album-row input[type="text"] {
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    width: 12rem;
+  }
+
+  .dropzone {
+    margin: 0.6rem 0 0;
+    padding: var(--space-3) var(--space-2);
+    border: 2px dashed var(--line);
+    border-radius: 0.6rem;
+    background: var(--mist);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .dropzone--active { border-color: var(--rhino); background: color-mix(in srgb, var(--rhino) 8%, var(--mist)); }
+  .dropzone--busy { cursor: default; }
+  .dropzone-label { margin: 0; color: var(--ink-soft); font-size: 0.9rem; }
+  .dropzone-label strong { color: var(--ink); }
+  .dropzone-br { display: none; }
+
+  .upload-progress { margin-top: 0.8rem; }
+  .upload-progress-bar {
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--paper);
+    overflow: hidden;
+  }
+  .upload-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--rhino);
+    transition: width 0.2s ease;
+  }
+  .upload-status { margin: 0.4rem 0 0; font-size: 0.85rem; color: var(--ink-soft); }
+
+  .zip-fallback {
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+  }
+  .zip-fallback summary {
+    cursor: pointer;
+    color: var(--ink-soft);
+  }
+
   .upload-form {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.6rem;
-    margin: var(--space-2) 0;
+    margin: 0.6rem 0 0;
     padding: var(--space-2);
     background: var(--mist);
     border-radius: 0.5rem;
-  }
-
-  .upload-form input[type="text"] {
-    border: 1px solid var(--line);
-    border-radius: 0.4rem;
-    padding: 0.4rem 0.6rem;
-    width: 10rem;
   }
 
   .upload-form button {
@@ -446,6 +644,23 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
 
   .upload-note {
     font-size: 0.8rem;
+  }
+
+  .reprocess-bar {
+    margin: 0.6rem 0 var(--space-2);
+  }
+  .reprocess-bar button {
+    background: var(--rhino);
+    color: #fff;
+    border: none;
+    border-radius: 0.4rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .reprocess-bar button:disabled {
+    opacity: 0.6;
+    cursor: default;
   }
 
   .batch-bar {
@@ -655,5 +870,15 @@ const clearCount = pending.filter((p: any) => p.minor_flag !== "flagged").length
     font-size: 0.75rem;
     cursor: pointer;
     white-space: nowrap;
+  }
+
+  /* Same iOS Safari zoom-on-focus bug as elsewhere — these two have their own scoped
+     font-size below 16px, which (being more specific) wins over the global.css mobile
+     fix, so it has to be overridden here too. */
+  @media (max-width: 768px) {
+    .tag-input,
+    .caption-edit {
+      font-size: max(16px, 1em);
+    }
   }
 </style>

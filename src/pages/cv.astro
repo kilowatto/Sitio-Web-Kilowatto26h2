@@ -1,0 +1,266 @@
+---
+import Site from "../layouts/Site.astro";
+import { formatCareerYears } from "../lib/experience";
+
+const years = formatCareerYears("es-MX");
+---
+
+<Site
+  title="CV — Esteban Rey (Kilowatto)"
+  description="Currículum de Esteban Rey: fundador serial y arquitecto de sistemas con más de 25 años en tecnología, fundador de Ignia Cloud."
+  active="/cv"
+>
+  <section class="page-head cv-head">
+    <div class="container">
+      <p class="eyebrow">Curriculum Vitae</p>
+      <h1>Fundador serial y arquitecto de sistemas.</h1>
+      <p class="cv-head__sub">
+        {years} construyendo, escalando y vendiendo empresas de tecnología en México — de configurar
+        firewalls a los 16 años a dirigir la nube soberana de América Latina. Conocido en la industria
+        como <strong>Kilowatto</strong>.
+      </p>
+      <div class="cv-head__actions">
+        <button type="button" class="cv-print-btn" id="cvPrintBtn">Descargar CV (PDF) ↓</button>
+        <a href="/en/cv" class="cv-lang-link">English version →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter editorial">
+    <div class="container">
+      <p class="eyebrow">Bio ejecutiva</p>
+      <p class="hero__sub">
+        Esteban Rey (Kilowatto) es fundador y CEO de Ignia Cloud, la nube soberana e hiperpotente para
+        México y Latinoamérica. Antes de eso fundó y vendió OnCloud, pionera del cloud computing en
+        México, con un retorno de 19x para sus socios. Es también fundador de DeSiCi (2008) y del
+        Yucatech Festival, e inversionista serial a través de Orange Rhino Investments.
+      </p>
+      <p class="hero__sub">
+        Su filosofía de negocio se resume en tres palabras: <strong>People, Process, Product</strong>.
+        Reconocido en "World's Top 50 Leaders to follow" (AllAroundWorlds, 2025) y en "333 Íconos de
+        México" (Mundo Ejecutivo, 2025), además de invitado distinguido a la Cumbre Mundial del
+        Conocimiento 2025 en el Senado de la República, donde aboga por educación STEM, ciberseguridad
+        y ecosistemas digitales inclusivos.
+      </p>
+      <blockquote class="pull">
+        "Esto es un negocio: lo que importa no son los premios, son las utilidades, generar buenos
+        trabajos bien pagados, y contribuir con la sociedad y la comunidad."
+      </blockquote>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">Experiencia</p>
+      <h2>Empresas y roles.</h2>
+      <ol class="rows">
+        <li class="row">
+          <span class="row__range">2025–presente</span>
+          <div>
+            <h3>Ignia Cloud</h3>
+            <p class="row__role">Fundador y CEO</p>
+            <p class="row__summary">
+              Alcanzó en 18 meses los mismos ingresos que a OnCloud le tomó construir, ya en cifras
+              positivas y con proyección de EBITDA sólido para los próximos 6 meses. Construyó un
+              equipo de 11 a 30 personas con partnerships de Microsoft, OpenStack, Dell Technologies,
+              Cisco Systems, Acronis y Canonical, ofreciendo SLA de 99.9–99.99%, hasta 12M+ IOPS y 25
+              Gbps. Opera la marca Aluna (gestión integral de eventos) y mantiene oficinas en Ciudad de
+              México y Magnolia, TX.
+            </p>
+          </div>
+        </li>
+        <li class="row">
+          <span class="row__range">2025–presente</span>
+          <div>
+            <h3>Finsus</h3>
+            <p class="row__role">Director de Infraestructura</p>
+            <p class="row__summary">
+              Lidera un equipo de infraestructura de 15 personas, reportando al Director Adjunto de
+              Finanzas y Administración.
+            </p>
+          </div>
+        </li>
+        <li class="row">
+          <span class="row__range">2022</span>
+          <div>
+            <h3>Octapus Inc</h3>
+            <p class="row__role">Cofundador y CTO</p>
+            <p class="row__summary">Cofundada con el capital de la salida de OnCloud; paso breve en la operación.</p>
+          </div>
+        </li>
+        <li class="row">
+          <span class="row__range">2013–2022</span>
+          <div>
+            <h3>OnCloud (Súbete a la Nube)</h3>
+            <p class="row__role">Fundador y CEO, después CTO</p>
+            <p class="row__summary">
+              Fundó y escaló uno de los pioneros de cloud computing/IaaS en México con el modelo "Cero
+              Inversión Inicial," en partnership con Pure Storage, Rubrik y Acronis. Vendió la empresa
+              en 2022 con un retorno de 19x para los socios (104% anualizado). Permaneció como CTO más
+              de un año en transición, enfocado 100% en tecnología, sin injerencia en finanzas, ventas,
+              RH ni marketing.
+            </p>
+          </div>
+        </li>
+        <li class="row">
+          <span class="row__range">2008–presente</span>
+          <div>
+            <h3>DeSiCi</h3>
+            <p class="row__role">Fundador</p>
+            <p class="row__summary">
+              Desarrollo de software y consultoría de procesos; partner autorizado de Zoho (CRM,
+              Books). Hoy en rol de asesor — la opera Roberto (CEO) con supervisión ocasional suya.
+            </p>
+          </div>
+        </li>
+        <li class="row">
+          <span class="row__range">2003–2006</span>
+          <div>
+            <h3>Prochemex</h3>
+            <p class="row__role">Project Manager → CTO</p>
+            <p class="row__summary">
+              Lideró la migración a Pivotal CRM ContactCenter sobre Microsoft .NET. Mejoró los tiempos
+              de respuesta del centro de contacto en más de 50% e impulsó un crecimiento mensual de
+              tarjetahabientes superior al 10%, al frente de un equipo de hasta 10 personas.
+            </p>
+          </div>
+        </li>
+        <li class="row">
+          <span class="row__range">2000–2003</span>
+          <div>
+            <h3>Universidad Latinoamericana (ULA)</h3>
+            <p class="row__role">Gerente de Sistemas</p>
+            <p class="row__summary">
+              Primer empleo formal: desplegó red alámbrica/inalámbrica de vanguardia para la época,
+              telefonía VoIP, ERP y CRM.
+            </p>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist">
+    <div class="container">
+      <p class="eyebrow">Inversiones</p>
+      <h2>Orange Rhino Investments.</h2>
+      <p class="hero__sub">
+        Fundada en 2021. Vehículo "mancuerna": tecnología financiera de alto crecimiento combinada con
+        activos físicos generadores de flujo de caja.
+      </p>
+      <ul class="facts-list">
+        <li><strong>Cereza</strong> (2024–presente) — Fundador/Cofundador. Software de Recursos Humanos.</li>
+        <li><strong>Frida Café</strong> — Inversión pasiva. Café 100% orgánico de especialidad mexicano.</li>
+        <li><strong>Academias de fútbol en EE. UU.</strong> — Infraestructura de desarrollo de talento deportivo juvenil.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">Otras iniciativas</p>
+      <h2>Yucatech Festival y LACNIC.</h2>
+      <ul class="facts-list">
+        <li><strong>Yucatech Festival</strong> (fundador y patrocinador, 2025–presente) — Evento anual de tecnología en Mérida, autofinanciado y sin fines de lucro, con una inversión anual de $700–900 mil USD en la península de Yucatán. Primera edición: abril 2026, 500+ asistentes, con Uri Levine (cofundador de Waze) como speaker.</li>
+        <li><strong>LACNIC</strong> (candidatura, 2022) — Se postuló a un órgano electivo del registro de direcciones de internet para América Latina y el Caribe.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist">
+    <div class="container">
+      <div class="cv-grid">
+        <div>
+          <p class="eyebrow">Habilidades</p>
+          <ul class="facts-list">
+            <li>Fundación y escalamiento de empresas (0 a 1)</li>
+            <li>Arquitectura e infraestructura cloud</li>
+          </ul>
+        </div>
+        <div>
+          <p class="eyebrow">Idiomas</p>
+          <ul class="facts-list">
+            <li>Español — nativo</li>
+            <li>Inglés — funcional (lectura y comprensión fluidas; conversación cuando la situación lo exige)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">Abierto a</p>
+      <h2>Consejos y comités de tecnología, inversión, y conversación.</h2>
+      <p class="hero__sub">
+        Busco activamente posiciones en consejos y comités de tecnología remunerados, oportunidades de
+        inversión y co-inversión, y espacios de speaking/conferencias. Contacto: <a href="/contacto">kilowatto.com/contacto</a>.
+      </p>
+    </div>
+  </section>
+
+  <style>
+    .cv-head__sub {
+      max-width: var(--measure);
+      color: var(--ink-soft);
+      margin-top: var(--space-2);
+    }
+    .cv-head__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      margin-top: var(--space-3);
+    }
+    .cv-print-btn {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      background: var(--ink);
+      color: var(--paper);
+      border: none;
+      border-radius: 999px;
+      padding: 0.65rem 1.3rem;
+      cursor: pointer;
+    }
+    .cv-print-btn:hover {
+      background: var(--ember);
+    }
+    .cv-lang-link {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--ember);
+      text-decoration: none;
+      align-self: center;
+    }
+    .cv-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-3);
+    }
+    @media (min-width: 640px) {
+      .cv-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media print {
+      .topbar,
+      .site-footer,
+      .larry,
+      .larry-panel,
+      .skip-link,
+      .cv-head__actions {
+        display: none !important;
+      }
+      .chapter--mist {
+        background: none !important;
+      }
+      body {
+        font-size: 11pt;
+      }
+    }
+  </style>
+
+  <script>
+    document.getElementById("cvPrintBtn")?.addEventListener("click", () => window.print());
+  </script>
+</Site>

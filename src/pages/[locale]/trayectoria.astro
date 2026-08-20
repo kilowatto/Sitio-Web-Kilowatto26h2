@@ -1,11 +1,20 @@
 ---
 import Site from "../../layouts/Site.astro";
+import PullQuote from "../../components/PullQuote.astro";
 import { env } from "cloudflare:workers";
 import { localeFromParam } from "../../lib/locales";
 import { loadTranslations, t } from "../../lib/i18n";
+import { navLabels } from "../../lib/nav-labels";
 
 const locale = localeFromParam(Astro.params.locale);
-if (!locale || locale.canonical) return Astro.redirect("/trayectoria", 302);
+// See src/pages/[locale]/index.astro for why this is split — an unrecognized single path
+// segment must 404, not silently redirect home as if it were a locale.
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+if (locale.canonical) return Astro.redirect("/trayectoria", 302);
+const nl = navLabels(locale.code);
 
 let timeline: any[] = [];
 let tr = new Map<string, string>();
@@ -16,13 +25,20 @@ if (env?.DB) {
 }
 ---
 
-<Site title="Trayectoria — Esteban Rey" active="/trayectoria" locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
+<Site
+  title={`${nl.trayectoria} — Esteban Rey`}
+  description="La trayectoria completa de Esteban Rey (Kilowatto): de configurar firewalls a los 16 años a fundar Ignia Cloud, con más de 25 años en tecnología."
+  active="/trayectoria"
+  locale={locale.code}
+  dir={locale.rtl ? "rtl" : "ltr"}
+>
   <section class="page-head">
     <div class="container">
       <p class="eyebrow">Trayectoria</p>
       <h1>Kilowatto</h1>
     </div>
   </section>
+  <PullQuote placement="trayectoria" locale={locale.code} />
   <section class="chapter">
     <div class="container">
       <ol class="rows">

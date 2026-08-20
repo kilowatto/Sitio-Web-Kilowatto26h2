@@ -1,0 +1,509 @@
+---
+import Site from "../layouts/Site.astro";
+
+const jsonLdRecipe = {
+  "@context": "https://schema.org",
+  "@type": "Recipe",
+  name: "Marquesitas",
+  description:
+    "Marquesitas: crepa yucateca enrollada y crujiente, típicamente rellena de queso de bola holandés y cajeta, un antojo callejero del sureste de México.",
+  recipeCuisine: "Yucateca",
+  recipeCategory: "Postre / botana callejera",
+  keywords: "marquesitas, cocina yucateca, queso de bola, cajeta, comida callejera mexicana",
+  recipeIngredient: [
+    "Masa delgada de harina, agua y azúcar (tipo crepa crujiente, cocida en molde de hierro)",
+    "Queso de bola holandés (Edam) rallado",
+    "Cajeta (dulce de leche de cabra)",
+    "Opcional: Nutella, plátano, jamón u otros rellenos dulces o salados",
+  ],
+  recipeInstructions: [
+    { "@type": "HowToStep", text: "Se vierte la masa líquida sobre un molde circular de hierro caliente y se deja cocer hasta formar una crepa delgada y crujiente." },
+    { "@type": "HowToStep", text: "Se despega el disco todavía caliente y se rellena con queso de bola rallado y un chorro generoso de cajeta." },
+    { "@type": "HowToStep", text: "Se enrolla sobre sí misma, se corta en trozos y se sirve de inmediato, mientras sigue crujiente." },
+  ],
+};
+
+const jsonLdAmashitoRecipe = {
+  "@context": "https://schema.org",
+  "@type": "Recipe",
+  name: "Chile amashito con cebolla morada y limón",
+  description:
+    "Curtido crudo del sureste de México: chile amashito (amaxito) fresco picado con cebolla morada y bañado en limón — de las cosas que más le gustan a Esteban Rey.",
+  recipeCuisine: "Tabasqueña / Chiapaneca",
+  recipeCategory: "Botana / condimento",
+  keywords: "chile amashito, chile amaxito, cebolla morada, limón, cocina del sureste de México",
+  recipeIngredient: [
+    "Chile amashito (amaxito) fresco",
+    "Cebolla morada",
+    "Limón",
+    "Sal al gusto",
+  ],
+  recipeInstructions: [
+    { "@type": "HowToStep", text: "Picar finamente la cebolla morada." },
+    { "@type": "HowToStep", text: "Picar finamente los chiles amashito — con cuidado, pican fuerte incluso al tacto." },
+    { "@type": "HowToStep", text: "Exprimir limón sobre la mezcla, agregar sal al gusto y servir de inmediato." },
+  ],
+};
+
+const jsonLdReviews = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  name: "Restaurantes favoritos de Esteban Rey",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      item: {
+        "@type": "Review",
+        itemReviewed: {
+          "@type": "Restaurant",
+          name: "El Farolito",
+          servesCuisine: "Tacos al pastor",
+          address: { "@type": "PostalAddress", addressLocality: "Ciudad de México", addressCountry: "MX" },
+        },
+        author: { "@type": "Person", name: "Esteban Rey" },
+        reviewBody:
+          "La familia y los amigos que vienen de visita, apenas se bajan del avión, van directo al Farolito por unos tacos al pastor — sea la sucursal de la Condesa, Insurgentes o el Pedregal.",
+        reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+      },
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      item: {
+        "@type": "Review",
+        itemReviewed: { "@type": "Restaurant", name: "El Japonez", servesCuisine: "Sushi", address: { "@type": "PostalAddress", addressCountry: "MX" } },
+        author: { "@type": "Person", name: "Esteban Rey" },
+        reviewBody:
+          "Mi restaurante de sushi de cadena favorito en México. El rollo con mantequilla de trufa no tiene desperdicio.",
+        reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+      },
+    },
+    {
+      "@type": "ListItem",
+      position: 3,
+      item: {
+        "@type": "Review",
+        itemReviewed: {
+          "@type": "Restaurant",
+          name: "Sushi Ran",
+          url: "https://sushiran.com/",
+          servesCuisine: "Sushi",
+          address: { "@type": "PostalAddress", addressLocality: "Sausalito", addressRegion: "CA", addressCountry: "US" },
+        },
+        author: { "@type": "Person", name: "Esteban Rey" },
+        reviewBody: "La calidad y el sabor son espectaculares — la combinación perfecta entre grasa y sabor.",
+        reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+      },
+    },
+    {
+      "@type": "ListItem",
+      position: 4,
+      item: {
+        "@type": "Review",
+        itemReviewed: {
+          "@type": "Restaurant",
+          name: "Kunio",
+          url: "https://www.tripadvisor.com/Restaurant_Review-g150800-d4759934-Reviews-Kunio-Mexico_City_Central_Mexico_and_Gulf_Coast.html",
+          servesCuisine: "Japonesa",
+          address: { "@type": "PostalAddress", addressLocality: "San Ángel, Ciudad de México", addressCountry: "MX" },
+        },
+        author: { "@type": "Person", name: "Esteban Rey" },
+        reviewBody: "Siempre tiene una frescura como pocas.",
+        reviewRating: { "@type": "Rating", ratingValue: "5", bestRating: "5" },
+      },
+    },
+  ],
+};
+
+const jsonLdFaq = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "¿Qué son las marquesitas?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Son una crepa delgada y crujiente de la cocina callejera del sureste de México, cocida en un molde circular de hierro caliente y rellena típicamente con queso de bola holandés y cajeta.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "¿Cuál es el restaurante de sushi favorito de Esteban Rey en México?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "El Japonez, su restaurante de sushi de cadena favorito en México — sobre todo por su rollo con mantequilla de trufa. También es fan de Sushi Ran en Sausalito, California, y de Kunio en San Ángel, Ciudad de México.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "¿Cuál es el platillo favorito de Esteban Rey?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Nigiri de salmón con un toque de wasabi. También es fan de los poke bowls con arroz de coliflor, salmón, atún, elote y edamame.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "¿Qué es el chile amashito?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Un chile silvestre pequeño y redondo, típico del sureste de México (Tabasco y Chiapas), primo cercano del chiltepín. Se come fresco y verde, nunca seco, y es de los antojos favoritos de Esteban Rey, picado con cebolla morada y limón.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "¿Dónde come tacos al pastor Esteban Rey?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "En El Farolito, en la Ciudad de México — sea la sucursal de la Condesa, Insurgentes o el Pedregal. Es parada obligada para la familia y los amigos en cuanto se bajan del avión.",
+      },
+    },
+  ],
+};
+
+const MARQUESITA_INTRO = [
+  "Esta vez no eran de Mérida —para variar—, pero unas marquesitas tabasqueñas con queso de bola holandés y cajeta Coronado le ganan a cualquier antojo, venga de donde venga.",
+  "La marquesita es de las cosas más simples y a la vez más perfectas de la cocina callejera del sureste de México: una masa delgada de harina, agua y azúcar se cuece sobre un molde circular de hierro caliente hasta quedar crujiente como una galleta, todavía tibia se rellena y se enrolla sobre sí misma. El verdadero lujo nunca está en la masa — está en lo que le pongas encima.",
+  "Y en esta casa la combinación no admite debate: queso de bola holandés (ese mismo queso Edam que llegó a Yucatán hace más de un siglo por el comercio marítimo y hoy es más yucateco que muchos platillos con nombre en maya) y un chorro generoso de cajeta. El contraste de un queso salado y semiduro derritiéndose contra un caramelo de leche de cabra dentro de una crepa crujiente es, sencillamente, imbatible.",
+];
+
+const MARQUESITA_FACTS = [
+  ["El nombre \"marquesita\" no tiene relación conocida con ninguna marquesa real — nadie en Mérida sabe muy bien de dónde salió, y a nadie parece importarle.", null],
+  ["La receta original es solo harina, agua y azúcar enrollada en un molde caliente — el verdadero lujo está 100% en el relleno, no en la masa.", null],
+  ["El queso de bola holandés que llevan casi todas las marquesitas llegó a Yucatán por el comercio marítimo con Holanda desde el siglo XIX — un queso europeo que terminó siendo más yucateco que muchos platillos \"tradicionales\".", null],
+  ["Aunque esta vez no era de Mérida, cualquier yucateco con honor jurará que la única marquesita de verdad es la de su puesto de confianza — no hay marquesita neutral.", null],
+  ["Con cajeta y queso —y Nutella, si te animas— una sola marquesita puede llevar más azúcar que un pastel completo, y aun así se comen como si fueran ligeras.", null],
+];
+
+const AMASHITO_INTRO = [
+  "De las cosas que más me gustan, sin competencia: chile amashito fresco, picado junto con cebolla morada y bañado en limón. Nada de nombres pretenciosos ni presentación — es picante crudo, de mesa, de los que se preparan en dos minutos y se acaban en menos.",
+  "El amashito (también se escribe amaxito) es un chile silvestre, pequeño y redondo, típico del sureste de México —sobre todo Tabasco y Chiapas—, primo cercano del chiltepín. Se usa casi siempre fresco y verde, nunca seco, y pica bastante más de lo que su tamaño de chícharo sugiere.",
+];
+
+const AMASHITO_FACTS = [
+  "Es de la misma familia que el chiltepín, pero se identifica por comerse fresco y verde, no seco ni ahumado.",
+  "Su picor no se mide por el tamaño: entre más chico, generalmente pica más — el amashito no es la excepción.",
+  "No es una salsa cocida ni licuada: se pica crudo, se mezcla con cebolla morada y limón, y se sirve de inmediato.",
+  "Casi todo el amashito que se consume viene de mata silvestre, no de cultivo — su nombre viene de una palabra chontal/maya que hace referencia justamente a esa condición silvestre.",
+  "Su semilla es de las más difíciles de germinar a propósito: una cutícula cerosa muy dura hace que, sin tratamiento especial, menos del 5% llegue a germinar.",
+];
+
+const AMASHITO_STEPS = [
+  "Picar finamente la cebolla morada.",
+  "Picar finamente los chiles amashito — con cuidado, pican fuerte incluso al contacto con la piel.",
+  "Exprimir limón sobre la mezcla, agregar sal al gusto y servir de inmediato.",
+];
+
+const PASTOR_INTRO = [
+  "Dicen los que saben que los mejores tacos al pastor se marinan con Coca-Cola. Yo, que no sé nada de eso, simplemente me los como. Estos de la foto llevan piña, y aunque hay quien jura que es puro adorno, la piña le da un sabor buenísimo a la carne mientras se asa colgada del trompo.",
+  "La familia y los amigos de Larry, cuando vienen de visita desde la sabana, apenas se bajan del avión van directo al Farolito —a veces la sucursal de la Condesa, a veces la de Insurgentes, a veces la del Pedregal— pero siempre, siempre, por unos tacos al pastor.",
+  "Yo, por mi parte, en esta ocasión me voy a comer ocho. No vaya a ser que baje de peso.",
+];
+
+const PASTOR_FACTS = [
+  "El taco al pastor nació de la técnica del shawarma que trajeron inmigrantes libaneses a México a principios del siglo XX — carne apilada y asada verticalmente en un trompo, pero con cerdo marinado en chiles y especias en vez de cordero.",
+  "La rodaja de piña en la punta del trompo no es solo decoración: al asarse gotea sobre la carne y ayuda a caramelizarla mientras gira frente al fuego.",
+  "El nombre \"trompo\" viene de la forma del montón de carne apilada en el asador vertical, que gira igual que un trompo de juguete mientras se cocina.",
+  "El Farolito es una de las taquerías más queridas de la Ciudad de México, con sucursales —como la Condesa, Insurgentes o el Pedregal— que se llenan a cualquier hora del día o de la noche.",
+];
+
+const RESTAURANTS = [
+  {
+    slug: "el-japonez",
+    name: "El Japonez",
+    eyebrow: "Mi sushi de cadena favorito en México",
+    url: null,
+    body: [
+      "Es mi restaurante de sushi de cadena que más me gusta en México. No es el sushi más tradicional ni el más purista, pero es exactamente el que se me antoja cuando quiero algo rico, consistente y sin complicaciones — y con varias sucursales, siempre hay una cerca.",
+      "Su rollo con mantequilla de trufa no tiene desperdicio. Es ese tipo de fusión mexicana-japonesa que un purista de Tokio jamás aprobaría, y que sin embargo funciona a la perfección.",
+    ],
+    facts: [
+      "Es probablemente el sushi que más mexicanos han comido en su vida sin saber que \"eso\" no es exactamente como se come el sushi en Japón — y a nadie le importa.",
+      "Su mantequilla de trufa en el sushi es la prueba de que a veces fusionar cocinas sin pedir permiso da mejores resultados que respetar la tradición al pie de la letra.",
+      "Es una cadena, no un solo restaurante — y aun así logra que cada sucursal se sienta como \"tu Japonez de siempre\".",
+      "Es el tipo de lugar al que uno jura que va \"una vez al mes\" y termina yendo cada semana.",
+    ],
+  },
+  {
+    slug: "sushi-ran",
+    name: "Sushi Ran",
+    eyebrow: "Sausalito, California",
+    url: "https://sushiran.com/",
+    body: [
+      "En Sausalito, cruzando el puente desde San Francisco, está Sushi Ran — un restaurante con más de 40 años abiertos, fundado por Yoshi Tome y hoy con el chef ejecutivo Takanori Wada al frente de la cocina. Tiene un Bib Gourmand de Michelin (2025), fue nombrado por el San Francisco Chronicle uno de los 30 restaurantes más importantes del Bay Area, y ha ganado un OpenTable Diners' Choice.",
+      "La calidad y el sabor ahí son espectaculares — la combinación perfecta entre grasa y sabor. De los tres, es probablemente el más consistente en ese balance exacto que busco en un buen corte de pescado.",
+    ],
+    facts: [
+      "Lleva más de 40 años abierto en un pueblo tan pequeño (Sausalito) que la mayoría de sus vecinos podrían caminar hasta ahí en pantuflas — y aun así compite con lo mejor de San Francisco.",
+      "Tiene un Bib Gourmand de Michelin — la categoría que premia \"comer increíble sin pagar como si fuera tu aniversario\", aunque en la práctica sigue sin ser precisamente barato.",
+      "El San Francisco Chronicle lo nombró uno de los 30 restaurantes más importantes del Bay Area en 30 años — un logro que ningún letrero en la puerta menciona lo suficientemente grande.",
+      "Ganó un OpenTable Diners' Choice compitiendo contra toda una ciudad obsesionada con la comida — y lo hizo sirviendo pescado crudo en un pueblo de veleros.",
+    ],
+  },
+  {
+    slug: "kunio",
+    name: "Kunio",
+    eyebrow: "San Ángel, Ciudad de México",
+    url: "https://www.tripadvisor.com/Restaurant_Review-g150800-d4759934-Reviews-Kunio-Mexico_City_Central_Mexico_and_Gulf_Coast.html",
+    body: [
+      "Escondido en San Ángel, uno de los barrios más coloniales y menos pensados para encontrar sushi de la Ciudad de México, está Kunio — un japonés discreto al que casi nunca se llega por accidente, siempre por recomendación de alguien de confianza.",
+      "Siempre tiene una frescura como pocas. Es el tipo de lugar donde el pescado habla por sí solo, sin necesidad de que el restaurante presuma nada.",
+    ],
+    facts: [
+      "Está escondido en San Ángel, uno de los barrios más coloniales y menos \"sushi\" de la Ciudad de México — la frescura del pescado ahí compite directamente con el empedrado de las calles.",
+      "Es de esos lugares que casi nadie conoce por accidente — siempre llegas porque alguien de confianza te lo recomendó primero.",
+      "La discreción es casi parte del menú: ni el letrero grita, ni el lugar presume — deja que el nigiri hable solo.",
+    ],
+  },
+];
+
+const CLOSING = [
+  "Si me preguntan cuál es mi platillo favorito de todos, sin pensarlo mucho: nigiri de salmón, con un toque de wasabi. Simple, directo, sin nada de más.",
+  "Y aunque el sushi se lleve la corona, también soy fan absoluto de los poke bowls — con arroz de coliflor, salmón, atún, elote y edamame. ¿Por qué estaré gordo?",
+];
+
+const SALMON_CAPTION =
+  "Arriba, salmón cortado fino en sashimi con una línea generosa de caviar negro encima — la sal y el estallido del caviar contra la grasa del salmón es una combinación que no falla nunca. Abajo, salmón y atún estilo aguachile, curtidos en cítrico hasta quedar casi translúcidos, coronados con rodajas de jalapeño relleno para el toque picante. Dos formas distintas de tratar el mismo pescado, y las dos ganan.";
+---
+
+<Site
+  title="Comida — Esteban Rey"
+  description="Marquesitas tabasqueñas, chile amashito con cebolla morada y limón, tacos al pastor en El Farolito, y los restaurantes de sushi favoritos de Esteban Rey: El Japonez, Sushi Ran en Sausalito y Kunio en San Ángel."
+  active="/comida"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLdRecipe)} />
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLdAmashitoRecipe)} />
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLdReviews)} />
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLdFaq)} />
+
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Lo que se me antoja</p>
+      <h1>Marquesitas, tacos al pastor, sushi y demás antojos</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">Marquesitas tabasqueñas</p>
+      <img
+        src="/comida/marquesita.webp"
+        alt="Marquesitas recién hechas en un puesto callejero"
+        loading="eager"
+        width="900"
+        height="1600"
+        class="hero-photo"
+      />
+      {MARQUESITA_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+      <ul class="facts-list">
+        {MARQUESITA_FACTS.map(([f]) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">Chile amashito</p>
+      <img
+        src="/comida/chile-amashito.webp"
+        alt="Chile amashito y cebolla morada picados finamente en un tazón"
+        loading="lazy"
+        width="900"
+        height="1200"
+        class="hero-photo"
+      />
+      {AMASHITO_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+      <figure class="amashito-mata">
+        <img
+          src="/comida/chile-amashito-mata.webp"
+          alt="Chile amashito todavía verde, creciendo silvestre en su propia mata"
+          loading="lazy"
+          width="1400"
+          height="1867"
+        />
+        <figcaption>El amashito en su mata, todavía verde — así es como se ve antes de llegar a la mesa.</figcaption>
+      </figure>
+      <ul class="facts-list">
+        {AMASHITO_FACTS.map((f) => <li>{f}</li>)}
+      </ul>
+      <h3 class="recipe-heading">Cómo se prepara</h3>
+      <ol class="facts-list recipe-steps">
+        {AMASHITO_STEPS.map((s) => <li>{s}</li>)}
+      </ol>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">Tacos al pastor (o de trompo)</p>
+      <img
+        src="/comida/tacos-al-pastor.webp"
+        alt="Tacos al pastor recién servidos con una rodaja de limón, en un puesto de la Ciudad de México"
+        loading="lazy"
+        width="900"
+        height="1008"
+        class="hero-photo"
+      />
+      {PASTOR_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+      <ul class="facts-list">
+        {PASTOR_FACTS.map((f) => <li>{f}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  {RESTAURANTS.map((r, i) => (
+    <section class={`chapter ${i % 2 === 0 ? "chapter--mist" : ""}`}>
+      <div class="container">
+        <p class="eyebrow">{r.eyebrow}</p>
+        <h2>{r.name}</h2>
+        {r.body.map((p) => <p class="hero__sub">{p}</p>)}
+        {r.url && (
+          <p class="see-more">
+            <a href={r.url} target="_blank" rel="noopener">{r.url.includes("tripadvisor") ? "Ver en TripAdvisor" : r.url.replace("https://", "")} →</a>
+          </p>
+        )}
+        <ul class="facts-list">
+          {r.facts.map((f) => <li>{f}</li>)}
+        </ul>
+      </div>
+    </section>
+  ))}
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">Mi favorito de todos</p>
+      <h2>Nigiri de salmón con wasabi</h2>
+      {CLOSING.map((p) => <p class="hero__sub">{p}</p>)}
+      <img
+        src="/comida/salmon-favorito.webp"
+        alt="Dos platos de salmón: uno con caviar negro, otro estilo aguachile con jalapeño relleno"
+        loading="lazy"
+        width="720"
+        height="1600"
+        class="salmon-photo"
+      />
+      <p class="hero__sub salmon-caption">{SALMON_CAPTION}</p>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist">
+    <div class="container">
+      <p class="eyebrow">Preguntas frecuentes</p>
+      <h2>Sobre estos antojos.</h2>
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>¿Qué son las marquesitas?</summary>
+          <p>
+            Son una crepa delgada y crujiente de la cocina callejera del sureste de México, cocida en un molde
+            circular de hierro caliente y rellena típicamente con queso de bola holandés y cajeta.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>¿Dónde come tacos al pastor Esteban Rey?</summary>
+          <p>
+            En El Farolito, en la Ciudad de México — sea la sucursal de la Condesa, Insurgentes o el Pedregal. Es
+            parada obligada para la familia y los amigos en cuanto se bajan del avión.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>¿Cuál es el restaurante de sushi favorito de Esteban Rey en México?</summary>
+          <p>
+            El Japonez, su restaurante de sushi de cadena favorito en México — sobre todo por su rollo con
+            mantequilla de trufa. También es fan de Sushi Ran en Sausalito, California, y de Kunio en San Ángel,
+            Ciudad de México.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>¿Cuál es el platillo favorito de Esteban Rey?</summary>
+          <p>
+            Nigiri de salmón con un toque de wasabi. También es fan de los poke bowls con arroz de coliflor, salmón,
+            atún, elote y edamame.
+          </p>
+        </details>
+      </div>
+    </div>
+  </section>
+</Site>
+
+<style>
+  .faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: var(--space-3);
+    max-width: var(--measure);
+  }
+  .faq-item {
+    border: 1px solid var(--line);
+    padding: 0.9rem 1.1rem;
+  }
+  .faq-item summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+  }
+  .faq-item p {
+    margin: 0.75rem 0 0;
+    color: var(--ink-soft);
+  }
+  .hero-photo {
+    width: 100%;
+    max-height: 26rem;
+    object-fit: cover;
+    display: block;
+    margin: var(--space-3) 0;
+    border-radius: 0.5rem;
+  }
+  .salmon-photo {
+    width: 100%;
+    max-width: 20rem;
+    display: block;
+    margin: var(--space-3) 0 0;
+    border-radius: 0.5rem;
+  }
+  .salmon-caption {
+    max-width: 20rem;
+    font-size: 0.9rem;
+  }
+  .amashito-mata {
+    max-width: 20rem;
+    margin: var(--space-3) 0 0;
+  }
+  .amashito-mata img {
+    width: 100%;
+    display: block;
+    border-radius: 0.5rem;
+  }
+  .amashito-mata figcaption {
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+  .facts-list {
+    margin: var(--space-3) 0 0;
+    padding-left: 1.4rem;
+    display: grid;
+    gap: 0.55rem;
+    color: var(--ink-soft);
+    max-width: var(--measure);
+  }
+  .recipe-heading {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    margin: var(--space-3) 0 0;
+  }
+  .recipe-steps {
+    color: var(--ink);
+  }
+  .see-more {
+    margin-top: var(--space-2);
+  }
+  .see-more a {
+    color: var(--ember);
+    font-weight: 600;
+    text-decoration: none;
+  }
+</style>

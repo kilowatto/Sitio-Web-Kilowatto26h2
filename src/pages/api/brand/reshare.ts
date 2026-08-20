@@ -16,12 +16,14 @@ function stripTrailingHashtags(text: string): string {
 // Reshares of already-published press mentions skip human approval (per Esteban's
 // explicit call) — the underlying news item already went through /admin/prensa review,
 // this only adds a short reaction on top of something a human already vetted.
-export const POST: APIRoute = async ({ request }) => {
-  const url = new URL(request.url);
-  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
-    return new Response("unauthorized", { status: 401 });
-  }
-
+//
+// Exported as a plain function (not just the POST handler below) so tick.ts can call it
+// directly in-process. tick.ts used to chain this via a self-fetch to its own public URL —
+// confirmed live (2026-07-20/21) that chain of nested self-fetches (reshare -> generate x2
+// -> publish), each now genuinely slow with real Gemini image calls, kept exceeding
+// Cloudflare's edge timeout and coming back as a bare "error code: 522", silently killing
+// the whole autopilot cadence for over a day. Direct calls have no HTTP hop to time out on.
+export async function runReshare() {
   const { results: mentions } = await env.DB.prepare(
     `SELECT * FROM press_mentions
      WHERE status = 'published'
@@ -30,7 +32,7 @@ export const POST: APIRoute = async ({ request }) => {
   ).all<any>();
 
   if (!mentions || mentions.length === 0) {
-    return new Response(JSON.stringify({ ok: true, created: 0 }), { headers: { "content-type": "application/json" } });
+    return { ok: true, created: 0, items: [] };
   }
 
   const { voiceSamples, bioFacts } = await buildVoiceContext(env.DB);
@@ -86,7 +88,14 @@ Los hashtags van SOLO en el campo "hashtags", nunca escritos dentro de "content"
     }
   }
 
-  return new Response(JSON.stringify({ ok: true, created: created.length, items: created }), {
-    headers: { "content-type": "application/json" },
-  });
+  return { ok: true, created: created.length, items: created };
+}
+
+export const POST: APIRoute = async ({ request }) => {
+  const url = new URL(request.url);
+  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
+    return new Response("unauthorized", { status: 401 });
+  }
+  const result = await runReshare();
+  return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
 };

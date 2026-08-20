@@ -1,0 +1,366 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import AdminLogin from "../../components/AdminLogin.astro";
+import { env } from "cloudflare:workers";
+import { checkAdminAuth } from "../../lib/admin-auth";
+
+const token = await checkAdminAuth(Astro, env);
+const authorized = !!token;
+
+const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+
+function daysAgoISO(days: number) {
+  const d = new Date(Date.now() - days * 86_400_000);
+  return d.toISOString().slice(0, 19).replace("T", " ");
+}
+
+async function loadRange(days: number) {
+  const since = daysAgoISO(days);
+
+  const { results: posts } = await env.DB.prepare(
+    `SELECT p.id, p.platform, p.posted_at, p.external_url, p.content,
+            m.impressions, m.likes, m.comments, m.shares
+     FROM brand_posts p
+     LEFT JOIN (
+       SELECT brand_post_id, impressions, likes, comments, shares,
+              ROW_NUMBER() OVER (PARTITION BY brand_post_id ORDER BY fetched_at DESC) AS rn
+       FROM brand_post_metrics
+     ) m ON m.brand_post_id = p.id AND m.rn = 1
+     WHERE p.status = 'posted' AND p.posted_at >= ?
+     ORDER BY p.posted_at DESC`
+  )
+    .bind(since)
+    .all<any>();
+
+  const { results: clickRows } = await env.DB.prepare(
+    `SELECT brand_post_id, SUM(clicks) AS total_clicks FROM short_links WHERE brand_post_id IS NOT NULL GROUP BY brand_post_id`
+  ).all<any>();
+  const clicksByPost = new Map((clickRows ?? []).map((r: any) => [r.brand_post_id, r.total_clicks]));
+
+  const rows = (posts ?? []).map((p: any) => {
+    const impressions = p.impressions ?? 0;
+    const likes = p.likes ?? 0;
+    const comments = p.comments ?? 0;
+    const shares = p.shares ?? 0;
+    const engagementRate = impressions > 0 ? (likes + comments + shares) / impressions : 0;
+    return { ...p, impressions, likes, comments, shares, engagementRate, clicks: clicksByPost.get(p.id) ?? 0 };
+  });
+
+  const totals = rows.reduce(
+    (acc: any, r: any) => {
+      acc.impressions += r.impressions;
+      acc.likes += r.likes;
+      acc.comments += r.comments;
+      acc.shares += r.shares;
+      acc.clicks += r.clicks;
+      return acc;
+    },
+    { impressions: 0, likes: 0, comments: 0, shares: 0, clicks: 0 }
+  );
+  const avgEngagementRate = rows.length
+    ? rows.reduce((s: number, r: any) => s + r.engagementRate, 0) / rows.filter((r: any) => r.impressions > 0).length || 0
+    : 0;
+
+  const withImpressions = rows.filter((r: any) => r.impressions > 0);
+  const best = withImpressions.length
+    ? withImpressions.reduce((a: any, b: any) => (b.engagementRate > a.engagementRate ? b : a))
+    : null;
+  const worst = withImpressions.length
+    ? withImpressions.reduce((a: any, b: any) => (b.engagementRate < a.engagementRate ? b : a))
+    : null;
+
+  // Daily impressions bucket for the bar chart — keyed by date (YYYY-MM-DD).
+  const byDay = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.posted_at) continue;
+    const day = r.posted_at.slice(0, 10);
+    byDay.set(day, (byDay.get(day) ?? 0) + r.impressions);
+  }
+  const dailySeries = [...byDay.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+
+  const { results: followerRows } = await env.DB.prepare(
+    `SELECT followers, fetched_at FROM follower_snapshots WHERE platform = 'x' AND fetched_at >= ? ORDER BY fetched_at ASC`
+  )
+    .bind(since)
+    .all<any>();
+  const followerStart = followerRows?.[0]?.followers ?? null;
+  const followerEnd = followerRows?.[followerRows.length - 1]?.followers ?? null;
+
+  return { rows, totals, avgEngagementRate, best, worst, dailySeries, followerStart, followerEnd };
+}
+
+async function narrate(days: number, data: any): Promise<string> {
+  if (data.rows.length === 0) return `Sin posts publicados en los últimos ${days} días todavía.`;
+  const prompt = `Escribe un resumen breve (2-3 oraciones, tono directo y objetivo, en español) del desempeño de estas cuentas de redes sociales en los últimos ${days} días:
+- Posts publicados: ${data.rows.length}
+- Impresiones totales: ${data.totals.impressions}
+- Tasa de interacción promedio: ${(data.avgEngagementRate * 100).toFixed(1)}%
+- Likes: ${data.totals.likes}, comentarios: ${data.totals.comments}, compartidos: ${data.totals.shares}
+- Clics en links citados: ${data.totals.clicks}
+${data.followerStart !== null && data.followerEnd !== null ? `- Seguidores en X: de ${data.followerStart} a ${data.followerEnd} (${data.followerEnd - data.followerStart >= 0 ? "+" : ""}${data.followerEnd - data.followerStart})` : ""}
+${data.best ? `- Mejor post (por tasa de interacción): "${data.best.content.slice(0, 100)}"` : ""}
+
+Responde SOLO el resumen, sin encabezados ni listas.`;
+  const result: any = await env.AI.run(MODEL, { messages: [{ role: "user", content: prompt }], max_tokens: 200 });
+  return typeof result?.response === "string" ? result.response.trim() : "";
+}
+
+let week: any = null;
+let month: any = null;
+let weekNarrative = "";
+let monthNarrative = "";
+let brokenLinks: any[] = [];
+
+if (authorized && env?.DB) {
+  [week, month] = await Promise.all([loadRange(7), loadRange(30)]);
+  [weekNarrative, monthNarrative] = await Promise.all([narrate(7, week), narrate(30, month)]);
+  const brokenRes = await env.DB.prepare(
+    `SELECT * FROM broken_links ORDER BY hit_count DESC, last_seen DESC LIMIT 20`
+  ).all();
+  brokenLinks = brokenRes?.results ?? [];
+}
+
+function renderChart(series: [string, number][]) {
+  if (series.length === 0) return { bars: [], max: 0 };
+  const max = Math.max(...series.map(([, v]) => v), 1);
+  return { bars: series, max };
+}
+---
+
+<AdminLayout title="Reportes — Admin" active="/admin/reports" authorized={authorized}>
+  <div class="container admin">
+    {
+      !authorized ? (
+        <AdminLogin />
+      ) : (
+        <>
+          <p class="admin-nav"><a href="/admin">← Panel de administración</a></p>
+          <h1>Reportes</h1>
+
+          <div class="import-bar">
+            <button id="import-history-btn" type="button">↓ Importar historial real de X</button>
+            <p id="import-history-status" class="hint"></p>
+          </div>
+
+          <div class="range-tabs">
+            <button class="range-tab active" data-range="week">Últimos 7 días</button>
+            <button class="range-tab" data-range="month">Últimos 30 días</button>
+          </div>
+
+          {[
+            { key: "week", data: week, narrative: weekNarrative, days: 7 },
+            { key: "month", data: month, narrative: monthNarrative, days: 30 },
+          ].map(({ key, data, narrative, days }) => (
+            <section class="range-panel" data-range-panel={key} style={key === "week" ? "" : "display:none"}>
+              <p class="narrative">{narrative}</p>
+
+              <div class="stat-grid">
+                <div class="stat-card">
+                  <p class="stat-value">{data.totals.impressions.toLocaleString()}</p>
+                  <p class="stat-label">Impresiones</p>
+                </div>
+                <div class="stat-card">
+                  <p class="stat-value">{(data.avgEngagementRate * 100).toFixed(1)}%</p>
+                  <p class="stat-label">Tasa de interacción</p>
+                </div>
+                <div class="stat-card">
+                  <p class="stat-value">{data.totals.likes.toLocaleString()}</p>
+                  <p class="stat-label">Likes</p>
+                </div>
+                <div class="stat-card">
+                  <p class="stat-value">{data.totals.comments.toLocaleString()}</p>
+                  <p class="stat-label">Comentarios</p>
+                </div>
+                <div class="stat-card">
+                  <p class="stat-value">{data.totals.shares.toLocaleString()}</p>
+                  <p class="stat-label">Compartidos</p>
+                </div>
+                <div class="stat-card">
+                  <p class="stat-value">{data.totals.clicks.toLocaleString()}</p>
+                  <p class="stat-label">Clics en fuentes citadas</p>
+                </div>
+                <div class="stat-card">
+                  <p class="stat-value">
+                    {data.followerEnd !== null ? data.followerEnd.toLocaleString() : "—"}
+                    {data.followerStart !== null && data.followerEnd !== null && (
+                      <span class={data.followerEnd - data.followerStart >= 0 ? "delta-up" : "delta-down"}>
+                        {" "}({data.followerEnd - data.followerStart >= 0 ? "+" : ""}{data.followerEnd - data.followerStart})
+                      </span>
+                    )}
+                  </p>
+                  <p class="stat-label">Seguidores en X</p>
+                </div>
+              </div>
+
+              {data.dailySeries.length > 0 && (
+                <div class="chart">
+                  <p class="field-label">Impresiones por día</p>
+                  <div class="chart-bars">
+                    {data.dailySeries.map(([day, val]: [string, number]) => {
+                      const max = Math.max(...data.dailySeries.map((d: any) => d[1]), 1);
+                      const height = Math.max(4, Math.round((val / max) * 100));
+                      return (
+                        <div class="chart-bar-col" title={`${day}: ${val}`}>
+                          <div class="chart-bar" style={`height:${height}%`} />
+                          <span class="chart-bar-label">{day.slice(5)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div class="best-worst">
+                {data.best && (
+                  <div class="post-highlight post-highlight--best">
+                    <p class="field-label">🏆 Mejor post</p>
+                    <p>{data.best.content.slice(0, 140)}</p>
+                    <p class="hint">{(data.best.engagementRate * 100).toFixed(1)}% interacción · {data.best.impressions} impresiones</p>
+                    {data.best.external_url && <a href={data.best.external_url} target="_blank" rel="noopener">Ver post</a>}
+                  </div>
+                )}
+                {data.worst && data.worst.id !== data.best?.id && (
+                  <div class="post-highlight post-highlight--worst">
+                    <p class="field-label">📉 Post con menos interacción</p>
+                    <p>{data.worst.content.slice(0, 140)}</p>
+                    <p class="hint">{(data.worst.engagementRate * 100).toFixed(1)}% interacción · {data.worst.impressions} impresiones</p>
+                    {data.worst.external_url && <a href={data.worst.external_url} target="_blank" rel="noopener">Ver post</a>}
+                  </div>
+                )}
+              </div>
+
+              {data.rows.length === 0 && <p class="empty-state">Sin posts publicados en este periodo.</p>}
+            </section>
+          ))}
+
+          <p class="hint fine-print">
+            Las métricas de LinkedIn no se registran todavía (endpoint no conectado) — estos números son de X. El
+            crecimiento de seguidores también es solo de X (LinkedIn no expone ese dato para perfiles personales).
+          </p>
+
+          <h2 class="broken-links-title">Links rotos (404) <span class="count-badge">{brokenLinks.length}</span></h2>
+          {brokenLinks.length === 0 ? (
+            <p class="hint">Nadie ha pegado en un 404 todavía.</p>
+          ) : (
+            <ul class="log broken-links-list">
+              {brokenLinks.map((b: any) => (
+                <li>
+                  <strong>{b.path}</strong> — {b.hit_count} visita{b.hit_count === 1 ? "" : "s"} · última: {b.last_seen}
+                  {b.referrer && <span class="hint"> · desde: {b.referrer}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )
+    }
+  </div>
+
+  <script define:vars={{ token }}>
+    document.querySelectorAll(".range-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".range-tab").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        const range = btn.dataset.range;
+        document.querySelectorAll("[data-range-panel]").forEach((panel) => {
+          panel.style.display = panel.dataset.rangePanel === range ? "" : "none";
+        });
+      });
+    });
+
+    document.getElementById("import-history-btn")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const status = document.getElementById("import-history-status");
+      if (btn.disabled) return;
+      btn.disabled = true;
+      status.textContent = "Importando desde X… (puede tardar unos segundos)";
+      try {
+        const res = await fetch(`/api/brand/import-history?token=${encodeURIComponent(token)}`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) {
+          status.textContent = "Error: " + (data.error || res.statusText);
+          return;
+        }
+        status.textContent = `Listo: ${data.imported} tweets importados, ${data.skipped} ya existían.`;
+        setTimeout(() => location.reload(), 1500);
+      } catch (err) {
+        status.textContent = "Se perdió la conexión — intenta de nuevo.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</AdminLayout>
+
+<style>
+  .admin { padding-block: var(--space-2) var(--space-4); }
+  .admin-nav { margin-bottom: var(--space-2); font-size: 0.85rem; }
+  .hint { color: var(--ink-soft); max-width: var(--measure); font-size: 0.85rem; }
+  .fine-print { margin-top: var(--space-3); font-size: 0.75rem; }
+  .field-label {
+    font-size: 0.72rem; font-weight: 600; color: var(--ink-soft);
+    text-transform: uppercase; letter-spacing: 0.03em; margin: 0 0 0.4rem;
+  }
+
+  .import-bar { margin: var(--space-2) 0 0; }
+  .import-bar button {
+    background: var(--ink); color: var(--paper); border: none; border-radius: 0.5rem;
+    padding: 0.6rem 1rem; cursor: pointer; font-size: 0.85rem;
+  }
+  .import-bar button:disabled { opacity: 0.6; cursor: default; }
+
+  .range-tabs { display: flex; gap: 0.5rem; margin: var(--space-2) 0; }
+  .range-tab {
+    font-family: var(--font-mono); font-size: 0.8rem; background: none;
+    border: 1px solid var(--line); border-radius: 999px; padding: 0.4rem 1rem;
+    cursor: pointer; color: var(--ink-soft);
+  }
+  .range-tab.active { background: var(--rhino); border-color: var(--rhino); color: #fff; }
+
+  .narrative {
+    font-size: 1rem; line-height: 1.5; padding: var(--space-2);
+    background: var(--mist); border-radius: 0.6rem; margin-bottom: var(--space-2);
+  }
+
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.7rem;
+    margin-bottom: var(--space-3);
+  }
+  @media (min-width: 42rem) { .stat-grid { grid-template-columns: repeat(4, 1fr); } }
+  .stat-card {
+    border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.8rem;
+    text-align: center;
+  }
+  .stat-value { font-size: 1.4rem; font-weight: 700; margin: 0; font-family: var(--font-display); }
+  .stat-label { font-size: 0.72rem; color: var(--ink-soft); margin: 0.2rem 0 0; }
+  .delta-up { color: var(--rhino); font-size: 0.9rem; }
+  .delta-down { color: #b91c1c; font-size: 0.9rem; }
+
+  .chart { margin-bottom: var(--space-3); }
+  .chart-bars {
+    display: flex; align-items: flex-end; gap: 0.4rem; height: 8rem;
+    border-bottom: 1px solid var(--line); padding-bottom: 0.3rem;
+  }
+  .chart-bar-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+  .chart-bar { width: 100%; background: var(--rhino); border-radius: 0.2rem 0.2rem 0 0; min-height: 4px; }
+  .chart-bar-label { font-size: 0.62rem; color: var(--ink-soft); margin-top: 0.3rem; font-family: var(--font-mono); }
+
+  .best-worst { display: grid; gap: 0.7rem; margin-bottom: var(--space-2); }
+  @media (min-width: 42rem) { .best-worst { grid-template-columns: 1fr 1fr; } }
+  .post-highlight { border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.8rem; }
+  .post-highlight--best { border-color: var(--rhino); }
+  .post-highlight a { color: var(--rhino); font-size: 0.85rem; }
+
+  .empty-state {
+    color: var(--ink-soft); border: 1px dashed var(--line); border-radius: 0.6rem;
+    padding: var(--space-2); text-align: center;
+  }
+
+  .broken-links-title { margin-top: var(--space-4); font-size: 1.1rem; }
+  .count-badge {
+    background: var(--mist); color: var(--ink-soft); border-radius: 999px;
+    padding: 0.1rem 0.55rem; font-size: 0.75rem; font-weight: 600;
+  }
+  .log { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.4rem; font-size: 0.85rem; color: var(--ink-soft); }
+  .broken-links-list li { border-bottom: 1px dashed var(--line); padding-bottom: 0.4rem; }
+</style>

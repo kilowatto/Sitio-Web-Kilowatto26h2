@@ -1,0 +1,49 @@
+---
+import Site from "../../layouts/Site.astro";
+import BookList from "../../components/BookList.astro";
+import { env } from "cloudflare:workers";
+import { parseFilters, getBooksPage } from "../../lib/books-query";
+
+const pageParam = Astro.params.page;
+const pageNum = Number(pageParam);
+
+// Page 1 lives at /biblioteca itself — /biblioteca/1 would be a duplicate URL for the same
+// content, bad for SEO — redirect to the canonical form. Anything else that isn't a clean
+// positive integer is a real 404, not a soft-fallback to page 1.
+if (!pageParam || !/^\d+$/.test(pageParam) || pageNum < 2) {
+  if (pageNum === 1) return Astro.redirect("/biblioteca", 301);
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+
+const filters = parseFilters(Astro.url);
+
+let books: any[] = [];
+let totalPages = 1;
+if (env?.DB) {
+  const pageData = await getBooksPage(env, filters, pageNum);
+  books = pageData.books;
+  totalPages = pageData.totalPages;
+}
+
+// Asking for a page past the end is a real 404 too — not an empty page pretending to exist.
+if (pageNum > totalPages || books.length === 0) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+---
+
+<Site title={`Biblioteca — página ${pageNum} — Esteban Rey`} active="/biblioteca">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Lo que leo</p>
+      <h1>La biblioteca de Kilowatto</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <BookList books={books} currentPage={pageNum} totalPages={totalPages} basePath="/biblioteca" filters={filters} />
+    </div>
+  </section>
+</Site>

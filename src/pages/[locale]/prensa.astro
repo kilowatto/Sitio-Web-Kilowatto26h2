@@ -1,17 +1,28 @@
 ---
 import Site from "../../layouts/Site.astro";
 import { localeFromParam } from "../../lib/locales";
+import { navLabels } from "../../lib/nav-labels";
+import { loadTranslations, t } from "../../lib/i18n";
 import { env } from "cloudflare:workers";
 
 const locale = localeFromParam(Astro.params.locale);
-if (!locale || locale.canonical) return Astro.redirect("/prensa", 302);
+// See src/pages/[locale]/index.astro for why this is split — an unrecognized single path
+// segment must 404, not silently redirect home as if it were a locale.
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+if (locale.canonical) return Astro.redirect("/prensa", 302);
+const nl = navLabels(locale.code);
 
 let mentions: any[] = [];
+let mentionsTr = new Map<string, string>();
 if (env?.DB) {
   const res = await env.DB
     .prepare("SELECT * FROM press_mentions WHERE status = 'published' ORDER BY published_at DESC")
     .all();
   mentions = res?.results ?? [];
+  mentionsTr = await loadTranslations(env.DB, "press_mentions", locale.code);
 }
 
 const EMPTY_STATE: Record<string, string> = {
@@ -26,11 +37,17 @@ const EMPTY_STATE: Record<string, string> = {
 const emptyState = EMPTY_STATE[locale.code] ?? "Próximamente — el pipeline de noticias se activa en la siguiente fase.";
 ---
 
-<Site title="Prensa — Kilowatto" active="/prensa" locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
+<Site
+  title={`${nl.prensa} — Kilowatto`}
+  description="Menciones de prensa sobre Esteban Rey (Kilowatto), Ignia Cloud, Yucatech Festival y sus demás proyectos."
+  active="/prensa"
+  locale={locale.code}
+  dir={locale.rtl ? "rtl" : "ltr"}
+>
   <section class="page-head">
     <div class="container">
       <p class="eyebrow">Kilowatto</p>
-      <h1>Prensa</h1>
+      <h1>{nl.prensa}</h1>
     </div>
   </section>
   <section class="chapter">
@@ -43,14 +60,25 @@ const emptyState = EMPTY_STATE[locale.code] ?? "Próximamente — el pipeline de
             {mentions.map((m: any) => (
               <li class="row">
                 <span class="row__range">{m.published_at}</span>
-                <div>
-                  <h3>{m.title}</h3>
-                  {m.summary && <p class="row__summary">{m.summary}</p>}
-                  <p class="row__summary">
-                    <a href={m.url} target="_blank" rel="noopener">
-                      {m.outlet}
+                <div class="press-item">
+                  {m.thumbnail_url && (
+                    <a href={`/api/press/${m.id}/click`} target="_blank" rel="noopener" class="press-thumb-link">
+                      <img src={m.thumbnail_url} alt="" class="press-thumb" loading="lazy" />
                     </a>
-                  </p>
+                  )}
+                  <div class="press-item__text">
+                    <h3>
+                      <a href={`/api/press/${m.id}/click`} target="_blank" rel="noopener">
+                        {t(mentionsTr, m.id, "title", m.title)}
+                      </a>
+                    </h3>
+                    {m.summary && <p class="row__summary">{t(mentionsTr, m.id, "summary", m.summary)}</p>}
+                    <p class="row__summary">
+                      <a href={`/api/press/${m.id}/click`} target="_blank" rel="noopener">
+                        {m.outlet}
+                      </a>
+                    </p>
+                  </div>
                 </div>
               </li>
             ))}
@@ -60,3 +88,31 @@ const emptyState = EMPTY_STATE[locale.code] ?? "Próximamente — el pipeline de
     </div>
   </section>
 </Site>
+
+<style>
+  .press-item {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  .press-item__text {
+    min-width: 0;
+    flex: 1;
+  }
+  .press-thumb-link {
+    flex-shrink: 0;
+    display: block;
+  }
+  .press-thumb {
+    width: 6.5rem;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 0.5rem;
+  }
+  @media (min-width: 480px) {
+    .press-thumb { width: 9rem; }
+  }
+  @media (min-width: 720px) {
+    .press-thumb { width: 11rem; }
+  }
+</style>

@@ -1,0 +1,1 @@
+ALTER TABLE columns ADD COLUMN og_r2_key TEXT;

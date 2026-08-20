@@ -1,21 +1,32 @@
 ---
 import Site from "../layouts/Site.astro";
+import PressList from "../components/PressList.astro";
 import { env } from "cloudflare:workers";
 
+const PAGE_SIZE = 12;
+
 let mentions: any[] = [];
+let totalPages = 1;
 if (env?.DB) {
-  const res = await env.DB
-    .prepare("SELECT * FROM press_mentions WHERE status = 'published' ORDER BY published_at DESC")
-    .all();
+  const [countRes, res] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS n FROM press_mentions WHERE status = 'published'").first<any>(),
+    env.DB.prepare("SELECT * FROM press_mentions WHERE status = 'published' ORDER BY published_at DESC LIMIT ?").bind(PAGE_SIZE).all(),
+  ]);
   mentions = res?.results ?? [];
+  totalPages = Math.max(1, Math.ceil((countRes?.n ?? 0) / PAGE_SIZE));
 }
 ---
 
-<Site title="Prensa — Esteban Rey" active="/prensa">
+<Site
+  title="Prensa — Esteban Rey"
+  description="Menciones de prensa sobre Esteban Rey (Kilowatto), Ignia Cloud, Yucatech Festival y sus demás proyectos."
+  active="/prensa"
+>
   <section class="page-head">
     <div class="container">
       <p class="eyebrow">Prensa</p>
       <h1>Lo que se ha escrito sobre Kilowatto</h1>
+      <p class="see-more"><a href="/prensa/kit">¿Eres periodista o organizas un evento? Kit de prensa →</a></p>
     </div>
   </section>
 
@@ -29,22 +40,7 @@ if (env?.DB) {
             fuente original.
           </p>
         ) : (
-          <ol class="rows">
-            {mentions.map((m: any) => (
-              <li class="row">
-                <span class="row__range">{m.published_at}</span>
-                <div>
-                  <h3>{m.title}</h3>
-                  {m.summary && <p class="row__summary">{m.summary}</p>}
-                  <p class="row__summary">
-                    <a href={m.url} target="_blank" rel="noopener">
-                      {m.outlet}
-                    </a>
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <PressList mentions={mentions} currentPage={1} totalPages={totalPages} basePath="/prensa" />
         )
       }
     </div>

@@ -1,0 +1,152 @@
+---
+// Progressive-enhancement handler for `.scroll-bar-chart` placeholders that may appear inside
+// a column's body_html (see src/pages/api/columns/generate.ts docs / migration seed data for the
+// markup shape). Import this ONCE per page that renders column bodies — it finds every
+// placeholder on the page, builds the real animated bar-chart DOM from its data attributes, and
+// wires an IntersectionObserver so the bars fill in (and numbers count up) the first time the
+// chart scrolls into view. Kept as a generic component (not hardcoded to one column) so any
+// future column can embed the same `<div class="scroll-bar-chart" data-title="..." data-source="...">`
+// placeholder and get the same animated treatment for free.
+---
+
+<script>
+  function buildScrollBarCharts() {
+    const placeholders = document.querySelectorAll<HTMLElement>(".scroll-bar-chart[data-title]");
+    placeholders.forEach((placeholder) => {
+      const title = placeholder.dataset.title ?? "";
+      const subtitle = placeholder.dataset.subtitle ?? "";
+      const source = placeholder.dataset.source ?? "";
+      const bars = Array.from(placeholder.querySelectorAll<HTMLElement>("[data-value]")).map((el) => ({
+        label: el.dataset.label ?? "",
+        value: Number(el.dataset.value ?? "0"),
+        highlight: el.dataset.highlight === "true",
+      }));
+      if (bars.length === 0) return;
+      const max = Math.max(...bars.map((b) => b.value), 1);
+
+      const card = document.createElement("div");
+      card.className = "sbc-card";
+      card.innerHTML = `
+        <p class="sbc-title">${title}</p>
+        ${subtitle ? `<p class="sbc-subtitle">${subtitle}</p>` : ""}
+        <div class="sbc-rows">
+          ${bars
+            .map(
+              (b, i) => `
+            <div class="sbc-row" style="--sbc-delay:${i * 110}ms">
+              <span class="sbc-label">${b.label}</span>
+              <span class="sbc-track"><span class="sbc-fill${b.highlight ? " sbc-fill--highlight" : ""}" data-target="${(b.value / max) * 100}"></span></span>
+              <span class="sbc-value" data-target-num="${b.value}">0</span>
+            </div>`
+            )
+            .join("")}
+        </div>
+        ${source ? `<p class="sbc-source">${source}</p>` : ""}
+      `;
+      placeholder.replaceWith(card);
+
+      const fills = card.querySelectorAll<HTMLElement>(".sbc-fill");
+      const nums = card.querySelectorAll<HTMLElement>(".sbc-value");
+      let played = false;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (!entries[0].isIntersecting || played) return;
+          played = true;
+          fills.forEach((f) => {
+            f.style.width = `${f.dataset.target}%`;
+          });
+          nums.forEach((numEl) => {
+            const target = Number(numEl.dataset.targetNum ?? "0");
+            const duration = 1100;
+            const start = performance.now();
+            function tick(now: number) {
+              const p = Math.min(1, (now - start) / duration);
+              const eased = 1 - Math.pow(1 - p, 3);
+              numEl.textContent = String(Math.round(eased * target));
+              if (p < 1) requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+          });
+          observer.disconnect();
+        },
+        { threshold: 0.35 }
+      );
+      observer.observe(card);
+    });
+  }
+
+  buildScrollBarCharts();
+</script>
+
+<style is:global>
+  .sbc-card {
+    max-width: 42rem;
+    margin: var(--space-4) 0;
+    padding: 1.25rem 1.4rem;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+  .sbc-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.15rem;
+    margin: 0 0 0.2rem;
+    color: var(--ink);
+  }
+  .sbc-subtitle {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    margin: 0 0 1rem;
+  }
+  .sbc-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .sbc-row {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr 3rem;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .sbc-label {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .sbc-track {
+    display: block;
+    height: 0.85rem;
+    background: var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .sbc-fill {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--ember);
+    border-radius: 999px;
+    transition: width 900ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--sbc-delay, 0ms);
+  }
+  .sbc-fill--highlight {
+    background: var(--rhino);
+  }
+  .sbc-value {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--ink);
+    text-align: right;
+  }
+  .sbc-source {
+    margin: 1rem 0 0;
+    font-size: 0.75rem;
+    color: var(--ink-soft);
+  }
+</style>

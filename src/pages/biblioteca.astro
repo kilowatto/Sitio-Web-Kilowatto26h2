@@ -1,0 +1,387 @@
+---
+import Site from "../layouts/Site.astro";
+import BookList from "../components/BookList.astro";
+import LibraryInsights from "../components/LibraryInsights.astro";
+import { env } from "cloudflare:workers";
+import {
+  parseFilters,
+  filtersToQueryString,
+  getBooksPage,
+  getBookStats,
+  getWishlist,
+  countMissing,
+  getBookQuotes,
+  cloudSize,
+  cloudWeight,
+  cloudColor,
+} from "../lib/books-query";
+import { estimateLibraryWordCount, estimatedReadingHours, estimatedShelfMeters } from "../lib/library-insights";
+
+const filters = parseFilters(Astro.url);
+const qs = filtersToQueryString(filters);
+
+let books: any[] = [];
+let totalPages = 1;
+let stats = {
+  genreCloud: [] as [string, number][],
+  authorCloud: [] as [string, number][],
+  totalBooks: 0,
+  totalPaid: 0,
+  booksWithPrice: 0,
+  totalEstimated: 0,
+  withAnyPrice: 0,
+};
+let riordanWishlist: any[] = [];
+let riordanMissing = 0;
+let quotes: any[] = [];
+let wordEstimate = { totalWords: 0, knownBooks: 0, estimatedBooks: 0 };
+
+if (env?.DB) {
+  const [pageData, statsData, wishlistData, missingCount, quotesData, allOwnedRes] = await Promise.all([
+    getBooksPage(env, filters, 1),
+    getBookStats(env),
+    getWishlist(env, "Riordan"),
+    countMissing(env, "Riordan"),
+    getBookQuotes(env),
+    env.DB.prepare("SELECT title, author, genre FROM books WHERE status = 'tengo'").all(),
+  ]);
+  books = pageData.books;
+  totalPages = pageData.totalPages;
+  stats = statsData;
+  riordanWishlist = wishlistData;
+  riordanMissing = missingCount;
+  quotes = quotesData;
+  const allOwned = allOwnedRes?.results ?? [];
+  wordEstimate = estimateLibraryWordCount(allOwned);
+}
+
+const readingHours = estimatedReadingHours(wordEstimate.totalWords);
+const shelfMeters = estimatedShelfMeters(stats.totalBooks);
+
+const maxGenreCount = Math.max(1, ...stats.genreCloud.map(([, c]) => c));
+const hasFilters = !!(filters.genero || filters.autor || filters.q);
+
+const topAuthor = stats.authorCloud[0];
+
+// Front-loaded factual summary — the direct-answer paragraph GEO tools favor: a reader (or an
+// AI answering a question about this page) gets the real numbers in the first sentence,
+// not three paragraphs of scene-setting first.
+const summarySentence = `Esteban Rey ha catalogado ${stats.totalBooks} libros físicos, encabezados por Rick Riordan${
+  topAuthor ? ` (${topAuthor[1]} títulos)` : ""
+} y J. K. Rowling — una colección con un estimado de ${wordEstimate.totalWords.toLocaleString("es-MX")} palabras.`;
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  name: "La biblioteca de Kilowatto",
+  description: summarySentence,
+  mainEntity: {
+    "@type": "ItemList",
+    numberOfItems: stats.totalBooks,
+    itemListElement: books.map((b, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      item: {
+        "@type": "Book",
+        name: b.title,
+        author: { "@type": "Person", name: b.author },
+        genre: b.genre,
+        ...(b.publisher ? { publisher: { "@type": "Organization", name: b.publisher } } : {}),
+        ...(b.summary ? { abstract: b.summary } : {}),
+      },
+    })),
+  },
+};
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "¿Cuántos libros tiene la biblioteca de Kilowatto (Esteban Rey)?",
+      acceptedAnswer: { "@type": "Answer", text: `${stats.totalBooks} libros físicos catalogados, todos reales y fotografiados.` },
+    },
+    {
+      "@type": "Question",
+      name: "¿De qué autor tiene más libros Esteban Rey?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: topAuthor
+          ? `Rick Riordan, con ${topAuthor[1]} libros — casi todo el Riordanverse (Percy Jackson, Héroes del Olimpo, Magnus Chase, Las Pruebas de Apolo).`
+          : "Sin datos suficientes.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "¿Cuántas palabras estima que tiene la colección?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: `Un estimado de ${wordEstimate.totalWords.toLocaleString("es-MX")} palabras (${wordEstimate.knownBooks} libros con conteo real publicado, ${wordEstimate.estimatedBooks} estimados por promedio de género) — equivalente a unas ${readingHours.toLocaleString("es-MX")} horas de lectura.`,
+      },
+    },
+  ],
+};
+---
+
+<Site
+  title="Biblioteca — Esteban Rey"
+  description={`${summarySentence} Clasificados por autor, género y año, con dedicatorias incluidas.`}
+  active="/biblioteca"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Lo que leo</p>
+      <h1>La biblioteca de Kilowatto</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container lib-layout">
+      <div class="lib-intro">
+        {/* summarySentence itself lives in the meta description + JSON-LD only (see frontmatter) —
+            showing it here too would just repeat the same numbers the sidebar card already shows. */}
+        <p class="hero__sub">
+          Prefiero el papel — el libro físico, sostenerlo, subrayarlo — pero cuando el tiempo no alcanza, el
+          audiolibro también cuenta. Aquí voy clasificando lo que leo: autor, género, año y una nota de por qué está
+          en el librero. Algunos, como notarás, llevan dedicatoria.
+        </p>
+      </div>
+
+      <LibraryInsights
+        totalBooks={stats.totalBooks}
+        authorCloud={stats.authorCloud}
+        currentAuthor={filters.autor}
+        wordEstimate={wordEstimate}
+        readingHours={readingHours}
+        shelfMeters={shelfMeters}
+      />
+
+      <div class="lib-main">
+        {stats.withAnyPrice > 0 && (
+          <div class="stats-row">
+            {stats.booksWithPrice > 0 && (
+              <div class="stat">
+                <span class="stat__num">${stats.totalPaid.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+                <span class="stat__label">confirmado con etiqueta real ({stats.booksWithPrice} libro{stats.booksWithPrice === 1 ? "" : "s"})</span>
+              </div>
+            )}
+            <div class="stat">
+              <span class="stat__num stat__num--estimate">${stats.totalEstimated.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+              <span class="stat__label">
+                valor estimado de la colección ({stats.withAnyPrice} de {stats.totalBooks} libros — el resto usa precio actual de mercado, no lo que pagué)
+              </span>
+            </div>
+          </div>
+        )}
+
+        <p class="cloud-label">Géneros</p>
+        <div class="cloud">
+          {stats.genreCloud.map(([genre, count]) => (
+            <a
+              href={`/biblioteca?genero=${encodeURIComponent(genre)}`}
+              class="cloud-tag"
+              aria-current={filters.genero === genre ? "true" : undefined}
+              style={`font-size: ${cloudSize(count, maxGenreCount)}rem; font-weight: ${cloudWeight(count)}; color: ${cloudColor(count)}`}
+            >
+              {genre}
+            </a>
+          ))}
+        </div>
+
+        <form class="book-search" method="get" action="/biblioteca">
+          <input type="search" name="q" placeholder="Buscar por título, autor…" value={filters.q ?? ""} />
+          <button type="submit">Buscar</button>
+        </form>
+
+        {hasFilters && (
+          <p class="active-filters">
+            Filtrando por
+            {filters.genero && <strong> género: {filters.genero}</strong>}
+            {filters.autor && <strong> autor: {filters.autor}</strong>}
+            {filters.q && <strong> texto: "{filters.q}"</strong>}
+            <a href="/biblioteca">— quitar filtros</a>
+          </p>
+        )}
+
+        <BookList books={books} currentPage={1} totalPages={totalPages} basePath="/biblioteca" filters={filters} quotes={quotes} />
+
+        {riordanWishlist.length > 0 && (
+          <div class="wishlist-block">
+            <p class="eyebrow">Lista de deseos</p>
+            <h2>Me faltan {riordanMissing} libros de Rick Riordan.</h2>
+            <p class="hero__sub">
+              El universo completo de Rick Riordan, en el orden recomendado de lectura entre series. Los que ya
+              tengo están arriba con su portada; estos son los que aún busco.
+            </p>
+            <ul class="wishlist">
+              {riordanWishlist.map((b) => (
+                <li class="wishlist-item">
+                  <span class="wishlist-item__order">#{b.reading_order}</span>
+                  <div>
+                    <strong>{b.title}</strong>
+                    <span class="wishlist-item__meta">
+                      {b.series}
+                      {b.release_year ? ` · ${b.release_year}` : ""}
+                      {typeof b.price_current === "number" ? ` · ~$${b.price_current.toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : ""}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  </section>
+</Site>
+
+<style>
+  /* Desktop: main column + sticky insights sidebar. Mobile: everything stacks, and
+     LibraryInsights turns itself into a horizontal swipeable strip (see that component). */
+  .lib-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+  .lib-summary {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    background: var(--mist);
+    border-radius: 0.5rem;
+    padding: 0.7rem 0.9rem;
+    line-height: 1.5;
+  }
+  @media (min-width: 960px) {
+    .lib-layout {
+      grid-template-columns: 1fr 20rem;
+      align-items: start;
+    }
+    .lib-intro {
+      grid-column: 1 / -1;
+      grid-row: 1;
+    }
+    .lib-main {
+      grid-column: 1;
+      grid-row: 2;
+      min-width: 0;
+    }
+  }
+  .wishlist-block {
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+  }
+  .stats-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin: var(--space-3) 0;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+  }
+  .stat__num {
+    font-family: var(--font-display);
+    font-size: 2.2rem;
+    font-weight: 600;
+    color: var(--ember);
+  }
+  .stat__num--estimate {
+    color: var(--ink-soft);
+  }
+  .stat__label {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+  .cloud-label {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin-bottom: 0.5rem;
+  }
+  .cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.7rem;
+    align-items: baseline;
+  }
+  .cloud-tag {
+    font-family: var(--font-display);
+    line-height: 1.2;
+    text-decoration: none;
+  }
+  .cloud-tag:hover,
+  .cloud-tag[aria-current="true"] {
+    text-decoration: underline;
+  }
+  .book-search {
+    display: flex;
+    gap: 0.5rem;
+    max-width: 26rem;
+    margin-bottom: var(--space-3);
+  }
+  .book-search input {
+    flex: 1;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: 0.4rem;
+    font-size: 0.95rem;
+    font-family: var(--font-body);
+  }
+  .book-search button {
+    padding: 0.55rem 1.1rem;
+    border: none;
+    border-radius: 0.4rem;
+    background: var(--rhino);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .active-filters {
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+    margin-bottom: var(--space-3);
+  }
+  .active-filters strong {
+    color: var(--ink);
+  }
+  .active-filters a {
+    color: var(--ember);
+    margin-left: 0.4em;
+  }
+  .wishlist {
+    list-style: none;
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.6rem;
+    max-width: 40rem;
+  }
+  .wishlist-item {
+    display: flex;
+    gap: 0.8rem;
+    align-items: baseline;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .wishlist-item__order {
+    font-family: var(--font-mono);
+    color: var(--ink-soft);
+    font-size: 0.8rem;
+    flex-shrink: 0;
+    width: 2.2rem;
+  }
+  .wishlist-item__meta {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+  }
+</style>

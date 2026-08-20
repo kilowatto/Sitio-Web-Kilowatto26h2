@@ -1,0 +1,1723 @@
+---
+// Dedicated themed sub-page for Esteban's Riordanverse shelf — same pattern as
+// /biblioteca/harry-potter.astro (its own dark, immersive treatment instead of living inside
+// the site's normal light theme), but with its own visual language: ocean/celestial-bronze
+// instead of parchment/wand, since this is a completely different mythological world (actually
+// four: Greek, Roman, Norse, Egyptian — Riordan's "worlds" all live under one roof here).
+// All these books are ALSO real rows in the shared `books` table (owned AND wishlist), so they
+// still show up in the normal /biblioteca list/search — this page is purely a richer display.
+import Site from "../../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+interface RiordanBook {
+  id: number;
+  title: string;
+  series: string;
+  status: string;
+  reading_order: number | null;
+  cover_r2_key: string | null;
+  price_current: number | null;
+}
+
+let books: RiordanBook[] = [];
+if (env?.DB) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, title, series, status, reading_order, cover_r2_key, price_current FROM books
+     WHERE author LIKE '%Riordan%' ORDER BY reading_order ASC, id ASC`
+  ).all<RiordanBook>();
+  books = results ?? [];
+}
+
+const owned = books.filter((b) => b.status === "tengo");
+const missing = books.filter((b) => b.status === "quiero");
+
+const bySeries = (name: string) => owned.filter((b) => b.series === name);
+const pj = bySeries("Percy Jackson y los Dioses del Olimpo");
+const pjExtra = bySeries("Percy Jackson — complementario");
+const heroes = bySeries("Los Héroes del Olimpo");
+const magnus = bySeries("Magnus Chase y los Dioses de Asgard");
+const apolo = bySeries("Las Pruebas de Apolo");
+
+// Thematic backdrop per pantheon for the wishlist "cover" placeholders — pure CSS/unicode
+// glyph watermarks, no external art needed, no real (copyrighted) cover art hotlinked.
+const PANTHEON: Record<string, { cls: string; glyph: string; label: string }> = {
+  "Las Crónicas de Kane": { cls: "pj-wish--egypt", glyph: "𓋹", label: "Mitología egipcia" },
+  "Magnus Chase y los Dioses de Asgard": { cls: "pj-wish--norse", glyph: "ᛟ", label: "Mitología nórdica" },
+  "Las Pruebas de Apolo": { cls: "pj-wish--apollo", glyph: "☉", label: "Mitología griega" },
+  "Percy Jackson — complementario": { cls: "pj-wish--underworld", glyph: "★", label: "Mitología griega" },
+};
+
+function money(n: number) {
+  return `~$${n.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`;
+}
+
+function shortTitle(b: RiordanBook) {
+  return b.title
+    .replace(/^Percy Jackson y (los Dioses del Olimpo \d+: )?/i, "")
+    .replace(/^Los Héroes del Olimpo \d+: /i, "")
+    .replace(/^Magnus Chase y los Dioses de Asgard \d+: /i, "")
+    .replace(/^Las Pruebas de Apolo [\d.]+: /i, "")
+    .replace(/^Las Crónicas de Kane \d+: /i, "");
+}
+
+// Researched and cross-checked against the Riordan Wiki, Wikipedia and Theoi.com — see the
+// closing "mito vs. libro" note for which parts are Riordan's own invented lore.
+const MYTH_GLOSSARY = [
+  {
+    id: "pj",
+    pantheon: "Griego",
+    series: "Percy Jackson y los Dioses del Olimpo",
+    intro:
+      "Los doce olímpicos y los titanes que reinaron antes que ellos — la base de casi todo el Riordanverse. Zeus, Poseidón y Hades son \"los Tres Grandes\", ligados por un pacto (invención de Riordan, no mito real) de no tener más hijos semidioses.",
+    gods: [
+      { book: "Zeus", real: "Rey de los dioses, dios del cielo y el rayo. Hijo de Crono y Rea; gobierna el Olimpo." },
+      { book: "Poseidón", real: "Dios del mar, los terremotos y los caballos. Padre de Percy Jackson." },
+      { book: "Hades", real: "Dios del inframundo y la riqueza subterránea — su nombre significa \"el invisible\". No tiene trono en el Olimpo. Padre de Nico y Bianca di Angelo." },
+      { book: "Hera", real: "Reina de los dioses, diosa del matrimonio y la familia. Hostil con los hijos semidioses de Zeus." },
+      { book: "Deméter", real: "Diosa de la agricultura y las cosechas. Madre de Perséfone." },
+      { book: "Atenea", real: "Diosa de la sabiduría y la guerra estratégica, nacida ya adulta de la cabeza de Zeus. Madre de Annabeth Chase." },
+      { book: "Apolo", real: "Dios del sol, la música, la profecía y la medicina; patrono del Oráculo de Delfos. Hermano gemelo de Ártemis." },
+      { book: "Ártemis", real: "Diosa virgen de la caza, la luna y los animales salvajes. Lidera a las Cazadoras; hermana gemela de Apolo." },
+      { book: "Ares", real: "Dios de la guerra violenta y sangrienta, hijo de Zeus y Hera." },
+      { book: "Afrodita", real: "Diosa del amor y la belleza. Madre de Piper McLean." },
+      { book: "Hefesto", real: "Dios herrero, de la forja y el fuego. Padre de Leo Valdez." },
+      { book: "Hermes", real: "Mensajero de los dioses; patrono de viajeros, ladrones y el comercio. Padre de Luke Castellan." },
+      { book: "Dioniso (\"Sr. D\")", real: "Dios del vino y las fiestas. Dirige el Campamento Mestizo como castigo de Zeus." },
+      { book: "Hestia", real: "Diosa del hogar; cedió su trono olímpico a Dioniso para mantener la paz entre los dioses." },
+      { book: "Cronos (Kronos)", real: "El titán más joven; se tragó a sus propios hijos para no ser destronado. Antagonista principal de la saga original." },
+      { book: "Atlas", real: "Titán condenado a sostener el cielo (no \"el mundo\", un error común) tras la guerra contra los titanes." },
+      { book: "Prometeo", real: "Titán que robó el fuego para dárselo a la humanidad; castigado eternamente por ello." },
+      { book: "Quirón", real: "Centauro sabio, entrenador legendario de héroes griegos; director de actividades del Campamento Mestizo." },
+      { book: "Pan", real: "Dios de la naturaleza salvaje, buscado por el sátiro Grover Underwood a lo largo de la saga." },
+      { book: "Las Moiras", real: "Cloto, Láquesis y Átropo — las tres hilanderas del destino." },
+      { book: "Las Furias", real: "Alecto, Megera y Tisífone, diosas de la venganza contra asesinos y traidores." },
+      { book: "Medusa", real: "Una de las Gorgonas; su mirada convierte en piedra. En el mito original, castigada por Atenea tras ser víctima de Poseidón." },
+      { book: "Tifón", real: "El monstruo más temible engendrado por Gea, casi derrota a los dioses del Olimpo." },
+      { book: "El Minotauro", real: "Mitad hombre, mitad toro; encerrado en el Laberinto de Creta. Primer monstruo que enfrenta Percy." },
+    ],
+  },
+  {
+    id: "heroes",
+    pantheon: "Griego + romano",
+    series: "Los Héroes del Olimpo",
+    intro:
+      "El mismo panteón, con dos caras: griega en el Campamento Mestizo, romana en el Campamento Júpiter. En la vida real, Roma sí adoptó y renombró a los dioses griegos (interpretatio romana) — pero la idea de que cada dios tiene dos \"personalidades\" distintas es invención de Riordan.",
+    gods: [
+      { book: "Zeus · romano: Júpiter", real: "Mismo rey del cielo; el Júpiter romano es más militar y ligado al Estado. Padre de Jason Grace (criado romano) y Thalia Grace (criada griega)." },
+      { book: "Poseidón · romano: Neptuno", real: "El Neptuno romano es más sereno y naviero que el voluble Poseidón griego." },
+      { book: "Hades · romano: Plutón", real: "Los romanos lo veneraban más abiertamente. Padre de Hazel Levesque (romana) y Nico di Angelo (griego)." },
+      { book: "Hera · romano: Juno", real: "También diosa protectora del Estado en su forma romana; orquesta toda la profecía de los siete." },
+      { book: "Atenea · romano: Minerva", real: "Versión romana menos guerrera, más ligada a los oficios." },
+      { book: "Ares · romano: Marte", real: "El Marte romano es una guerra de honor y estrategia, frente al Ares griego, puro instinto sangriento. Padre de Frank Zhang." },
+      { book: "Afrodita · romano: Venus", real: "La Venus romana además es madre mítica de Eneas, fundador legendario de Roma." },
+      { book: "Hefesto · romano: Vulcano", real: "El Vulcano romano está más ligado al fuego destructivo y los volcanes." },
+      { book: "Deméter · romano: Ceres", real: "De su nombre romano viene la palabra \"cereal\"." },
+      { book: "Dioniso · romano: Baco", real: "Los libros marcan a propósito que \"Sr. D\" (griego) y Baco (romano) casi parecen personas distintas." },
+      { book: "Hestia · romano: Vesta", real: "La Vesta romana da origen a las históricas Vestales, sacerdotisas reales de su templo en Roma." },
+      { book: "Terminus", real: "Dios romano real de los límites y las fronteras; en los libros, un busto sin brazos que vigila fanáticamente el Campamento Júpiter." },
+      { book: "Lupa", real: "\"La Loba\", eco de la loba que amamantó a Rómulo y Remo; entrena a los semidioses romanos antes de aceptarlos en el campamento." },
+      { book: "Belona", real: "Diosa romana real de la guerra. Madre de Reyna, pretora del Campamento Júpiter." },
+      { book: "Gea (Gaia)", real: "Diosa primordial de la Tierra misma. Antagonista principal de toda la serie, despertando para destruir a los dioses." },
+      { book: "Porfirión", real: "Rey de los Gigantes en el mito, engendrado específicamente para vencer a Zeus." },
+      { book: "Encélado", real: "Gigante nacido para enfrentar a Atenea — antagoniza directamente a Annabeth en los libros." },
+      { book: "Polibotes", real: "Gigante nacido para enfrentar a Poseidón — antagoniza directamente a Percy." },
+    ],
+  },
+  {
+    id: "magnus",
+    pantheon: "Nórdico",
+    series: "Magnus Chase y los Dioses de Asgard",
+    intro:
+      "Los nueve mundos unidos por el árbol Yggdrasil: los Aesir (guerra y soberanía, en Asgard) y los Vanir (fertilidad y prosperidad, en Vanaheim), enfrentados a los gigantes en la cuenta regresiva hacia el Ragnarok — el fin del mundo nórdico.",
+    gods: [
+      { book: "Odín", real: "El Padre de Todo; sacrificó un ojo por sabiduría y se colgó de Yggdrasil nueve días para aprender las runas. Gobierna Asgard y el Valhalla." },
+      { book: "Thor", real: "Dios del trueno, portador del martillo Mjölnir, protector de Asgard." },
+      { book: "Loki", real: "Dios (gigante de nacimiento) del engaño; responsable de la muerte de Baldur. Antagonista principal de la saga." },
+      { book: "Frigg", real: "Esposa de Odín; en el mito, no logró proteger a Baldur del muérdago que lo mató." },
+      { book: "Baldur", real: "El más amado de los dioses; su muerte por una flecha de muérdago anuncia el inicio del Ragnarok." },
+      { book: "Heimdal (Heimdall)", real: "Guardián del puente arcoíris Bifröst; anunciará el Ragnarok con su cuerno." },
+      { book: "Tyr", real: "Dios de la guerra y la justicia; sacrificó su mano en la boca del lobo Fenrir para encadenarlo." },
+      { book: "Sif", real: "Esposa de Thor, famosa por su cabello dorado (cortado por Loki como broma, repuesto por enanos herreros)." },
+      { book: "Frey (Freyr)", real: "Dios vanir de la cosecha y la paz; renunció a su espada mágica por amor — ancestro directo de Magnus Chase, cuya trama gira en torno a esa misma espada." },
+      { book: "Freya", real: "Diosa vanir del amor, la belleza y la magia; hermana gemela de Frey." },
+      { book: "Fenrir", real: "El lobo monstruoso, hijo de Loki, destinado a devorar a Odín en el Ragnarok." },
+      { book: "Jormundgander (\"Big J\")", real: "La serpiente que rodea el mundo, hijo de Loki, némesis mitológica de Thor." },
+      { book: "Hel", real: "Gobernante del reino de los muertos por vejez o enfermedad. Hija de Loki." },
+      { book: "Surt", real: "Gigante de fuego que, según la profecía, incendiará el mundo entero en el Ragnarok." },
+      { book: "Las Nornas", real: "Urd, Verdandi y Skuld — las tejedoras del destino nórdico, equivalentes a las Moiras griegas." },
+      { book: "Las Valquirias", real: "Las que eligen a los guerreros caídos para llevarlos al Valhalla. Samirah al-Abbas es una de ellas en los libros." },
+      { book: "Yggdrasil", real: "El gran árbol del mundo que conecta y sostiene los nueve reinos nórdicos." },
+      { book: "Ragnarok", real: "La batalla final profetizada en la que mueren la mayoría de dioses y gigantes, y el mundo renace — la amenaza que recorre toda la trilogía." },
+    ],
+  },
+  {
+    id: "apolo",
+    pantheon: "Griego · continuación",
+    series: "Las Pruebas de Apolo",
+    intro:
+      "El propio Apolo, convertido en el mortal torpe Lester Papadopoulos como castigo de Zeus, narra en primera persona. Reaparecen muchos dioses ya vistos en Percy Jackson — aquí solo lo nuevo de esta saga.",
+    gods: [
+      { book: "Apolo (\"Lester Papadopoulos\")", real: "Dios del sol, la música, la profecía y la medicina, patrono del Oráculo de Delfos. Obligado a servir a la semidiosa Meg McCaffrey hasta recuperar su divinidad." },
+      { book: "Pitón (Python)", real: "La serpiente monstruosa que en el mito guardaba el oráculo original de Delfos antes de que Apolo la matara siendo bebé; en los libros, recupera el control del Oráculo." },
+      { book: "El Oráculo de Delfos", real: "La sacerdotisa (Rachel Elizabeth Dare en los libros) por la que hablan las profecías de Apolo." },
+      { book: "La Arboleda de Dodona", real: "El oráculo más antiguo de Zeus, donde sacerdotes interpretaban el susurro de un roble sagrado." },
+      { book: "Las Nueve Musas", real: "Diosas de la inspiración artística, hijas de Zeus y Mnemósine (la Memoria) — Calíope, Clío, Melpómene y las demás." },
+      { book: "El Triunvirato: Nerón, Calígula, Cómodo", real: "Emperadores romanos históricos reimaginados con inmortalidad retorcida — los antagonistas centrales de la saga." },
+    ],
+  },
+  {
+    id: "kane",
+    pantheon: "Egipcio",
+    series: "Las Crónicas de Kane (pendientes en la lista de deseos)",
+    intro:
+      "Carter y Sadie Kane, hermanos que descubren ser anfitriones de dioses egipcios, se enfrentan al despertar de la serpiente del caos. Un panteón que Esteban todavía no tiene en papel — por eso viven en la sección de \"me faltan\" más abajo.",
+    gods: [
+      { book: "Ra", real: "Dios del sol, antiguo rey de los dioses, mostrado anciano y adormilado en la serie." },
+      { book: "Isis", real: "Diosa de la magia y la maternidad, esposa de Osiris." },
+      { book: "Osiris", real: "Dios del inframundo y la resurrección. Su anfitrión es el padre de Carter y Sadie." },
+      { book: "Horus", real: "Dios halcón del cielo y la realeza. Hospedado por Carter Kane." },
+      { book: "Set", real: "Dios del caos, el desierto y las tormentas. Antagonista de la primera novela." },
+      { book: "Anubis", real: "Dios de los muertos y la momificación. Interés romántico de Sadie Kane." },
+      { book: "Bastet", real: "Diosa gata protectora, guardiana de Sadie de niña." },
+      { book: "Thot", real: "Dios de la sabiduría, la escritura y la luna." },
+      { book: "Apofis", real: "La serpiente del caos primigenio, el gran antagonista de la trilogía completa." },
+    ],
+  },
+];
+---
+
+<Site
+  title="El Riordanverse — Esteban Rey"
+  description="El Riordanverse de Esteban Rey: Percy Jackson, Los Héroes del Olimpo, Magnus Chase, Las Pruebas de Apolo y Las Crónicas de Kane — griego, romano, nórdico y egipcio bajo un mismo librero."
+  active="/biblioteca"
+>
+  <div class="pj-page" id="pj-page">
+    <div class="pj-glow" id="pj-glow"></div>
+    <div class="pj-pen-cursor" id="pj-pen-cursor">
+      <div class="pj-pen-cursor__body"></div>
+      <div class="pj-pen-cursor__tip"></div>
+    </div>
+    <div class="pj-sword-layer" id="pj-sword-layer"></div>
+
+    {/* Power effects, all triggered by tracing real gestures with the cursor (see the
+        gesture-recognition script near the bottom) -- Niebla is a press-and-hold, the rest are
+        drawn shapes classified from the pointer path. Same engine as /biblioteca/harry-potter,
+        recolored and remapped to demigod powers instead of spells. */}
+    <div class="pj-fog-overlay" id="pj-fog-overlay"></div>
+    <div class="pj-ola-flash" id="pj-ola-flash"></div>
+    <div class="pj-fx-layer" id="pj-fx-layer" aria-hidden="true"></div>
+
+    <section class="pj-secret" id="pj-secret" hidden>
+      <div class="container">
+        <p class="pj-eyebrow">Grieta</p>
+        <p class="pj-secret__quote">Aquí no hay mortales que puedan ver esto — solo tú.</p>
+        <p class="pj-secret__sub">Encontraste la grieta secreta de esta página. Ni Quirón sabe que está aquí — hasta ahora.</p>
+      </div>
+    </section>
+
+    <section class="pj-hero">
+      <div class="pj-hero__mosaic" aria-hidden="true">
+        {[...pj, ...pjExtra].slice(0, 6).map((b) => (
+          <img
+            src={`/media/${b.cover_r2_key}?w=400`}
+            srcset={`/media/${b.cover_r2_key}?w=400 400w, /media/${b.cover_r2_key}?w=700 700w`}
+            sizes="17vw"
+            alt=""
+            loading="eager"
+          />
+        ))}
+      </div>
+      <div class="pj-hero__scrim"></div>
+      <div class="pj-hero__wave" aria-hidden="true"></div>
+      <div class="pj-hero__text container">
+        <p class="pj-eyebrow">Biblioteca · Riordanverse</p>
+        <h1>El Riordanverse</h1>
+        <p class="pj-hero__sub">
+          Griego, romano, nórdico y egipcio — todo lo que Rick Riordan ha escrito que Esteban tiene (y le falta) en
+          un solo librero. Haz clic en cualquier parte de la página para desenfundar a <em>Contracorriente</em>.
+        </p>
+      </div>
+    </section>
+
+    <section class="pj-section">
+      <div class="container">
+        <p class="pj-eyebrow">Sobre este rincón</p>
+        <h2>Cuatro mitologías, un solo héroe con espada-pluma</h2>
+        <p class="pj-section__sub">
+          Empieza con Percy Jackson descubriendo que es hijo de Poseidón, y termina con Magnus Chase esquivando el
+          fin del mundo nórdico. Esta colección junta {owned.length} libros que Esteban ya tiene y {missing.length}{" "}
+          que todavía le faltan — Las Crónicas de Kane, sobre mitología egipcia, están completas en la lista de
+          deseos.
+        </p>
+      </div>
+    </section>
+
+    <section class="pj-section pj-section--alt">
+      <div class="container">
+        <p class="pj-eyebrow">Griego</p>
+        <h2>Percy Jackson y los Dioses del Olimpo</h2>
+        <div class="pj-grid">
+          {pj.map((b) => (
+            <div class="pj-card" data-riptide>
+              <span class="pj-card__order">{b.reading_order}</span>
+              <div class="pj-card__mist">
+                <img
+                  src={`/media/${b.cover_r2_key}?w=300`}
+                  srcset={`/media/${b.cover_r2_key}?w=300 300w, /media/${b.cover_r2_key}?w=500 500w`}
+                  sizes="200px"
+                  alt=""
+                  class="pj-card__img"
+                  loading="lazy"
+                />
+              </div>
+              <p class="pj-card__title">{shortTitle(b)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    {pjExtra.length > 0 && (
+      <section class="pj-section">
+        <div class="container">
+          <p class="pj-eyebrow">Griego · complementario</p>
+          <h2>Historias sueltas del campamento</h2>
+          <div class="pj-grid">
+            {pjExtra.map((b) => (
+              <div class="pj-card" data-riptide>
+                <div class="pj-card__mist">
+                  <img
+                  src={`/media/${b.cover_r2_key}?w=300`}
+                  srcset={`/media/${b.cover_r2_key}?w=300 300w, /media/${b.cover_r2_key}?w=500 500w`}
+                  sizes="200px"
+                  alt=""
+                  class="pj-card__img"
+                  loading="lazy"
+                />
+                </div>
+                <p class="pj-card__title">{shortTitle(b)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <section class="pj-section pj-section--alt">
+      <div class="container">
+        <p class="pj-eyebrow">Griego + romano</p>
+        <h2>Los Héroes del Olimpo</h2>
+        <p class="pj-section__sub">Campamento Mestizo (griego) y Campamento Júpiter (romano) — dos mitades del mismo panteón que aprenden a pelear juntas.</p>
+        <div class="pj-grid">
+          {heroes.map((b) => (
+            <div class="pj-card" data-riptide>
+              <span class="pj-card__order">{b.reading_order}</span>
+              <div class="pj-card__mist">
+                <img
+                  src={`/media/${b.cover_r2_key}?w=300`}
+                  srcset={`/media/${b.cover_r2_key}?w=300 300w, /media/${b.cover_r2_key}?w=500 500w`}
+                  sizes="200px"
+                  alt=""
+                  class="pj-card__img"
+                  loading="lazy"
+                />
+              </div>
+              <p class="pj-card__title">{shortTitle(b)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="pj-section">
+      <div class="container">
+        <p class="pj-eyebrow">Nórdico</p>
+        <h2>Magnus Chase y los Dioses de Asgard</h2>
+        <div class="pj-grid">
+          {magnus.map((b) => (
+            <div class="pj-card" data-riptide>
+              <span class="pj-card__order">{b.reading_order}</span>
+              <div class="pj-card__mist">
+                <img
+                  src={`/media/${b.cover_r2_key}?w=300`}
+                  srcset={`/media/${b.cover_r2_key}?w=300 300w, /media/${b.cover_r2_key}?w=500 500w`}
+                  sizes="200px"
+                  alt=""
+                  class="pj-card__img"
+                  loading="lazy"
+                />
+              </div>
+              <p class="pj-card__title">{shortTitle(b)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="pj-section pj-section--alt">
+      <div class="container">
+        <p class="pj-eyebrow">Griego · después de la guerra</p>
+        <h2>Las Pruebas de Apolo</h2>
+        <p class="pj-section__sub">El propio dios Apolo, castigado a vivir como el mortal Lester Papadopoulos, cuenta esta parte en primera persona.</p>
+        <div class="pj-grid">
+          {apolo.map((b) => (
+            <div class="pj-card" data-riptide>
+              <span class="pj-card__order">{b.reading_order}</span>
+              <div class="pj-card__mist">
+                <img
+                  src={`/media/${b.cover_r2_key}?w=300`}
+                  srcset={`/media/${b.cover_r2_key}?w=300 300w, /media/${b.cover_r2_key}?w=500 500w`}
+                  sizes="200px"
+                  alt=""
+                  class="pj-card__img"
+                  loading="lazy"
+                />
+              </div>
+              <p class="pj-card__title">{shortTitle(b)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="pj-section pj-section--wishlist">
+      <div class="container">
+        <p class="pj-eyebrow">Lista de deseos</p>
+        <h2>Me faltan {missing.length} libros del Riordanverse</h2>
+        <p class="pj-section__sub">
+          Las Crónicas de Kane completas, más un puñado de huecos sueltos en Magnus Chase, Las Pruebas de Apolo y las
+          historias de Nico di Angelo. Ninguno tiene portada real todavía — así que aquí les tocó una portada de
+          cartulina, según su panteón.
+        </p>
+        <div class="pj-wish-scatter" aria-hidden="true">
+          <span>ufff, ojalá algún día lo tenga</span>
+          <span>ya casi lo compro…</span>
+          <span>se aceptan indirectas</span>
+        </div>
+        <div class="pj-grid pj-grid--wish">
+          {missing.map((b) => {
+            const theme = PANTHEON[b.series] ?? { cls: "pj-wish--apollo", glyph: "☉", label: "Griego" };
+            return (
+              <div class={`pj-wish-card ${theme.cls}`} data-wish>
+                <span class="pj-wish-card__glyph" aria-hidden="true">{theme.glyph}</span>
+                <p class="pj-wish-card__pantheon">{theme.label}</p>
+                <p class="pj-wish-card__title">{shortTitle(b)}</p>
+                {typeof b.price_current === "number" && <p class="pj-wish-card__price">{money(b.price_current)}</p>}
+                <p class="pj-wish-card__caption" data-caption></p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+
+    <section class="pj-section pj-section--alt">
+      <div class="container">
+        <p class="pj-eyebrow">Para ir a internet menos</p>
+        <h2>Quién es quién: la mitología real detrás de cada dios</h2>
+        <p class="pj-section__sub">Cada saga toma un panteón real y le pone nombre, voz y personalidad de novela — esto es quién es cada quién de verdad.</p>
+        <div class="pj-myth-list">
+          {MYTH_GLOSSARY.map((m) => (
+            <details class="pj-myth" id={`myth-${m.id}`}>
+              <summary>
+                <span class="pj-myth__pantheon">{m.pantheon}</span>
+                <span class="pj-myth__series">{m.series}</span>
+                <span class="pj-myth__hint">Toca para ver los dioses →</span>
+              </summary>
+              <p class="pj-myth__intro">{m.intro}</p>
+              <dl class="pj-myth__grid">
+                {m.gods.map((g) => (
+                  <div class="pj-myth__entry">
+                    <dt>{g.book}</dt>
+                    <dd>{g.real}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          ))}
+        </div>
+        <p class="pj-myth-note">
+          <strong>Mito vs. libro:</strong> el pacto de "los Tres Grandes" de no tener más hijos semidioses, la idea de
+          que cada dios tiene una "personalidad" griega y otra romana, y que Magnus y Annabeth Chase son primos —
+          son todo invención de Riordan, no mitología real. La interpretatio romana (que Roma sí adoptó y renombró a
+          los dioses griegos) es real; lo de la doble personalidad no lo es.
+        </p>
+      </div>
+    </section>
+
+    <section class="pj-section pj-section--alt pj-iris-section">
+      <div class="container">
+        <p class="pj-eyebrow">Solo en escritorio</p>
+        <h2>Cómo invocar cada poder</h2>
+        <p class="pj-section__sub">
+          Cada poder se invoca trazando su forma con el cursor (mouse, no pantallas táctiles) en cualquier parte de
+          la página — no hace falta apuntar a nada en concreto, salvo donde se indica.
+        </p>
+        <div class="pj-iris" id="pj-iris">
+          <ul class="pj-iris__list">
+            <li>
+              <span class="pj-iris__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="3" fill="currentColor"/><circle cx="16" cy="16" r="9" fill="none" stroke="currentColor" stroke-width="1.6" opacity="0.45"/></svg></span>
+              <span class="pj-iris__power">Contracorriente</span><span class="pj-iris__how">Un clic simple, en cualquier parte.</span>
+            </li>
+            <li>
+              <span class="pj-iris__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="3" fill="currentColor"/><circle cx="16" cy="16" r="8" fill="none" stroke="currentColor" stroke-width="1.6" opacity="0.55"/><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="1.6" opacity="0.28"/></svg></span>
+              <span class="pj-iris__power">Niebla</span><span class="pj-iris__how">Mantén el clic sin moverte casi dos segundos.</span>
+            </li>
+            <li>
+              <span class="pj-iris__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16,16 C10,8 3,8 3,16 C3,24 10,24 16,16 C22,8 29,8 29,16 C29,24 22,24 16,16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span>
+              <span class="pj-iris__power">Grieta</span><span class="pj-iris__how">Traza un ocho (∞) en el aire.</span>
+            </li>
+            <li>
+              <span class="pj-iris__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16,4 A12,12 0 1 1 4.5,20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M4.5,20 L2,16.5 M4.5,20 L8.5,18.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="pj-iris__power">Ola</span><span class="pj-iris__how">Dibuja un círculo o lazo amplio, lejos de una portada.</span>
+            </li>
+            <li>
+              <span class="pj-iris__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="8" y="4" width="12" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" opacity="0.5"/><path d="M18,8 A7,7 0 1 1 8,15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span>
+              <span class="pj-iris__power">Égida</span><span class="pj-iris__how">Dibuja un círculo pequeño justo sobre una portada.</span>
+            </li>
+            <li>
+              <span class="pj-iris__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M6,6 L24,12 L6,18 L24,24 L6,30" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="pj-iris__power">Rayo</span><span class="pj-iris__how">Un zigzag rápido, como firma nerviosa.</span>
+            </li>
+            <li>
+              <span class="pj-iris__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M3,22 C10,27 19,26 24,18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M24,18 L27,6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M27,6 L24,10.5 M27,6 L30,11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="pj-iris__power">Viento</span><span class="pj-iris__how">Un trazo amplio que termina en un latigazo hacia arriba sobre una portada.</span>
+            </li>
+            <li>
+              <span class="pj-iris__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16,4 L16,22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M16,22 L11,17 M16,22 L21,17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="pj-iris__power">Tridente</span><span class="pj-iris__how">Una estocada corta y rápida hacia abajo.</span>
+            </li>
+            <li>
+              <span class="pj-iris__icon" aria-hidden="true"><svg viewBox="0 0 32 32"><circle cx="11" cy="16" r="2.6" fill="currentColor"/><circle cx="11" cy="16" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"/><circle cx="22" cy="16" r="2.6" fill="currentColor"/><circle cx="22" cy="16" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"/></svg></span>
+              <span class="pj-iris__power">Silbido</span><span class="pj-iris__how">Doble clic sobre cualquier portada.</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+</Site>
+
+<style>
+  .pj-page {
+    --pj-bg-deep: #051620;
+    --pj-bg-mid: #0a2b3d;
+    --pj-teal: #3ee0c8;
+    --pj-bronze: #e0a959;
+    --pj-camp: #f2661c;
+    background: linear-gradient(180deg, var(--pj-bg-deep) 0%, var(--pj-bg-mid) 100%);
+    color: #dff5f2;
+    margin: calc(-1 * var(--space-3)) 0 0;
+    padding-bottom: var(--space-5);
+    position: relative;
+    overflow: hidden;
+  }
+  @media (pointer: fine) {
+    .pj-page,
+    .pj-page * {
+      cursor: none;
+    }
+  }
+
+  /* Ambient light following the cursor — sea-foam instead of Lumos gold, same mechanic as the
+     Harry Potter wand glow but recolored for an underwater/celestial-bronze feel. */
+  .pj-glow {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 24rem;
+    height: 24rem;
+    margin-left: -12rem;
+    margin-top: -12rem;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(62, 224, 200, 0.14) 0%, rgba(224, 169, 89, 0.05) 45%, transparent 70%);
+    mix-blend-mode: screen;
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    will-change: transform;
+  }
+  .pj-page.pj-active .pj-glow {
+    opacity: 1;
+  }
+
+  /* Default cursor: a plain ballpoint pen — nothing sword-like about it until you click. */
+  .pj-pen-cursor {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    z-index: 210;
+    transform: translate(-100px, -100px);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .pj-page.pj-active .pj-pen-cursor {
+    opacity: 1;
+  }
+  .pj-pen-cursor__body {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 2.2rem;
+    height: 0.32rem;
+    background: linear-gradient(90deg, #2b2f33, #6b7278);
+    border-radius: 2px;
+    transform-origin: 100% 100%;
+    transform: rotate(42deg);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .pj-pen-cursor__tip {
+    position: absolute;
+    right: -0.15rem;
+    bottom: -0.15rem;
+    width: 0.22rem;
+    height: 0.22rem;
+    border-radius: 50%;
+    background: #e0a959;
+    box-shadow: 0 0 4px 1px rgba(224, 169, 89, 0.9);
+  }
+
+  /* The click reveal: Contracorriente unsheathing. A bronze blade-shaped flash plus a label
+     that fades — this IS the answer to "how would you know it's a sword pen": you click, and
+     for a moment it very much isn't a pen anymore. */
+  .pj-sword-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 205;
+  }
+  :global(.pj-sword-flash) {
+    position: absolute;
+    width: 9rem;
+    height: 0.5rem;
+    margin-left: -1.5rem;
+    margin-top: -0.25rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, transparent, #fff6d8 15%, var(--pj-bronze) 55%, transparent 100%);
+    box-shadow: 0 0 16px 4px rgba(224, 169, 89, 0.8);
+    transform: rotate(-38deg) scaleX(0);
+    transform-origin: 15% 50%;
+    animation: pj-unsheathe 0.55s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+  }
+  :global(.pj-sword-label) {
+    position: absolute;
+    transform: translate(0.8rem, -1.6rem);
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 0.85rem;
+    color: #fff6d8;
+    text-shadow: 0 0 8px rgba(224, 169, 89, 0.8);
+    white-space: nowrap;
+    animation: pj-label-fade 0.9s ease-out forwards;
+  }
+  @keyframes pj-unsheathe {
+    0% {
+      opacity: 0;
+      transform: rotate(-38deg) scaleX(0);
+    }
+    30% {
+      opacity: 1;
+    }
+    70% {
+      opacity: 1;
+      transform: rotate(-38deg) scaleX(1);
+    }
+    100% {
+      opacity: 0;
+      transform: rotate(-38deg) scaleX(1);
+    }
+  }
+  @keyframes pj-label-fade {
+    0% { opacity: 0; }
+    20% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :global(.pj-sword-flash),
+    :global(.pj-sword-label) {
+      animation: none;
+      opacity: 0;
+    }
+  }
+
+  /* Hero: a real mosaic of the owned covers (Percy's own image, quite literally) instead of a
+     single generated illustration — grounded in what's actually on the shelf. */
+  .pj-hero {
+    position: relative;
+    height: clamp(16rem, 34vw, 26rem);
+    overflow: hidden;
+  }
+  .pj-hero__mosaic {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 2px;
+  }
+  .pj-hero__mosaic img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(0.55) saturate(0.85);
+  }
+  /* The old bottom-only scrim left the top of the mosaic almost fully exposed -- six
+     differently-colored covers butted together read as noisy and uncontrolled right where the
+     hero meets the site nav. This darkens both ends (nav transition at top, title legibility at
+     bottom) and only lets the mosaic breathe through in the middle band. */
+  .pj-hero__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(5, 22, 32, 0.88) 0%,
+      rgba(5, 22, 32, 0.35) 16%,
+      rgba(5, 22, 32, 0.1) 38%,
+      rgba(5, 22, 32, 0.75) 72%,
+      var(--pj-bg-deep) 100%
+    );
+  }
+  .pj-hero__wave {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 3rem;
+    background: repeating-linear-gradient(
+      115deg,
+      rgba(62, 224, 200, 0.18) 0,
+      rgba(62, 224, 200, 0.18) 2px,
+      transparent 2px,
+      transparent 14px
+    );
+    mask-image: linear-gradient(to top, black, transparent);
+  }
+  .pj-hero__text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding-bottom: var(--space-3);
+  }
+  .pj-eyebrow {
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    color: var(--pj-camp);
+    margin: 0 0 0.4rem;
+  }
+  .pj-hero__text h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    margin: 0 0 0.5rem;
+    color: #eefaf7;
+    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
+  }
+  .pj-hero__sub {
+    max-width: 36rem;
+    color: #b9d9d3;
+    margin: 0;
+  }
+  .pj-hero__sub em {
+    color: var(--pj-teal);
+    font-style: normal;
+    font-family: var(--font-display);
+  }
+
+  .pj-section {
+    padding: var(--space-4) 0;
+    position: relative;
+  }
+  .pj-section--alt {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  /* A Greek key (meander) rule between sections — this site's own visual signature for the
+     Riordanverse pages, distinct from the Harry Potter page's dotted parchment rule. */
+  .pj-section::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    opacity: 0.35;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='6' viewBox='0 0 24 6'%3E%3Cpath d='M0 0h6v6H3V3H0zM9 0h15v3h-6v3h-6V3H9z' fill='%233ee0c8'/%3E%3C/svg%3E");
+    background-repeat: repeat-x;
+    background-size: 24px 6px;
+  }
+  .pj-section h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    margin: 0 0 0.4rem;
+    color: #eefaf7;
+  }
+  .pj-section__sub {
+    color: #9fc4bd;
+    margin: 0 0 var(--space-3);
+    max-width: 38rem;
+  }
+
+  .pj-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: var(--space-2);
+  }
+
+  .pj-card {
+    position: relative;
+    border-radius: 0.6rem;
+    overflow: hidden;
+    background: #0a2330;
+    border: 1px solid rgba(62, 224, 200, 0.15);
+    cursor: pointer;
+  }
+  .pj-card__order {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 2;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    background: rgba(5, 22, 32, 0.75);
+    color: var(--pj-teal);
+    border-radius: 999px;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* "La Niebla" — the Mist that hides magic from mortals, here hiding the covers until the
+     cursor parts it. Same reveal mechanic idea as Revelio on the HP page, different in-world
+     justification and a blur/desaturate treatment instead of a grayscale fog. */
+  .pj-card__mist {
+    position: relative;
+  }
+  .pj-card__img {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    display: block;
+    filter: blur(3px) saturate(0.5) brightness(0.55);
+    transform: scale(1.04);
+    transition: filter 0.5s ease, transform 0.5s ease;
+  }
+  .pj-card:hover .pj-card__img,
+  .pj-card:focus-within .pj-card__img {
+    filter: blur(0) saturate(1) brightness(1);
+    transform: scale(1.02);
+  }
+  .pj-card__title {
+    margin: 0;
+    padding: 0.5rem 0.6rem 0.7rem;
+    font-size: 0.82rem;
+    color: #cdeae4;
+    line-height: 1.3;
+  }
+
+  /* Wishlist: no real cover exists, so each gets a pantheon-themed cardstock placeholder —
+     giant faint glyph watermark + gradient, entirely CSS, no hotlinked art. */
+  .pj-grid--wish {
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  }
+  .pj-wish-card {
+    position: relative;
+    border-radius: 0.6rem;
+    overflow: hidden;
+    padding: 0.9rem 0.8rem 0.8rem;
+    min-height: 12rem;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .pj-wish-card__glyph {
+    position: absolute;
+    right: -0.4rem;
+    bottom: -1.2rem;
+    font-size: 6rem;
+    line-height: 1;
+    opacity: 0.18;
+    font-family: var(--font-display);
+    pointer-events: none;
+  }
+  .pj-wish--egypt {
+    background: linear-gradient(160deg, #6b4a1c, #3a2410);
+  }
+  .pj-wish--norse {
+    background: linear-gradient(160deg, #3a5566, #16232c);
+  }
+  .pj-wish--apollo {
+    background: linear-gradient(160deg, #a3701f, #4a3410);
+  }
+  .pj-wish--underworld {
+    background: linear-gradient(160deg, #4a2a66, #1c1230);
+  }
+  .pj-wish-card__pantheon {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.65);
+  }
+  .pj-wish-card__title {
+    margin: 0.3rem 0 0;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1rem;
+    color: #fff;
+    position: relative;
+    z-index: 1;
+  }
+  .pj-wish-card__price {
+    margin: 0.3rem 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.75);
+    position: relative;
+    z-index: 1;
+  }
+  .pj-wish-card__caption {
+    margin-top: auto;
+    padding-top: 0.6rem;
+    font-size: 0.78rem;
+    font-style: italic;
+    color: #ffe9c2;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* A handful of the same playful phrases scattered loose in the section background, like
+     sticky notes — "pon frases por todos lados", not just one per card. */
+  .pj-wish-scatter {
+    position: relative;
+    height: 0;
+  }
+  .pj-wish-scatter span {
+    position: absolute;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 0.8rem;
+    color: rgba(62, 224, 200, 0.35);
+    white-space: nowrap;
+  }
+  .pj-wish-scatter span:nth-child(1) {
+    top: -2.6rem;
+    left: 2%;
+    transform: rotate(-4deg);
+  }
+  .pj-wish-scatter span:nth-child(2) {
+    top: -1.8rem;
+    left: 45%;
+    transform: rotate(3deg);
+  }
+  .pj-wish-scatter span:nth-child(3) {
+    top: -3rem;
+    right: 3%;
+    transform: rotate(-2deg);
+  }
+  @media (max-width: 40rem) {
+    .pj-wish-scatter {
+      display: none;
+    }
+  }
+
+  /* Mythology glossary accordion. */
+  .pj-myth-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .pj-myth {
+    border: 1px solid rgba(62, 224, 200, 0.2);
+    border-radius: 0.6rem;
+    background: rgba(255, 255, 255, 0.02);
+    padding: 0.9rem 1.1rem;
+  }
+  .pj-myth summary {
+    cursor: pointer;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6rem;
+    list-style: none;
+    margin: -0.9rem -1.1rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: 0.6rem;
+    transition: background 0.15s ease;
+  }
+  /* Native <summary> gives almost no visual signal that it's interactive on its own --
+     an explicit hover state and hint text make it unmistakable. */
+  .pj-myth summary:hover,
+  .pj-myth summary:focus-visible {
+    background: rgba(62, 224, 200, 0.08);
+  }
+  .pj-myth summary::-webkit-details-marker {
+    display: none;
+  }
+  .pj-myth summary::before {
+    content: "▸";
+    color: var(--pj-teal);
+    margin-right: 0.2rem;
+  }
+  .pj-myth[open] summary::before {
+    content: "▾";
+  }
+  .pj-myth__hint {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--pj-teal);
+    margin-left: auto;
+  }
+  .pj-myth[open] .pj-myth__hint {
+    display: none;
+  }
+  .pj-myth__pantheon {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    color: #eefaf7;
+  }
+  .pj-myth__series {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: #8fb5ae;
+  }
+  .pj-myth__intro {
+    margin: 0.6rem 0 0.9rem;
+    color: #b9d9d3;
+    max-width: 42rem;
+  }
+  .pj-myth__grid {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 0.7rem 1.2rem;
+  }
+  .pj-myth__entry {
+    border-top: 1px dashed rgba(255, 255, 255, 0.12);
+    padding-top: 0.4rem;
+  }
+  .pj-myth__entry dt {
+    font-weight: 700;
+    color: var(--pj-bronze);
+    font-size: 0.9rem;
+  }
+  .pj-myth__entry dd {
+    margin: 0.15rem 0 0;
+    font-size: 0.83rem;
+    color: #cfe6e1;
+    line-height: 1.4;
+  }
+  .pj-myth-note {
+    margin: var(--space-3) 0 0;
+    font-size: 0.85rem;
+    color: #9fc4bd;
+    max-width: 46rem;
+    line-height: 1.5;
+  }
+  .pj-myth-note strong {
+    color: var(--pj-bronze);
+  }
+
+  @media (pointer: coarse) {
+    .pj-glow,
+    .pj-pen-cursor,
+    .pj-sword-layer {
+      display: none;
+    }
+    .pj-card__img {
+      filter: none;
+    }
+  }
+
+  /* Niebla — the Mist itself, hazy and blurred rather than pitch black (Nox's near-total dark
+     wouldn't fit; mortals just can't quite focus on what's really there). */
+  .pj-fog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 22, 32, 0.35);
+    backdrop-filter: blur(7px) saturate(0.6);
+    -webkit-backdrop-filter: blur(7px) saturate(0.6);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 150;
+    transition: opacity 1s ease;
+  }
+  .pj-fog-overlay.pj-fog-overlay--active {
+    opacity: 1;
+  }
+
+  /* Ola de Poseidón — a wide, slow ripple of sea-foam light instead of Patronum's silver. */
+  .pj-ola-flash {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 160;
+    opacity: 0;
+    background: radial-gradient(
+      circle at var(--px, 50%) var(--py, 50%),
+      rgba(210, 250, 245, 0.95) 0%,
+      rgba(62, 224, 200, 0.55) 22%,
+      rgba(10, 60, 70, 0.18) 48%,
+      transparent 72%
+    );
+  }
+  .pj-ola-flash.pj-ola-flash--active {
+    animation: pj-ola-burst 2.2s ease-out;
+  }
+  @keyframes pj-ola-burst {
+    0% {
+      opacity: 0;
+      transform: scale(0.3);
+    }
+    18% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: scale(2.8);
+    }
+  }
+
+  /* Grieta reveal — a hidden section unlocked by tracing a figure-eight. */
+  .pj-secret {
+    background: #041019;
+    border-top: 1px dashed rgba(224, 169, 89, 0.35);
+    border-bottom: 1px dashed rgba(224, 169, 89, 0.35);
+    padding: var(--space-4) 0;
+    text-align: center;
+  }
+  .pj-secret__quote {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: clamp(1.2rem, 3vw, 1.7rem);
+    color: var(--pj-bronze);
+    margin: 0.3rem 0;
+  }
+  .pj-secret__sub {
+    color: #9fc4bd;
+    margin: 0;
+  }
+
+  /* Égida (Escudo) — a bronze aegis-glow over one cover, and Viento — that cover levitates. */
+  .pj-card--shielded::after {
+    content: "";
+    position: absolute;
+    inset: -0.3rem;
+    border-radius: 1rem;
+    border: 2px solid rgba(224, 169, 89, 0.85);
+    background: radial-gradient(circle, rgba(224, 169, 89, 0.18), transparent 70%);
+    box-shadow: 0 0 20px 6px rgba(224, 169, 89, 0.35);
+    animation: pj-shield-pulse 1.6s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes pj-shield-pulse {
+    0%,
+    100% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.03);
+    }
+  }
+  .pj-card--levitate {
+    animation: pj-levitate 2.8s ease-in-out;
+    z-index: 3;
+  }
+  @keyframes pj-levitate {
+    0% {
+      transform: translateY(0) rotate(0deg);
+    }
+    30% {
+      transform: translateY(-1.1rem) rotate(-2deg);
+    }
+    60% {
+      transform: translateY(-0.8rem) rotate(2deg);
+    }
+    100% {
+      transform: translateY(0) rotate(0deg);
+    }
+  }
+
+  /* Tridente — the page itself shudders under a brief teal-water pulse, distinct from the
+     bronze sword-flash so a stab never reads as a duplicate of the ambient click. */
+  .pj-page.pj-page--tridente {
+    animation: pj-tridente-shake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+  .pj-page.pj-page--tridente::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(62, 224, 200, 0.28);
+    pointer-events: none;
+    z-index: 155;
+    animation: pj-tridente-pulse 0.6s ease-out;
+  }
+  @keyframes pj-tridente-shake {
+    10%,
+    90% {
+      transform: translate3d(-1px, 0, 0);
+    }
+    20%,
+    80% {
+      transform: translate3d(3px, 0, 0);
+    }
+    30%,
+    50%,
+    70% {
+      transform: translate3d(-7px, 0, 0);
+    }
+    40%,
+    60% {
+      transform: translate3d(7px, 0, 0);
+    }
+  }
+  @keyframes pj-tridente-pulse {
+    0% {
+      opacity: 0;
+    }
+    30% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /* Silbido (a Blackjack) — a cover briefly "flies" toward the cursor, then springs back. */
+  .pj-card--summon {
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 3;
+  }
+
+  /* Rayo and Grieta spawn these directly into #pj-fx-layer via JS, so — like the sword-flash
+     above — they need :global since the elements never pass through Astro's scoped-style
+     compiler. */
+  :global(.pj-fx-bolt) {
+    position: fixed;
+    width: 1.4rem;
+    height: 5rem;
+    transform: translate(-50%, -100%);
+    clip-path: polygon(45% 0%, 60% 0%, 35% 45%, 55% 45%, 25% 100%, 40% 55%, 20% 55%);
+    background: linear-gradient(180deg, #fff9e0, #ffe066);
+    filter: drop-shadow(0 0 10px rgba(255, 240, 180, 0.9)) drop-shadow(0 0 18px rgba(62, 224, 200, 0.55));
+    animation: pj-bolt-flash 0.5s ease-out forwards;
+  }
+  @keyframes pj-bolt-flash {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    10%,
+    40% {
+      opacity: 1;
+    }
+    25% {
+      opacity: 0.25;
+    }
+  }
+
+  :global(.pj-fx-crack) {
+    position: fixed;
+    width: 3rem;
+    height: 1.2rem;
+    margin-left: -1.5rem;
+    margin-top: -0.6rem;
+    z-index: 165;
+    animation: pj-fx-crack-life 1.6s ease-out forwards;
+  }
+  :global(.pj-fx-crack__line) {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, #ffb238 20%, #fff6d8 50%, #ffb238 80%, transparent);
+    clip-path: polygon(0% 50%, 15% 20%, 30% 60%, 45% 15%, 60% 55%, 75% 10%, 100% 50%, 75% 90%, 60% 45%, 45% 85%, 30% 40%, 15% 80%);
+    animation: pj-fx-crack-open 1.6s ease-out forwards;
+  }
+  :global(.pj-fx-crack__glow) {
+    position: absolute;
+    inset: -1.4rem;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 140, 30, 0.5), transparent 70%);
+    filter: blur(4px);
+  }
+  @keyframes pj-fx-crack-open {
+    0%,
+    30% {
+      transform: scaleY(0.3);
+    }
+    100% {
+      transform: scaleY(1);
+    }
+  }
+  @keyframes pj-fx-crack-life {
+    0% {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    20% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+    35% {
+      transform: scale(1);
+    }
+    75% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pj-fog-overlay,
+    .pj-ola-flash,
+    .pj-card--shielded::after,
+    .pj-card--levitate,
+    .pj-page.pj-page--tridente,
+    .pj-page.pj-page--tridente::after,
+    .pj-card--summon,
+    :global(.pj-fx-bolt),
+    :global(.pj-fx-crack),
+    :global(.pj-fx-crack__line) {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
+  /* Iris-message legend panel — a shimmering rainbow-edged disc (teal/bronze/camp-orange),
+     the demigod equivalent of the grimoire's parchment on the Harry Potter page. */
+  .pj-iris-section {
+    overflow: visible;
+  }
+  .pj-iris {
+    position: relative;
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-3);
+    border-radius: 1.2rem;
+    background: linear-gradient(160deg, rgba(10, 35, 48, 0.92), rgba(5, 22, 32, 0.96));
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    box-shadow: 0 0 0 1px rgba(62, 224, 200, 0.25), 0 20px 50px -25px rgba(0, 0, 0, 0.7);
+    opacity: 0;
+    translate: 0 1.4rem;
+    transition: opacity 0.7s ease, translate 0.7s ease;
+  }
+  .pj-iris::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: 1.2rem;
+    padding: 1px;
+    background: conic-gradient(from 0deg, var(--pj-teal), var(--pj-bronze), var(--pj-camp), var(--pj-teal));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.55;
+    animation: pj-iris-shimmer 6s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes pj-iris-shimmer {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .pj-iris.pj-iris--visible {
+    opacity: 1;
+    translate: 0 0;
+  }
+  .pj-iris__list {
+    position: relative;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .pj-iris__list li {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    column-gap: 0.8rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px dashed rgba(159, 196, 189, 0.25);
+  }
+  .pj-iris__list li:last-child {
+    border-bottom: none;
+  }
+  .pj-iris__icon {
+    flex: 0 0 2.4rem;
+    width: 2.4rem;
+    height: 2.4rem;
+    color: var(--pj-teal);
+  }
+  .pj-iris__icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .pj-iris__power {
+    flex: 0 0 9.5rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--pj-teal);
+  }
+  .pj-iris__how {
+    flex: 1 1 14rem;
+    color: #b9d9d3;
+    font-size: 0.92rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pj-iris {
+      transition: none;
+      opacity: 1;
+      translate: 0 0;
+    }
+    .pj-iris::before {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  const page = document.getElementById("pj-page");
+  const glow = document.getElementById("pj-glow");
+  const pen = document.getElementById("pj-pen-cursor");
+  const swordLayer = document.getElementById("pj-sword-layer");
+
+  if (page && glow && pen && window.matchMedia("(pointer: fine)").matches) {
+    page.addEventListener("pointerenter", () => page.classList.add("pj-active"));
+    page.addEventListener("pointerleave", () => page.classList.remove("pj-active"));
+    page.addEventListener("pointermove", (e) => {
+      glow.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+      pen.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+    });
+  }
+
+  // Click anywhere: Contracorriente unsheathes for a moment, then fades back to a plain pen.
+  document.addEventListener("click", (e) => {
+    if (!swordLayer) return;
+    const flash = document.createElement("div");
+    flash.className = "pj-sword-flash";
+    flash.style.left = `${e.clientX}px`;
+    flash.style.top = `${e.clientY}px`;
+    const label = document.createElement("div");
+    label.className = "pj-sword-label";
+    label.style.left = `${e.clientX}px`;
+    label.style.top = `${e.clientY}px`;
+    label.textContent = "¡Contracorriente!";
+    swordLayer.appendChild(flash);
+    swordLayer.appendChild(label);
+    flash.addEventListener("animationend", () => flash.remove());
+    label.addEventListener("animationend", () => label.remove());
+  });
+
+  // Random rotating caption per missing book — refreshes to a different mix on every load.
+  const CAPTIONS = [
+    "Ufff, ojalá algún día lo tenga.",
+    "Ya casi lo compro… lo prometo.",
+    "A ver si mañana ya voy y lo compro.",
+    "¿Alguien me lo regala, por favor?",
+    "Sigue en mi lista desde hace rato.",
+    "Cada que lo veo en la librería lo cargo… y lo vuelvo a dejar.",
+    "Este me falta. Se aceptan indirectas.",
+    "Lo tengo apartado en mi cabeza, no en mi librero.",
+  ];
+  document.querySelectorAll("[data-caption]").forEach((el) => {
+    el.textContent = CAPTIONS[Math.floor(Math.random() * CAPTIONS.length)];
+  });
+</script>
+
+<script>
+  // Demigod-power gesture recognition: trace a shape with the cursor (pointerdown -> move ->
+  // up) and it gets classified into one of 7 powers, on top of the plain click-anywhere sword
+  // flash above. Same engine as /biblioteca/harry-potter (see that page for the shape math),
+  // just remapped and recolored — holding still is Niebla, the rest are traced shapes.
+  (() => {
+    const page = document.getElementById("pj-page");
+    const fogOverlay = document.getElementById("pj-fog-overlay");
+    const olaFlash = document.getElementById("pj-ola-flash");
+    const fxLayer = document.getElementById("pj-fx-layer");
+    const secret = document.getElementById("pj-secret");
+    if (!page || !fogOverlay || !olaFlash || !fxLayer) return;
+    if (!window.matchMedia("(pointer: fine)").matches) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const HOLD_MS = 1800;
+    const FOG_MS = 8000;
+    // A real trace, even a slow, careful one (Égida's "small" circle, a hesitant pause
+    // before Viento/Silbido), must cancel the hold almost as soon as it starts moving --
+    // otherwise the time it takes to drift this many pixels can outlast HOLD_MS on its own,
+    // firing Niebla mid-gesture and eating the classify() call the real shape needed.
+    const HOLD_MOVE_TOLERANCE = 6;
+
+    let points = [];
+    let isDown = false;
+    let downX = 0;
+    let downY = 0;
+    let holdTimer = null;
+    let holdFired = false;
+    let fogActive = false;
+
+    function clearHoldTimer() {
+      if (holdTimer) {
+        clearTimeout(holdTimer);
+        holdTimer = null;
+      }
+    }
+
+    function fireNiebla() {
+      if (fogActive) return;
+      fogActive = true;
+      fogOverlay.classList.add("pj-fog-overlay--active");
+      setTimeout(() => {
+        fogOverlay.classList.remove("pj-fog-overlay--active");
+        fogActive = false;
+      }, FOG_MS);
+    }
+
+    function spawnBolt(x, y) {
+      const el = document.createElement("div");
+      el.className = "pj-fx-bolt";
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      fxLayer.appendChild(el);
+      setTimeout(() => el.remove(), 500);
+    }
+
+    function spawnCrack(x, y, onDone) {
+      const el = document.createElement("div");
+      el.className = "pj-fx-crack";
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.innerHTML = '<div class="pj-fx-crack__glow"></div><div class="pj-fx-crack__line"></div>';
+      fxLayer.appendChild(el);
+      setTimeout(() => {
+        el.remove();
+        onDone();
+      }, 1600);
+    }
+
+    function triggerGrieta(x, y) {
+      spawnCrack(x, y, () => {
+        if (!secret) return;
+        secret.hidden = false;
+        secret.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+      });
+    }
+
+    function triggerOla(x, y) {
+      olaFlash.style.setProperty("--px", `${x}px`);
+      olaFlash.style.setProperty("--py", `${y}px`);
+      olaFlash.classList.remove("pj-ola-flash--active");
+      void (olaFlash as HTMLElement).offsetWidth;
+      olaFlash.classList.add("pj-ola-flash--active");
+    }
+
+    function triggerEgida(card) {
+      if (!(card instanceof HTMLElement)) return;
+      card.classList.remove("pj-card--shielded");
+      void card.offsetWidth;
+      card.classList.add("pj-card--shielded");
+      setTimeout(() => card.classList.remove("pj-card--shielded"), 1600);
+    }
+
+    function triggerViento(card) {
+      if (!(card instanceof HTMLElement)) return;
+      card.classList.remove("pj-card--levitate");
+      void card.offsetWidth;
+      card.classList.add("pj-card--levitate");
+      setTimeout(() => card.classList.remove("pj-card--levitate"), 2800);
+    }
+
+    function triggerTridente() {
+      page.classList.remove("pj-page--tridente");
+      void (page as HTMLElement).offsetWidth;
+      page.classList.add("pj-page--tridente");
+      setTimeout(() => page.classList.remove("pj-page--tridente"), 700);
+    }
+
+    function cardNear(x, y) {
+      const el = document.elementFromPoint(x, y);
+      return el ? el.closest(".pj-card") : null;
+    }
+
+    // Classifies the traced path into a power on release. Order matters: most specific shape
+    // (figure-eight) first, then closed loops, then scribbles/flicks/stabs.
+    function classify() {
+      if (points.length < 4) return;
+      const start = points[0];
+      const end = points[points.length - 1];
+      const duration = end.t - start.t;
+      let dist = 0;
+      let minX = start.x,
+        maxX = start.x,
+        minY = start.y,
+        maxY = start.y;
+      let local = 0;
+      let bestPos = 0;
+      let bestNeg = 0;
+      let dxReversals = 0;
+      let prevDx = 0;
+      let prevAngle = null;
+
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1];
+        const b = points[i];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        dist += Math.hypot(dx, dy);
+        minX = Math.min(minX, b.x);
+        maxX = Math.max(maxX, b.x);
+        minY = Math.min(minY, b.y);
+        maxY = Math.max(maxY, b.y);
+        if (Math.abs(dx) > 2) {
+          if (prevDx !== 0 && Math.sign(dx) !== Math.sign(prevDx)) dxReversals++;
+          prevDx = dx;
+        }
+        if (Math.hypot(dx, dy) > 3) {
+          const angle = Math.atan2(dy, dx);
+          if (prevAngle !== null) {
+            let delta = angle - prevAngle;
+            while (delta > Math.PI) delta -= Math.PI * 2;
+            while (delta < -Math.PI) delta += Math.PI * 2;
+            local = local === 0 || Math.sign(delta) === Math.sign(local) ? local + delta : delta;
+            bestPos = Math.max(bestPos, local);
+            bestNeg = Math.min(bestNeg, local);
+          }
+          prevAngle = angle;
+        }
+      }
+
+      if (dist < 30) return; // a tap/click, not a traced gesture
+
+      const bboxW = maxX - minX;
+      const bboxH = maxY - minY;
+      const diagonal = Math.hypot(bboxW, bboxH);
+      const midX = (minX + maxX) / 2;
+      const midY = (minY + maxY) / 2;
+
+      // Figure-eight (Grieta): a real loop one way, and a real loop the other way.
+      if (bestPos > 5 && bestNeg < -5) {
+        triggerGrieta(end.x, end.y);
+        return;
+      }
+
+      // Closed loop: a lot of rotation one way, no reversal. Small + over a cover = Égida;
+      // otherwise the big sweep is Ola.
+      if (Math.max(bestPos, -bestNeg) > 4.6) {
+        const card = cardNear(midX, midY);
+        if (diagonal < 150 && card) {
+          triggerEgida(card);
+        } else {
+          triggerOla(midX, midY);
+        }
+        return;
+      }
+
+      // Zigzag (Rayo): several quick left-right reversals in a short scribble.
+      if (dxReversals >= 3 && bboxW < 260 && duration < 1600) {
+        spawnBolt(end.x, end.y);
+        return;
+      }
+
+      // Swish-and-flick (Viento): wide and flat, ending on a sharp upward flick.
+      const tailStart = points[Math.max(0, points.length - 4)];
+      const flickDy = end.y - tailStart.y;
+      const flickDx = end.x - tailStart.x;
+      if (bboxW > bboxH * 1.4 && bboxW > 90 && flickDy < -14 && Math.abs(flickDy) > Math.abs(flickDx) * 0.6) {
+        triggerViento(cardNear(midX, midY));
+        return;
+      }
+
+      // Tridente: short, fast, mostly-vertical downward stab.
+      if (duration < 260 && bboxH > bboxW * 1.4 && end.y - start.y > 24) {
+        triggerTridente();
+        return;
+      }
+    }
+
+    document.addEventListener("pointerdown", (e) => {
+      const ev = e as PointerEvent;
+      isDown = true;
+      holdFired = false;
+      downX = ev.clientX;
+      downY = ev.clientY;
+      points = [{ x: ev.clientX, y: ev.clientY, t: performance.now() }];
+      clearHoldTimer();
+      holdTimer = setTimeout(() => {
+        holdFired = true;
+        fireNiebla();
+      }, HOLD_MS);
+    });
+
+    document.addEventListener("pointermove", (e) => {
+      if (!isDown) return;
+      const ev = e as PointerEvent;
+      const dx = ev.clientX - downX;
+      const dy = ev.clientY - downY;
+      if (holdTimer && Math.hypot(dx, dy) > HOLD_MOVE_TOLERANCE) clearHoldTimer();
+      points.push({ x: ev.clientX, y: ev.clientY, t: performance.now() });
+    });
+
+    document.addEventListener("pointerup", () => {
+      clearHoldTimer();
+      isDown = false;
+      if (!holdFired) classify();
+      points = [];
+    });
+
+    document.addEventListener("pointercancel", () => {
+      clearHoldTimer();
+      isDown = false;
+      points = [];
+    });
+
+    // Silbido (a Blackjack) — double-click a cover and it springs toward the cursor, then
+    // snaps back, same mechanic as Accio on the Harry Potter page.
+    document.querySelectorAll(".pj-card").forEach((card) => {
+      card.addEventListener("dblclick", (e) => {
+        if (!(card instanceof HTMLElement)) return;
+        const ev = e as MouseEvent;
+        const rect = card.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = (ev.clientX - cx) * 0.18;
+        const dy = (ev.clientY - cy) * 0.18;
+        card.classList.add("pj-card--summon");
+        card.style.transform = `translate(${dx}px, ${dy}px) scale(0.94)`;
+        requestAnimationFrame(() => {
+          card.style.transform = "";
+        });
+        setTimeout(() => {
+          card.classList.remove("pj-card--summon");
+          card.style.transform = "";
+        }, 450);
+      });
+    });
+  })();
+</script>
+
+<script>
+  // Reveals the Iris-message legend the moment it scrolls into view.
+  const iris = document.getElementById("pj-iris");
+  if (iris && "IntersectionObserver" in window) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          iris.classList.add("pj-iris--visible");
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "-10% 0px" }
+    );
+    observer.observe(iris);
+  } else if (iris) {
+    iris.classList.add("pj-iris--visible");
+  }
+</script>

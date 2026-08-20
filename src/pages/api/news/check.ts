@@ -1,60 +1,32 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { parseRssItems } from "../../../lib/rss";
+import { snapshotArticle } from "../../../lib/press-snapshot";
+import { stripHtml, extractThumbnail } from "../../../lib/html-text";
+import { decodeGoogleNewsUrl } from "../../../lib/google-news-decode";
+import { classifyPressCandidate } from "../../../lib/press-classify";
+
+const USER_AGENT = "Mozilla/5.0 (compatible; KilowattoBot/1.0; +https://kilowatto.com)";
 
 export const prerender = false;
 
-const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-
+// Widened 2026-07-23 — the original 3 queries only ever surfaced ~10 mentions total, while
+// Esteban has 100+ real press mentions across his ~25-year career. Google News RSS also skews
+// heavily toward recent/indexed news, so this still won't find older archived pieces; that's
+// what press-web-search.ts (Brave Search, weekly cron) is for. This covers every company/project
+// name across his history so future ongoing coverage is broad, not just "Kilowatto" mentions.
 const QUERIES = [
   '"Esteban Rey" Kilowatto',
+  '"Esteban Rey Ortega"',
   '"Ignia Cloud" Esteban Rey',
+  '"Ignia Cloud" nube soberana',
   "Yucatech Festival Mérida",
+  "Yucatech Festival Uri Levine",
+  '"OnCloud" "Súbete a la Nube"',
+  '"DeSiCi" Zoho México',
+  '"Orange Rhino Investments"',
+  '"Esteban Rey" cloud computing México',
 ];
-
-const CLASSIFY_PROMPT = `Estás ayudando a filtrar menciones de prensa para el sitio personal de Esteban Rey Ortega, un CEO/inversionista tecnológico mexicano conocido como "Kilowatto", fundador de Ignia Cloud, DeSiCi, OnCloud (vendida), y del Yucatech Festival.
-
-IMPORTANTE — estos NO son la misma persona/entidad, descarta cualquier artículo sobre ellos:
-- Un cantautor/músico de rock y mariachi también llamado Esteban Rey (proyectos "Frida").
-- IGNIA (ignia.vc), un fondo de venture capital fundado en 2007 — sin relación con Ignia Cloud.
-- Cualquier otro "Esteban Rey" (hay varios en LinkedIn: diseñador gráfico en Mediaset España, desarrollador de software, etc).
-- Octapus (Esteban ya no tiene ninguna relación con esa empresa).
-- Finsus como inversión (Esteban NO es inversionista de Finsus, aunque puede aparecer junto a él como ponente de Yucatech).
-
-Dado este título y fragmento de un artículo, responde SOLO un objeto JSON con este formato exacto, sin texto adicional:
-{"about_him": "yes" | "no" | "unsure", "summary": "resumen de una oración en español si about_him es yes, si no cadena vacía"}`;
-
-function parseRssItems(xml: string) {
-  const items: { title: string; link: string; pubDate: string; source: string }[] = [];
-  const itemMatches = xml.matchAll(/<item>([\s\S]*?)<\/item>/g);
-  for (const m of itemMatches) {
-    const block = m[1];
-    const title = block.match(/<title>([\s\S]*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[|\]\]>/g, "") ?? "";
-    const link = block.match(/<link>([\s\S]*?)<\/link>/)?.[1]?.replace(/<!\[CDATA\[|\]\]>/g, "") ?? "";
-    const pubDate = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] ?? "";
-    const source = block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1]?.replace(/<!\[CDATA\[|\]\]>/g, "") ?? "";
-    if (title && link) items.push({ title, link, pubDate, source });
-  }
-  return items;
-}
-
-async function classify(title: string) {
-  const result: any = await env.AI.run(MODEL, {
-    messages: [
-      { role: "system", content: CLASSIFY_PROMPT },
-      { role: "user", content: `Título: ${title}` },
-    ],
-    max_tokens: 200,
-  });
-  const raw = typeof result?.response === "object" ? JSON.stringify(result.response) : result?.response ?? "";
-  const match = typeof raw === "string" ? raw.match(/\{[\s\S]*\}/) : null;
-  if (typeof result?.response === "object") return result.response;
-  if (!match) return { about_him: "unsure", summary: "" };
-  try {
-    return JSON.parse(match[0]);
-  } catch {
-    return { about_him: "unsure", summary: "" };
-  }
-}
 
 export const POST: APIRoute = async ({ request }) => {
   const url = new URL(request.url);
@@ -73,11 +45,37 @@ export const POST: APIRoute = async ({ request }) => {
       summary.found += items.length;
 
       for (const item of items) {
-        const existing = await env.DB.prepare("SELECT id FROM press_mentions WHERE url = ?").bind(item.link).first();
+        // item.link is Google's own redirect wrapper — it only resolves to the real article
+        // via client-side JS, so a plain server-side fetch just gets Google's syndication shell
+        // (generic placeholder image, no real article text). Decode it to the real URL first;
+        // fall back to the wrapper link itself if decoding fails for any reason. We store realUrl
+        // (not the wrapper) as `url`, so dedup has to check against the decoded form too — the
+        // same article resurfaces across several cron runs until it ages out of the RSS feed.
+        const decodedUrl = await decodeGoogleNewsUrl(item.link);
+        const realUrl = decodedUrl ?? item.link;
+
+        const existing = await env.DB.prepare("SELECT id FROM press_mentions WHERE url = ? OR url = ?").bind(realUrl, item.link).first();
         if (existing) continue;
         summary.new++;
 
-        const classification = await classify(item.title);
+        let articleHtml: string | null = null;
+        let articleText = "";
+        try {
+          const res = await fetch(realUrl, {
+            headers: { "user-agent": USER_AGENT },
+            signal: AbortSignal.timeout(12_000),
+            redirect: "follow",
+          });
+          if (res.ok) {
+            articleHtml = await res.text();
+            articleText = stripHtml(articleHtml);
+          }
+        } catch {
+          // fall through with empty articleText — classify on title alone rather than
+          // dropping the candidate entirely.
+        }
+
+        const classification = await classifyPressCandidate(item.title, articleText);
         const publishedAt = item.pubDate ? new Date(item.pubDate).toISOString().slice(0, 10) : null;
 
         if (classification.about_him === "no") {
@@ -86,7 +84,7 @@ export const POST: APIRoute = async ({ request }) => {
             `INSERT INTO press_mentions (url, outlet, title, published_at, summary, identity_confidence, status)
              VALUES (?, ?, ?, ?, '', 'rejected', 'rejected')`
           )
-            .bind(item.link, item.source, item.title, publishedAt)
+            .bind(realUrl, item.source, item.title, publishedAt)
             .run();
           continue;
         }
@@ -95,12 +93,26 @@ export const POST: APIRoute = async ({ request }) => {
         if (confidence === "confirmed") summary.confirmed++;
         else summary.uncertain++;
 
-        await env.DB.prepare(
-          `INSERT INTO press_mentions (url, outlet, title, published_at, summary, identity_confidence, status)
-           VALUES (?, ?, ?, ?, ?, ?, 'pending')`
+        // Only meaningful when we actually reached the real outlet page — Google's own shell
+        // page has a generic, non-article-specific placeholder image, not worth storing.
+        const thumbnailUrl = decodedUrl && articleHtml ? await extractThumbnail(articleHtml, realUrl) : null;
+
+        const inserted = await env.DB.prepare(
+          `INSERT INTO press_mentions (url, outlet, title, published_at, summary, identity_confidence, status, thumbnail_url)
+           VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`
         )
-          .bind(item.link, item.source, item.title, publishedAt, classification.summary ?? "", confidence)
+          .bind(realUrl, item.source, item.title, publishedAt, classification.summary ?? "", confidence, thumbnailUrl)
           .run();
+
+        // Preserve the source now, before it can disappear — never block insertion on this.
+        // Reuses the fetch already done for classification instead of hitting the URL twice.
+        const mentionId = inserted.meta.last_row_id;
+        const { r2Key, archiveUrl } = await snapshotArticle(realUrl, mentionId, articleHtml ?? undefined);
+        if (r2Key || archiveUrl) {
+          await env.DB.prepare(`UPDATE press_mentions SET raw_content_r2_key = COALESCE(?, raw_content_r2_key), archive_url = COALESCE(?, archive_url) WHERE id = ?`)
+            .bind(r2Key, archiveUrl, mentionId)
+            .run();
+        }
       }
     }
   } catch (err: any) {
@@ -110,6 +122,12 @@ export const POST: APIRoute = async ({ request }) => {
       headers: { "content-type": "application/json" },
     });
   }
+
+  // Lets the 6-hour cron trigger skip itself in scheduled-entry.mjs when a manual run (this
+  // button, clicked from /admin/prensa) already covered the window — a literal Cron Trigger
+  // fires on a fixed schedule and can't be rescheduled, but this makes it a no-op until 6h
+  // have actually passed since the last real check, so a manual click "resets" the window.
+  await env.KILOWATTO_KV.put("last_news_check_at", new Date().toISOString()).catch(() => {});
 
   return new Response(JSON.stringify({ ok: true, summary }), {
     headers: { "content-type": "application/json" },

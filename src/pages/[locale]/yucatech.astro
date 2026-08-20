@@ -1,10 +1,18 @@
 ---
 import Site from "../../layouts/Site.astro";
+import PullQuote from "../../components/PullQuote.astro";
 import { localeFromParam, VOICE_INSTRUCTIONS } from "../../lib/locales";
+import { parseJsonWithBracketRepair } from "../../lib/ai-json-repair";
 import { env } from "cloudflare:workers";
 
 const locale = localeFromParam(Astro.params.locale);
-if (!locale || locale.canonical) return Astro.redirect("/yucatech", 302);
+// See src/pages/[locale]/index.astro for why this is split — an unrecognized single path
+// segment must 404, not silently redirect home as if it were a locale.
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+if (locale.canonical) return Astro.redirect("/yucatech", 302);
 
 const ES_PARAGRAPHS = [
   'El evento que apuesta a que el sur-sureste de México sea el próximo hub tecnológico de América Latina — inteligencia artificial, ciberseguridad, nube y negocios, con capital real detrás de cada pitch en la "Elevator Pitch Hour".',
@@ -31,7 +39,10 @@ if (env?.KILOWATTO_KV) {
         ],
         max_tokens: 1000,
       });
-      const parsed = typeof result?.response === "object" ? result.response : JSON.parse(result?.response?.match(/\[[\s\S]*\]/)?.[0] ?? "null");
+      const parsed =
+        typeof result?.response === "object"
+          ? result.response
+          : parseJsonWithBracketRepair(result?.response?.match(/\[[\s\S]*\]/)?.[0] ?? "null");
       if (Array.isArray(parsed) && parsed.length === ES_PARAGRAPHS.length) {
         paragraphs = parsed;
         await env.KILOWATTO_KV.put(CACHE_KEY, JSON.stringify(parsed), { expirationTtl: 60 * 60 * 24 * 30 });
@@ -41,9 +52,54 @@ if (env?.KILOWATTO_KV) {
     }
   }
 }
+// Meta title/description need to be in the visitor's language too (a Spanish <title> on an
+// English page is a real SEO/accessibility miss) — kept as a small static map rather than
+// another live-AI-translate call, same reasoning as contacto.astro.
+const DESC_MAP: Record<string, string> = {
+  en: "Yucatech Festival: the tech festival in Mérida founded and funded by Esteban Rey, with AI, cybersecurity, cloud, and real investment at its Elevator Pitch Hour.",
+  "pt-BR": "Yucatech Festival: o festival de tecnologia em Mérida fundado e financiado por Esteban Rey, com IA, cibersegurança, nuvem e investimento real no seu Elevator Pitch Hour.",
+  fr: "Yucatech Festival : le festival technologique de Mérida fondé et financé par Esteban Rey, avec IA, cybersécurité, cloud et de véritables investissements lors de son Elevator Pitch Hour.",
+  de: "Yucatech Festival: das Tech-Festival in Mérida, gegründet und finanziert von Esteban Rey, mit KI, Cybersicherheit, Cloud und echten Investitionen bei der Elevator Pitch Hour.",
+  ar: "Yucatech Festival: مهرجان التقنية في ميريدا الذي أسسه ويموله إستيبان ري، ويضم الذكاء الاصطناعي والأمن السيبراني والحوسبة السحابية واستثمارات حقيقية في Elevator Pitch Hour.",
+  "zh-Hans": "Yucatech Festival：由埃斯特万·雷创立并出资的梅里达科技节，涵盖人工智能、网络安全、云计算，并在 Elevator Pitch Hour 环节提供真实投资。",
+  ja: "Yucatech Festival: エステバン・レイが設立・出資するメリダのテックフェスティバル。AI、サイバーセキュリティ、クラウド、そしてElevator Pitch Hourでの実際の投資を特徴とする。",
+};
+const description = DESC_MAP[locale.code] ?? "Yucatech Festival: el festival de tecnología en Mérida fundado y financiado por Esteban Rey, con IA, ciberseguridad, nube e inversión real en su Elevator Pitch Hour.";
+
+const eventJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Event",
+  name: "Yucatech Festival 2026",
+  description: paragraphs[0],
+  startDate: "2026-04-16",
+  eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+  eventStatus: "https://schema.org/EventScheduled",
+  location: {
+    "@type": "Place",
+    name: "Centro Internacional de Congresos de Yucatán",
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: "Calle 62 No. 294, entre Av. Cupules y Av. Colón, Centro",
+      addressLocality: "Mérida",
+      addressRegion: "Yucatán",
+      postalCode: "97000",
+      addressCountry: "MX",
+    },
+  },
+  organizer: { "@type": "Person", name: "Esteban Rey", url: "https://kilowatto.com" },
+  url: `https://kilowatto.com/${locale.code}/yucatech`,
+};
 ---
 
-<Site title="Yucatech Festival — Kilowatto" active="/yucatech" locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
+<Site
+  title={`Yucatech Festival — Kilowatto`}
+  description={description}
+  active="/yucatech"
+  locale={locale.code}
+  dir={locale.rtl ? "rtl" : "ltr"}
+>
+  <script type="application/ld+json" set:html={JSON.stringify(eventJsonLd)} />
+
   <section class="page-head">
     <div class="container">
       <p class="eyebrow">Mérida, Yucatán</p>
@@ -55,4 +111,6 @@ if (env?.KILOWATTO_KV) {
       {paragraphs.map((p) => <p class="hero__sub">{p}</p>)}
     </div>
   </section>
+
+  <PullQuote placement="yucatech" locale={locale.code} />
 </Site>

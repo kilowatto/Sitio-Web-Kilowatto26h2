@@ -1,0 +1,39 @@
+---
+import Site from "../layouts/Site.astro";
+import ColumnList from "../components/ColumnList.astro";
+import { getColumnsPage } from "../lib/columns-query";
+import { env } from "cloudflare:workers";
+
+let columns: any[] = [];
+let totalPages = 1;
+if (env?.DB) {
+  const page = await getColumnsPage(env, 1);
+  columns = page.rows;
+  totalPages = page.totalPages;
+}
+---
+
+<Site
+  title="Columnas — Esteban Rey"
+  description="Columnas de opinión de Esteban Rey (Kilowatto) sobre tecnología, IA y negocios."
+  active="/columnas"
+>
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Columnas</p>
+      <h1>Lo que escribo sobre tecnología, IA y negocios</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      {
+        columns.length === 0 ? (
+          <p class="hero__sub">Próximamente — la primera columna está en camino.</p>
+        ) : (
+          <ColumnList columns={columns} currentPage={1} totalPages={totalPages} basePath="/columnas" />
+        )
+      }
+    </div>
+  </section>
+</Site>

@@ -43,16 +43,14 @@ async function factCheck(content: string, bioFacts: any) {
   return result ?? { grounded: true, issue: "" };
 }
 
-export const POST: APIRoute = async ({ request }) => {
-  const url = new URL(request.url);
-  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
-    return new Response("unauthorized", { status: 401 });
-  }
-
-  const body = await request.json<{ platform: "x" | "linkedin"; language: string; topicId?: number }>();
-  if (!body?.platform || !body?.language) {
-    return new Response(JSON.stringify({ error: "missing platform or language" }), { status: 400 });
-  }
+// Exported as a plain function so tick.ts can call it directly in-process instead of
+// self-fetching its own public URL — see the note on runReshare() in reshare.ts for why
+// that chain of nested self-fetches was silently killing the autopilot cadence (522s).
+export async function runGenerate(body: { platform: "x" | "linkedin"; language: string; topicId?: number; variantCount?: number }) {
+  // Default is 2 (A/B test) for the normal autopilot cadence — the "generar nuevos desde
+  // cero" button in /admin/social asks for 1 per platform instead, so it produces exactly
+  // one fresh draft per network rather than an A/B pair.
+  const variantCount = body.variantCount && body.variantCount > 0 ? body.variantCount : 2;
 
   let topic: any;
   if (body.topicId) {
@@ -61,11 +59,11 @@ export const POST: APIRoute = async ({ request }) => {
     topic = await env.DB.prepare("SELECT * FROM brand_topics WHERE active = 1 ORDER BY RANDOM() LIMIT 1").first();
   }
   if (!topic) {
-    return new Response(JSON.stringify({ error: "no active topic found" }), { status: 400 });
+    return { error: "no active topic found" };
   }
 
-  const { voiceSamples, bioFacts } = await buildVoiceContext(env.DB);
-  const voiceBlock = voicePromptBlock(voiceSamples, bioFacts);
+  const { voiceSamples, bioFacts, columnVoiceSamples } = await buildVoiceContext(env.DB);
+  const voiceBlock = voicePromptBlock(voiceSamples, bioFacts, columnVoiceSamples);
   // Vector-retrieved, not a flat SQL dump — only feedback semantically relevant to THIS
   // topic comes back, instead of the last N rejections/edits regardless of subject.
   const learningBlock = await retrieveLearningContext(topic.label, topic.description ?? "");
@@ -78,7 +76,7 @@ Tema para este post: "${topic.label}" — ${topic.description}
 Plataforma: ${body.platform}. ${PLATFORM_GUIDANCE[body.platform]}
 Idioma: ${body.language === "en" ? "inglés" : "español"}.
 
-Genera EXACTAMENTE 2 variantes distintas del mismo post (para prueba A/B), cada una con un "gancho" (hook) diferente entre: pregunta, dato/estadística o hecho concreto, anécdota/historia corta, opinión directa/contrarian.
+Genera EXACTAMENTE ${variantCount} variante${variantCount > 1 ? "s distintas del mismo post (para prueba A/B)" : " de este post"}, cada una con un "gancho" (hook) diferente entre: pregunta, dato/estadística o hecho concreto, anécdota/historia corta, opinión directa/contrarian.
 
 Los hashtags van SOLO en el campo "hashtags", nunca escritos dentro de "content" — "content" es el texto del post tal cual se publicaría, sin ningún "#" en ningún lado. Cada variante lleva ${body.platform === "x" ? "máximo 2" : "máximo 3"} hashtags contextuales específicos al contenido real del post (nunca genéricos tipo #tech). NO incluyas hashtags de marca fijos (#Kilowatto, #IgniaCloud) — esos se agregan aparte automáticamente.
 
@@ -88,7 +86,7 @@ Responde SOLO un JSON:
   const generated = await callAI(prompt, 900);
   const variants: { style: string; content: string; hashtags?: string[] }[] = generated?.variants ?? [];
   if (variants.length === 0) {
-    return new Response(JSON.stringify({ error: "generation failed, no variants produced" }), { status: 502 });
+    return { error: "generation failed, no variants produced" };
   }
 
   const variantGroup = crypto.randomUUID();
@@ -123,7 +121,21 @@ Responde SOLO un JSON:
     inserted.push({ id: res.meta.last_row_id, style: v.style, content: cleanContent, flagged: !!rejectionNote, imageKey });
   }
 
-  return new Response(JSON.stringify({ ok: true, topic: topic.label, variantGroup, inserted }), {
-    headers: { "content-type": "application/json" },
-  });
+  return { ok: true, topic: topic.label, variantGroup, inserted };
+}
+
+export const POST: APIRoute = async ({ request }) => {
+  const url = new URL(request.url);
+  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
+    return new Response("unauthorized", { status: 401 });
+  }
+
+  const body = await request.json<{ platform: "x" | "linkedin"; language: string; topicId?: number; variantCount?: number }>();
+  if (!body?.platform || !body?.language) {
+    return new Response(JSON.stringify({ error: "missing platform or language" }), { status: 400 });
+  }
+
+  const result = await runGenerate(body);
+  const status = "error" in result ? (result.error === "no active topic found" ? 400 : 502) : 200;
+  return new Response(JSON.stringify(result), { status, headers: { "content-type": "application/json" } });
 };

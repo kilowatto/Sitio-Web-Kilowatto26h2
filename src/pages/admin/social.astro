@@ -1,5 +1,5 @@
 ---
-import Base from "../../layouts/Base.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
 import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
 import { checkAdminAuth } from "../../lib/admin-auth";
@@ -13,9 +13,28 @@ let recentFailed: any[] = [];
 let topics: any[] = [];
 let paused = false;
 let fixedHashtags = "";
+let totalDraftsCount = 0;
+let newsSources: any[] = [];
+let newsTrust: any[] = [];
+let newsAutopilotPaused = false;
+let recentAutoPublished: any[] = [];
+let recentExpired: any[] = [];
 
 if (authorized && env?.DB) {
-  const [pending, posted, failed, pauseState, topicsRes, fixedHashtagsRes] = await Promise.all([
+  const [
+    pending,
+    posted,
+    failed,
+    pauseState,
+    topicsRes,
+    fixedHashtagsRes,
+    draftsCountRes,
+    newsSourcesRes,
+    newsTrustRes,
+    newsAutopilotPauseState,
+    autoPublishedRes,
+    expiredRes,
+  ] = await Promise.all([
     env.DB.prepare(
       `SELECT * FROM brand_posts WHERE status = 'pending_approval' ORDER BY variant_group, created_at`
     ).all(),
@@ -28,12 +47,28 @@ if (authorized && env?.DB) {
     env.KILOWATTO_KV.get("brand_autopilot_paused"),
     env.DB.prepare(`SELECT * FROM brand_topics ORDER BY sort_order`).all(),
     env.KILOWATTO_KV.get("brand_fixed_hashtags"),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM brand_posts WHERE status = 'pending_approval'`).first(),
+    env.DB.prepare(`SELECT * FROM news_sources ORDER BY trusted DESC, name`).all(),
+    env.DB.prepare(`SELECT * FROM news_reaction_trust`).all(),
+    env.KILOWATTO_KV.get("news_autopilot_paused"),
+    env.DB.prepare(
+      `SELECT * FROM brand_posts WHERE auto_published = 1 AND posted_at >= datetime('now', '-2 days') ORDER BY posted_at DESC LIMIT 10`
+    ).all(),
+    env.DB.prepare(
+      `SELECT * FROM brand_posts WHERE kind = 'news_reaction' AND status = 'expired' ORDER BY created_at DESC LIMIT 15`
+    ).all(),
   ]);
   paused = pauseState === "true";
   recentPosted = posted?.results ?? [];
   recentFailed = failed?.results ?? [];
   topics = topicsRes?.results ?? [];
   fixedHashtags = fixedHashtagsRes ?? "";
+  totalDraftsCount = (draftsCountRes as any)?.n ?? 0;
+  newsSources = newsSourcesRes?.results ?? [];
+  newsTrust = newsTrustRes?.results ?? [];
+  newsAutopilotPaused = newsAutopilotPauseState === "true";
+  recentAutoPublished = autoPublishedRes?.results ?? [];
+  recentExpired = expiredRes?.results ?? [];
 
   const rows = pending?.results ?? [];
   const groups = new Map<string, any[]>();
@@ -44,9 +79,38 @@ if (authorized && env?.DB) {
   }
   pendingGroups = Array.from(groups.entries()).map(([key, items]) => ({ key, items }));
 }
+
+const trustByPlatform: Record<string, any> = Object.fromEntries(newsTrust.map((t: any) => [t.platform, t]));
+
+const IMAGE_STYLE_LABELS: Record<string, string> = {
+  illustration: "🎨 Ilustración",
+  infographic: "📊 Infografía",
+  real_photo: "📷 Foto real",
+  photorealistic: "🖼️ Fotorrealista",
+};
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return "nunca";
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 2) return "hace un momento";
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `hace ${hours}h`;
+  return `hace ${Math.floor(hours / 24)}d`;
+}
+
+function formatCountdown(expiresAt: string | null): string | null {
+  if (!expiresAt) return null;
+  const ms = new Date(expiresAt.replace(" ", "T") + "Z").getTime() - Date.now();
+  if (ms <= 0) return "vence en cualquier momento";
+  const hours = Math.floor(ms / 3_600_000);
+  const mins = Math.floor((ms % 3_600_000) / 60_000);
+  if (hours >= 1) return `vence en ${hours}h ${mins}m`;
+  return `vence en ${mins}m`;
+}
 ---
 
-<Base title="Marca personal — Admin">
+<AdminLayout title="Posting automático — Admin" active="/admin/social" authorized={authorized}>
   <div class="container admin">
     {
       !authorized ? (
@@ -54,50 +118,172 @@ if (authorized && env?.DB) {
       ) : (
         <>
           <p class="admin-nav"><a href="/admin">← Panel de administración</a></p>
+
           <div class="pause-bar">
-            <span>Autopiloto: <strong class={paused ? "off" : "on"}>{paused ? "PAUSADO" : "ACTIVO"}</strong></span>
-            <button id="toggle-pause" data-paused={String(paused)}>
-              {paused ? "Reanudar" : "Pausar todo ahora"}
+            <div class="pause-status">
+              <span class="pause-dot" data-paused={String(paused)} aria-hidden="true" />
+              <span>Autopiloto <strong class={paused ? "off" : "on"}>{paused ? "pausado" : "activo"}</strong></span>
+            </div>
+            <div class="pause-actions">
+              <button id="regen-all-btn" type="button" data-drafts-count={totalDraftsCount}>
+                🔄 {totalDraftsCount === 0 ? "Generar nuevos" : "Generar nuevos (descarta actuales)"}
+              </button>
+              <button id="toggle-pause" data-paused={String(paused)}>
+                {paused ? "Reanudar" : "Pausar todo"}
+              </button>
+            </div>
+          </div>
+          <div id="regen-all-progress" class="regen-progress" hidden>
+            <div class="regen-progress-track">
+              <div id="regen-progress-fill" class="regen-progress-fill"></div>
+            </div>
+            <p id="regen-all-status" class="hint"></p>
+          </div>
+
+          {recentAutoPublished.length > 0 && (
+            <div class="auto-published-banner">
+              <p class="field-label">🤖 Publicado en automático (sin tu aprobación)</p>
+              <ul class="log">
+                {recentAutoPublished.map((p: any) => (
+                  <li>
+                    <strong>{p.platform.toUpperCase()}</strong> · {p.posted_at} —{" "}
+                    {p.external_url ? <a href={p.external_url} target="_blank" rel="noopener">ver post</a> : p.content.slice(0, 80)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div class="news-pilot-bar">
+            <div class="news-pilot-status">
+              <span>📰 Piloto de noticias:</span>
+              <span class={newsAutopilotPaused ? "off" : "on"}>{newsAutopilotPaused ? "pausado" : "activo"}</span>
+              {["x", "linkedin"].map((plat) => {
+                const t = trustByPlatform[plat];
+                const n = t?.consecutive_clean_approvals ?? 0;
+                const enabled = !!t?.autopilot_enabled;
+                return (
+                  <span class="trust-chip" data-enabled={String(enabled)}>
+                    {plat.toUpperCase()}: {enabled ? "🟢 autopublica" : `${Math.min(n, 10)}/10`}
+                  </span>
+                );
+              })}
+            </div>
+            <button id="toggle-news-autopilot" data-paused={String(newsAutopilotPaused)}>
+              {newsAutopilotPaused ? "Reactivar piloto de noticias" : "🛑 Apagar piloto de noticias"}
             </button>
           </div>
 
-          <h1>Borradores pendientes ({pendingGroups.length})</h1>
-          <p class="hint">Posts de "idea" — nunca se publican solos. Reshares de prensa se auto-publican y solo aparecen abajo en el historial.</p>
+          <div class="composer">
+            <p class="field-label">✨ Crear post desde una idea (investiga en internet)</p>
+            <p class="hint">
+              Dale una idea libre — Larry busca información real en internet, escribe el post citando sus fuentes
+              (como links cortos rastreables) y lo ilustra con Larry haciendo algo relacionado. Ej: "Quiero postear
+              sobre el nuevo procesador Spark de NVIDIA, investiga qué se sabe y crea una ilustración del Orange
+              Rhino instalando un procesador."
+            </p>
+            <textarea id="idea-input" rows="3" placeholder="Escribe tu idea aquí…"></textarea>
+            <div class="composer-row">
+              <select id="idea-platform">
+                <option value="x">X</option>
+                <option value="linkedin">LinkedIn</option>
+                <option value="both">Ambas</option>
+              </select>
+              <input type="datetime-local" id="idea-schedule" title="Programar para (opcional)" />
+              <button id="idea-submit" type="button">Investigar y generar</button>
+            </div>
+            <p id="idea-status" class="hint"></p>
+          </div>
+
+          <h1>Pendientes de aprobar <span class="count-badge">{pendingGroups.length}</span></h1>
+          <p class="hint">Posts de "idea" — nunca se publican solos. Reshares de prensa se auto-publican y solo aparecen en el historial.</p>
+
+          {pendingGroups.length === 0 && (
+            <div class="empty-state">
+              <p>No hay borradores esperando aprobación ahora mismo.</p>
+              <button id="generate-batch-btn" type="button">✨ Generar 6 posts nuevos</button>
+              <div id="batch-progress" class="regen-progress" hidden>
+                <div class="regen-progress-track">
+                  <div id="batch-progress-fill" class="regen-progress-fill"></div>
+                </div>
+                <p id="batch-status" class="hint"></p>
+              </div>
+            </div>
+          )}
 
           <div class="groups">
             {pendingGroups.map((g) => (
               <div class="group">
+                {g.items.length > 1 && <p class="group-label">Variantes A/B — misma imagen, distinto gancho</p>}
                 {g.items.map((p: any) => (
                   <div class={`draft ${p.rejection_reason ? "draft--flagged" : ""}`} data-id={p.id}>
                     <p class="meta">
-                      {p.platform.toUpperCase()} · variante {p.variant_style ?? "?"}
-                      {p.rejection_reason && <span class="warn"> ⚠️ {p.rejection_reason}</span>}
+                      <span class="platform-badge">{p.platform.toUpperCase()}</span>
+                      <span class="variant-badge">{p.variant_style ?? "único"}</span>
+                      {p.kind === "news_reaction" && <span class="news-badge">📰 Noticia</span>}
+                      {p.kind === "news_reaction" && p.expires_at && (
+                        <span class="expiry-badge">⏱️ {formatCountdown(p.expires_at)}</span>
+                      )}
                     </p>
-                    {p.image_r2_key && (
-                      <>
-                        <img class="draft-image" data-id={p.id} src={`/media/${p.image_r2_key}`} alt="" loading="lazy" />
-                        <button class="reject-image" data-id={p.id} type="button">
-                          🖼️ Rechazar imagen (buscar otra)
-                        </button>
-                      </>
+                    {p.kind === "news_reaction" && p.source_url && (
+                      <p class="hint">
+                        <a href={p.source_url} target="_blank" rel="noopener">Ver noticia original →</a>
+                      </p>
                     )}
-                    <textarea class="content-box" data-id={p.id}>{p.content}</textarea>
-                    <input
-                      type="text"
-                      class="hashtags-box"
-                      data-id={p.id}
-                      value={p.hashtags ?? ""}
-                      placeholder="Hashtags de este post (generados por Larry)"
-                    />
-                    <p class="hint hashtags-fixed-hint">+ fijos: {fixedHashtags || "(ninguno configurado)"}</p>
-                    <input
-                      type="text"
-                      class="reason-box"
-                      data-id={p.id}
-                      placeholder="Razón del rechazo (opcional)"
-                    />
+                    {p.rejection_reason && <p class="warn">⚠️ {p.rejection_reason}</p>}
+
+                    {p.image_r2_key && (
+                      <div class="image-block">
+                        <img class="draft-image" data-id={p.id} src={`/media/${p.image_r2_key}?w=500`} alt="" />
+                        <button class="reject-image" data-id={p.id} type="button">
+                          🖼️ Buscar otra imagen
+                        </button>
+                      </div>
+                    )}
+
+                    <label class="field-label" for={`content-${p.id}`}>Texto del post</label>
+                    <textarea id={`content-${p.id}`} class="content-box" data-id={p.id}>{p.content}</textarea>
+
+                    <label class="field-label" for={`hashtags-input-${p.id}`}>Hashtags</label>
+                    <div class="chip-editor" data-hashtag-editor data-id={p.id}>
+                      <div class="chip-list" data-chip-list></div>
+                      <input
+                        type="text"
+                        class="chip-add-input"
+                        data-chip-add
+                        placeholder="Escribe y presiona Enter…"
+                      />
+                    </div>
+                    <input type="hidden" class="hashtags-box" data-id={p.id} value={p.hashtags ?? ""} />
+                    <p class="hint hashtags-fixed-hint">+ fijos siempre: {fixedHashtags || "(ninguno configurado)"}</p>
+
+                    {p.sources && JSON.parse(p.sources).length > 0 && (
+                      <details class="sources-details">
+                        <summary>Fuentes investigadas ({JSON.parse(p.sources).length})</summary>
+                        <ul class="sources-list">
+                          {JSON.parse(p.sources).map((s: any) => (
+                            <li>
+                              <a href={s.url} target="_blank" rel="noopener">{s.title || s.url}</a>
+                              {" — "}
+                              <span class="source-short">{s.shortUrl}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+
+                    <details class="reject-details">
+                      <summary>Razón del rechazo (opcional)</summary>
+                      <input
+                        type="text"
+                        class="reason-box"
+                        data-id={p.id}
+                        placeholder="¿Por qué lo rechazas?"
+                      />
+                    </details>
+
                     <div class="actions">
-                      <button class="approve" data-id={p.id}>Aprobar</button>
+                      <button class="approve" data-id={p.id}>✓ Aprobar</button>
                       <button class="reject" data-id={p.id}>Rechazar</button>
                     </div>
                   </div>
@@ -106,79 +292,429 @@ if (authorized && env?.DB) {
             ))}
           </div>
 
-          {recentFailed.length > 0 && (
-            <>
-              <h2>Fallidos ({recentFailed.length})</h2>
-              <ul class="log">
-                {recentFailed.map((p: any) => (
-                  <li>
-                    <strong>{p.platform}</strong> — {p.rejection_reason} — <em>{p.content.slice(0, 80)}…</em>
+          <details class="section" open={recentFailed.length > 0}>
+            <summary>
+              Fallidos <span class="count-badge">{recentFailed.length}</span>
+            </summary>
+            <div class="section-body">
+              {recentFailed.length === 0 ? (
+                <p class="hint">Nada fallido recientemente.</p>
+              ) : (
+                <ul class="log">
+                  {recentFailed.map((p: any) => (
+                    <li>
+                      <strong>{p.platform}</strong> — {p.rejection_reason} — <em>{p.content.slice(0, 80)}…</em>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </details>
+
+          <details class="section">
+            <summary>
+              Noticias expiradas <span class="count-badge">{recentExpired.length}</span>
+            </summary>
+            <div class="section-body">
+              <p class="hint">Propuestas de noticias que nadie aprobó a tiempo — se descartaron solas, no cuentan como rechazo.</p>
+              {recentExpired.length === 0 ? (
+                <p class="hint">Ninguna expirada recientemente.</p>
+              ) : (
+                <ul class="log">
+                  {recentExpired.map((p: any) => (
+                    <li>
+                      <strong>{p.platform}</strong> — <em>{p.content.slice(0, 100)}…</em>
+                      {p.source_url && <> — <a href={p.source_url} target="_blank" rel="noopener">fuente</a></>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </details>
+
+          <details class="section">
+            <summary>
+              Temas <span class="count-badge">{topics.filter((t: any) => t.active).length}/{topics.length}</span>
+            </summary>
+            <div class="section-body">
+              <p class="hint">Larry solo elige entre los temas activos. Desactiva los que no quieras que toque, o bórralos si ya no los vas a usar. El estilo de imagen define cómo se ilustra cada post de ese tema.</p>
+
+              <div class="topics-toolbar">
+                <input type="text" id="topics-search" placeholder="🔎 Buscar tema…" />
+                <div class="topics-filter" role="group" aria-label="Filtrar temas">
+                  <button type="button" class="filter-btn is-active" data-filter="active">Activos</button>
+                  <button type="button" class="filter-btn" data-filter="all">Todos</button>
+                  <button type="button" class="filter-btn" data-filter="inactive">Inactivos</button>
+                </div>
+              </div>
+
+              <div class="topics-select-bar">
+                <button type="button" id="topics-select-mode-btn">☑️ Seleccionar</button>
+                <button type="button" id="topics-review-all-btn">🔍 Revisar vigencia (activos)</button>
+                <div id="topics-bulk-bar" class="topics-bulk-bar" hidden>
+                  <span id="topics-selected-count">0 seleccionados</span>
+                  <button type="button" id="topics-select-cancel">Cancelar</button>
+                  <button type="button" id="topics-bulk-delete">🗑️ Borrar seleccionados</button>
+                </div>
+              </div>
+              <p id="topics-review-all-status" class="hint"></p>
+              <div id="topics-progress" class="topics-progress" hidden>
+                <div id="topics-progress-bar" class="topics-progress__bar" style="width: 0%"></div>
+              </div>
+              <ul id="topics-stale-summary" class="topics-stale-summary" hidden></ul>
+
+              <ul class="topics-list" id="topics-list">
+                {topics.map((t: any) => (
+                  <li class="topic-row" data-id={t.id} data-active={String(!!t.active)} data-label={t.label.toLowerCase()}>
+                    <div class="topic-main">
+                      <input type="checkbox" class="topic-select" data-id={t.id} hidden />
+                      <label class="topic-toggle-row">
+                        <input type="checkbox" class="topic-toggle" data-id={t.id} checked={!!t.active} />
+                        <span class="topic-name">{t.label}</span>
+                      </label>
+                      <div class="topic-row-actions">
+                        {!!t.stale_flag && <span class="topic-stale-badge" title={t.review_note ?? "Posible desactualización"}>🚩</span>}
+                        <span class="topic-style-badge">{IMAGE_STYLE_LABELS[t.image_style]?.split(" ")[0] ?? "🎨"}</span>
+                        <button type="button" class="topic-expand" data-id={t.id} aria-expanded="false" title="Ver detalles">⌄</button>
+                        <button type="button" class="topic-delete" data-id={t.id} title="Borrar tema">🗑️</button>
+                      </div>
+                    </div>
+                    <div class="topic-details" hidden>
+                      <p class="topic-desc">{t.description}</p>
+                      <select class="image-style-select" data-id={t.id}>
+                        {Object.entries(IMAGE_STYLE_LABELS).map(([value, label]) => (
+                          <option value={value} selected={t.image_style === value}>{label}</option>
+                        ))}
+                      </select>
+                      <p class="topic-review-meta">
+                        Revisado: {timeAgo(t.last_reviewed_at)}
+                      </p>
+                      <button type="button" class="topic-review-btn" data-id={t.id}>🔍 Revisar vigencia</button>
+                      <div class="topic-stale-actions" data-id={t.id} hidden={!t.stale_flag}>
+                        <p class="topic-review-note">{t.review_note ?? ""}</p>
+                        <div class="topic-stale-actions__buttons">
+                          <button type="button" class="topic-keep-btn" data-id={t.id}>✅ Se queda</button>
+                          <button type="button" class="topic-remove-btn" data-id={t.id}>🗑️ Se va</button>
+                        </div>
+                      </div>
+                    </div>
                   </li>
                 ))}
               </ul>
-            </>
-          )}
 
-          <h2>Temas</h2>
-          <p class="hint">Larry solo elige entre los temas activos. Desactiva los que no quieras que toque, sin borrarlos.</p>
-          <ul class="topics-list">
-            {topics.map((t: any) => (
-              <li class="topic-row" data-id={t.id}>
-                <label>
-                  <input type="checkbox" class="topic-toggle" data-id={t.id} checked={!!t.active} />
-                  <strong>{t.label}</strong>
-                </label>
-                <p class="topic-desc">{t.description}</p>
-                <select class="image-style-select" data-id={t.id}>
-                  <option value="illustration" selected={t.image_style === "illustration"}>🎨 Ilustración abstracta</option>
-                  <option value="infographic" selected={t.image_style === "infographic"}>📊 Infografía</option>
-                  <option value="real_photo" selected={t.image_style === "real_photo"}>📷 Foto real (galería)</option>
-                  <option value="photorealistic" selected={t.image_style === "photorealistic"}>🖼️ Fotorrealista IA</option>
-                </select>
-              </li>
-            ))}
-          </ul>
+              <div class="topic-brainstorm">
+                <p class="field-label">✨ Generador de temas</p>
+                <p class="hint">Dale un par de ideas o palabras y Larry piensa temas relacionados — quitas los que no quieras y guardas el resto.</p>
+                <div class="input-row">
+                  <input type="text" id="brainstorm-seed" placeholder="Ej: cloud computing, Yucatán, IA" />
+                  <button id="brainstorm-btn" type="button">Generar</button>
+                </div>
+                <p id="brainstorm-status" class="hint"></p>
+                <div id="brainstorm-chips" class="brainstorm-chips"></div>
+                <button id="brainstorm-save" type="button" style="display:none">Guardar seleccionados</button>
+              </div>
 
-          <div class="topic-brainstorm">
-            <p class="hint">Dale un par de ideas o palabras y Larry piensa temas relacionados — los revisas, quitas los que no quieras, y guardas el resto.</p>
-            <div class="brainstorm-input-row">
-              <input type="text" id="brainstorm-seed" placeholder="Ideas o palabras (ej: cloud computing, Yucatán, IA)" />
-              <button id="brainstorm-btn" type="button">✨ Generar temas</button>
+              <form id="topic-form" class="topic-form">
+                <p class="field-label">+ Agregar tema manualmente</p>
+                <input type="text" id="topic-label" placeholder="Nombre del tema (ej: Cine y series)" required />
+                <input type="text" id="topic-desc" placeholder="Descripción breve" />
+                <button type="submit">Agregar</button>
+              </form>
             </div>
-            <p id="brainstorm-status" class="hint"></p>
-            <div id="brainstorm-chips" class="brainstorm-chips"></div>
-            <button id="brainstorm-save" type="button" style="display:none">Guardar seleccionados</button>
-          </div>
+          </details>
 
-          <h2>Hashtags fijos</h2>
-          <p class="hint">Se agregan automáticamente a TODOS los posts al publicar, además de los que Larry genera por post.</p>
-          <div class="brainstorm-input-row">
-            <input type="text" id="fixed-hashtags-input" value={fixedHashtags} placeholder="#Kilowatto #IgniaCloud" />
-            <button id="fixed-hashtags-save" type="button">Guardar</button>
-          </div>
-          <p id="fixed-hashtags-status" class="hint"></p>
+          <details class="section">
+            <summary>
+              Fuentes de noticias <span class="count-badge">{newsSources.filter((s: any) => s.trusted).length}/{newsSources.length}</span>
+            </summary>
+            <div class="section-body">
+              <p class="hint">Solo noticias de medios marcados como confiables entran al radar de reacciones. Desmarca los que no quieras usar, sin borrarlos.</p>
+              <ul class="sources-list" id="sources-list">
+                {newsSources.map((s: any) => (
+                  <li class="source-row" data-id={s.id}>
+                    <label class="source-toggle-row">
+                      <input type="checkbox" class="source-toggle" data-id={s.id} checked={!!s.trusted} />
+                      <span class="source-name">{s.name}</span>
+                      {s.domain && <span class="source-domain">{s.domain}</span>}
+                    </label>
+                    <button type="button" class="source-delete" data-id={s.id} title="Borrar fuente">🗑️</button>
+                  </li>
+                ))}
+              </ul>
+              <form id="source-form" class="topic-form">
+                <p class="field-label">+ Agregar medio manualmente</p>
+                <input type="text" id="source-name" placeholder="Nombre del medio (ej: Xataka)" required />
+                <input type="text" id="source-domain" placeholder="Dominio (opcional, ej: xataka.com)" />
+                <button type="submit">Agregar</button>
+              </form>
+            </div>
+          </details>
 
-          <form id="topic-form" class="topic-form">
-            <input type="text" id="topic-label" placeholder="Nuevo tema (ej: Cine y series)" required />
-            <input type="text" id="topic-desc" placeholder="Descripción breve" />
-            <button type="submit">+ Agregar tema</button>
-          </form>
+          <details class="section">
+            <summary>Hashtags fijos</summary>
+            <div class="section-body">
+              <p class="hint">Se agregan automáticamente a TODOS los posts al publicar, además de los que Larry genera por post.</p>
+              <div class="chip-editor" data-hashtag-editor id="fixed-hashtags-editor">
+                <div class="chip-list" data-chip-list></div>
+                <input type="text" class="chip-add-input" data-chip-add placeholder="Escribe y presiona Enter…" />
+              </div>
+              <input type="hidden" id="fixed-hashtags-input" value={fixedHashtags} />
+              <button id="fixed-hashtags-save" type="button">Guardar</button>
+              <p id="fixed-hashtags-status" class="hint"></p>
+            </div>
+          </details>
 
-          <h2>Publicados recientemente</h2>
-          <ul class="log">
-            {recentPosted.map((p: any) => (
-              <li>
-                <strong>{p.platform}</strong> · {p.kind} · {p.posted_at} —{" "}
-                {p.external_url ? <a href={p.external_url} target="_blank" rel="noopener">ver post</a> : p.content.slice(0, 80)}
-              </li>
-            ))}
-          </ul>
+          <details class="section">
+            <summary>
+              Publicados recientemente <span class="count-badge">{recentPosted.length}</span>
+            </summary>
+            <div class="section-body">
+              <ul class="log">
+                {recentPosted.map((p: any) => (
+                  <li>
+                    <strong>{p.platform}</strong> · {p.kind} · {p.posted_at} —{" "}
+                    {p.external_url ? <a href={p.external_url} target="_blank" rel="noopener">ver post</a> : p.content.slice(0, 80)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </details>
         </>
       )
     }
   </div>
 
   <script define:vars={{ token }}>
+    // ---- Chip editor: purely presentational wrapper around a hidden <input> whose value
+    // is the same space-joined hashtag string the backend has always read. Every existing
+    // handler below still reads `.value` off `.hashtags-box` / `#fixed-hashtags-input`
+    // unchanged — this only changes how that value gets edited.
+    function parseHashtags(value) {
+      return (value || "").split(/\s+/).map((s) => s.trim()).filter(Boolean);
+    }
+
+    function initChipEditor(root) {
+      const hiddenInput = root.dataset.id
+        ? document.querySelector(`.hashtags-box[data-id="${root.dataset.id}"]`)
+        : document.getElementById("fixed-hashtags-input");
+      const list = root.querySelector("[data-chip-list]");
+      const addInput = root.querySelector("[data-chip-add]");
+      if (!hiddenInput || !list || !addInput) return;
+
+      let tags = parseHashtags(hiddenInput.value);
+
+      function normalize(raw) {
+        const t = raw.trim().replace(/\s+/g, "");
+        if (!t) return null;
+        return t.startsWith("#") ? t : `#${t}`;
+      }
+
+      function render() {
+        list.innerHTML = "";
+        tags.forEach((tag, i) => {
+          const chip = document.createElement("span");
+          chip.className = "chip";
+          chip.innerHTML = `<span class="chip-text"></span><button type="button" class="chip-x" aria-label="Quitar">×</button>`;
+          chip.querySelector(".chip-text").textContent = tag;
+          chip.querySelector(".chip-x").addEventListener("click", () => {
+            tags.splice(i, 1);
+            sync();
+          });
+          list.appendChild(chip);
+        });
+      }
+
+      function sync() {
+        hiddenInput.value = tags.join(" ");
+        render();
+      }
+
+      addInput.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== ",") return;
+        e.preventDefault();
+        const parts = addInput.value.split(/[,\s]+/).map(normalize).filter(Boolean);
+        if (parts.length) {
+          tags.push(...parts.filter((p) => !tags.includes(p)));
+          addInput.value = "";
+          sync();
+        }
+      });
+      addInput.addEventListener("blur", () => {
+        const p = normalize(addInput.value);
+        if (p && !tags.includes(p)) {
+          tags.push(p);
+          addInput.value = "";
+          sync();
+        }
+      });
+
+      render();
+    }
+
+    document.querySelectorAll("[data-hashtag-editor]").forEach(initChipEditor);
+
+    document.getElementById("idea-submit")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const status = document.getElementById("idea-status");
+      const idea = document.getElementById("idea-input").value.trim();
+      const platform = document.getElementById("idea-platform").value;
+      const scheduleInput = document.getElementById("idea-schedule").value;
+      if (!idea) {
+        status.textContent = "Escribe una idea primero.";
+        return;
+      }
+      if (btn.disabled) return;
+      btn.disabled = true;
+      status.textContent = "Investigando y generando… (puede tardar 30-60 segundos)";
+      try {
+        const res = await fetch(`/api/brand/generate-from-idea?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            idea,
+            platform,
+            scheduledFor: scheduleInput ? new Date(scheduleInput).toISOString() : undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          status.textContent = "Error: " + (data.error || res.statusText);
+          return;
+        }
+        status.textContent = `Listo: ${data.created?.length ?? 0} borrador(es) creado(s) — revísalos abajo.`;
+        setTimeout(() => location.reload(), 1500);
+      } catch (err) {
+        status.textContent = "Se perdió la conexión — intenta de nuevo.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("regen-all-btn")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const progress = document.getElementById("regen-all-progress");
+      const fill = document.getElementById("regen-progress-fill");
+      const status = document.getElementById("regen-all-status");
+      const draftsCount = Number(btn.dataset.draftsCount || "0");
+
+      if (draftsCount >= 2 && !confirm(`Esto va a reemplazar ${draftsCount} borrador(es) pendiente(s) de aprobar por 2 nuevos (uno para X, uno para LinkedIn). Los que ya aprobaste no se tocan. ¿Continuar?`)) {
+        return;
+      }
+
+      let current = 0;
+      function setStep(percent, text) {
+        current = percent;
+        fill.style.width = current + "%";
+        status.textContent = text;
+      }
+
+      // Each generate call is a single request with no live updates from the server (it's
+      // doing web research + writing + fact-check + a Gemini image call in one shot) — so
+      // while it's in flight, creep the bar toward a cap instead of leaving it frozen, so it
+      // never looks stuck even though we have no real intermediate progress to report.
+      function creepToward(cap, ms) {
+        const stepMs = 400;
+        const perTick = (cap - current) / (ms / stepMs);
+        return setInterval(() => {
+          current = Math.min(current + perTick, cap);
+          fill.style.width = current + "%";
+        }, stepMs);
+      }
+
+      btn.disabled = true;
+      progress.hidden = false;
+      setStep(3, "Empezando…");
+      try {
+        if (draftsCount > 0) {
+          setStep(8, "Descartando borradores pendientes…");
+          await fetch(`/api/brand/discard-current?token=${encodeURIComponent(token)}`, { method: "POST" });
+        }
+
+        setStep(15, "Investigando y escribiendo (X)…");
+        let ticker = creepToward(45, 14000);
+        await fetch(`/api/brand/generate?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ platform: "x", language: "es", variantCount: 1 }),
+        });
+        clearInterval(ticker);
+
+        setStep(52, "Investigando y escribiendo (LinkedIn)…");
+        ticker = creepToward(92, 14000);
+        await fetch(`/api/brand/generate?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ platform: "linkedin", language: "es", variantCount: 1 }),
+        });
+        clearInterval(ticker);
+
+        setStep(100, "Listo — nuevos borradores generados.");
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        status.textContent = "Error: " + err.message;
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("generate-batch-btn")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const progress = document.getElementById("batch-progress");
+      const fill = document.getElementById("batch-progress-fill");
+      const status = document.getElementById("batch-status");
+
+      // 3 rounds x (X + LinkedIn), 1 variant each — no A/B here, just 6 distinct fresh posts.
+      const ROUNDS = 3;
+      let current = 0;
+      function setStep(percent, text) {
+        current = percent;
+        fill.style.width = current + "%";
+        status.textContent = text;
+      }
+      function creepToward(cap, ms) {
+        const stepMs = 400;
+        const perTick = (cap - current) / (ms / stepMs);
+        return setInterval(() => {
+          current = Math.min(current + perTick, cap);
+          fill.style.width = current + "%";
+        }, stepMs);
+      }
+
+      btn.disabled = true;
+      progress.hidden = false;
+      setStep(2, "Empezando…");
+      try {
+        for (let i = 0; i < ROUNDS; i++) {
+          const base = Math.round((i / ROUNDS) * 100);
+          const next = Math.round(((i + 1) / ROUNDS) * 100);
+          const mid = Math.round((base + next) / 2);
+
+          setStep(base + 2, `Tanda ${i + 1}/${ROUNDS}: investigando y escribiendo (X)…`);
+          let ticker = creepToward(mid, 9000);
+          await fetch(`/api/brand/generate?token=${encodeURIComponent(token)}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ platform: "x", language: "es", variantCount: 1 }),
+          });
+          clearInterval(ticker);
+
+          setStep(mid, `Tanda ${i + 1}/${ROUNDS}: investigando y escribiendo (LinkedIn)…`);
+          ticker = creepToward(next - 2, 9000);
+          await fetch(`/api/brand/generate?token=${encodeURIComponent(token)}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ platform: "linkedin", language: "es", variantCount: 1 }),
+          });
+          clearInterval(ticker);
+        }
+
+        setStep(100, "Listo — 6 borradores nuevos generados.");
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        status.textContent = "Error: " + err.message;
+        btn.disabled = false;
+      }
+    });
+
     document.getElementById("toggle-pause")?.addEventListener("click", async (e) => {
       const btn = e.currentTarget;
       const currentlyPaused = btn.dataset.paused === "true";
@@ -221,6 +757,8 @@ if (authorized && env?.DB) {
     document.querySelectorAll(".topic-toggle").forEach((box) => {
       box.addEventListener("change", async () => {
         const id = box.dataset.id;
+        box.closest(".topic-row")?.setAttribute("data-active", String(box.checked));
+        applyTopicsFilter();
         await fetch(`/api/brand/topics/${id}?token=${encodeURIComponent(token)}`, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -240,6 +778,342 @@ if (authorized && env?.DB) {
       });
     });
 
+    document.querySelectorAll(".topic-expand").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const details = btn.closest(".topic-row")?.querySelector(".topic-details");
+        const expanded = btn.getAttribute("aria-expanded") === "true";
+        btn.setAttribute("aria-expanded", String(!expanded));
+        if (details) details.hidden = expanded;
+      });
+    });
+
+    document.querySelectorAll(".topic-delete").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const row = btn.closest(".topic-row");
+        const name = row?.querySelector(".topic-name")?.textContent ?? "este tema";
+        if (!confirm(`¿Borrar "${name}"? Si ya tiene posts asociados solo se desactivará.`)) return;
+
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/brand/topics/${id}?token=${encodeURIComponent(token)}`, { method: "DELETE" });
+          const data = await res.json();
+          if (data.deleted) {
+            row?.remove();
+          } else {
+            row?.setAttribute("data-active", "false");
+            const toggle = row?.querySelector(".topic-toggle");
+            if (toggle) toggle.checked = false;
+            applyTopicsFilter();
+            alert(`"${name}" tiene posts asociados — se desactivó en vez de borrarse.`);
+          }
+        } catch {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // "Revisar vigencia" — searches the web for the topic and asks Larry whether anything
+    // version/time-sensitive (e.g. "Kimi K3" once K4 ships) looks outdated. The endpoint itself
+    // verifies the model's claim against the real search text before ever returning stale:true.
+    function renderStaleActions(row, data) {
+      const badge = row.querySelector(".topic-stale-badge") ?? (() => {
+        const s = document.createElement("span");
+        s.className = "topic-stale-badge";
+        row.querySelector(".topic-row-actions")?.prepend(s);
+        return s;
+      })();
+      badge.title = data.reason ?? "Posible desactualización";
+      const actions = row.querySelector(".topic-stale-actions");
+      const note = actions?.querySelector(".topic-review-note");
+      if (note) {
+        note.textContent = data.sourceUrl ? `${data.reason} (${data.sourceUrl})` : data.reason ?? "";
+      }
+      if (actions) actions.hidden = false;
+    }
+
+    function clearStaleUI(row) {
+      row.querySelector(".topic-stale-badge")?.remove();
+      const actions = row.querySelector(".topic-stale-actions");
+      if (actions) actions.hidden = true;
+    }
+
+    async function runTopicReview(id, btn) {
+      const row = document.querySelector(`.topic-row[data-id="${id}"]`);
+      const meta = row?.querySelector(".topic-review-meta");
+      if (btn) btn.disabled = true;
+      if (meta) meta.textContent = "Revisando…";
+      // A single hung request (Workers AI or Brave Search never responding) used to freeze the
+      // whole bulk run forever — Promise.all on that batch never resolved, so "revisando 66/67"
+      // just sat there with no way out. A hard timeout guarantees this call always settles.
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+      try {
+        const res = await fetch(`/api/brand/topics/${id}/review?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (meta) meta.textContent = "Revisado: hace un momento";
+        if (row) {
+          if (data.stale) renderStaleActions(row, data);
+          else clearStaleUI(row);
+        }
+        return data;
+      } catch (err) {
+        if (meta) meta.textContent = err.name === "AbortError" ? "Tardó demasiado — se saltó este tema." : "Se perdió la conexión — intenta de nuevo.";
+        return null;
+      } finally {
+        clearTimeout(timeout);
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    document.querySelectorAll(".topic-review-btn").forEach((btn) => {
+      btn.addEventListener("click", () => runTopicReview(btn.dataset.id, btn));
+    });
+
+    // The one shared action for BOTH "se queda" (keep, staleFlag:false) and "se va" (delete the
+    // topic outright — for cases where the topic itself is bogus, not just its wording) —
+    // called from the per-row buttons AND the bulk summary list, so there's one code path, not
+    // two slightly-different ones that can drift and break independently.
+    async function resolveTopicStale(id, keep) {
+      const row = document.querySelector(`.topic-row[data-id="${id}"]`);
+      if (keep) {
+        await fetch(`/api/brand/topics/${id}?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ staleFlag: false }),
+        });
+        if (row) clearStaleUI(row);
+      } else {
+        const res = await fetch(`/api/brand/topics/${id}?token=${encodeURIComponent(token)}`, { method: "DELETE" });
+        const data = await res.json();
+        if (row) {
+          if (data.deleted) row.remove();
+          else {
+            row.setAttribute("data-active", "false");
+            const toggle = row.querySelector(".topic-toggle");
+            if (toggle) toggle.checked = false;
+            clearStaleUI(row);
+          }
+        }
+      }
+      document.querySelector(`#topics-stale-summary li[data-id="${id}"]`)?.remove();
+      applyTopicsFilter();
+    }
+
+    document.querySelectorAll(".topic-keep-btn").forEach((btn) => {
+      btn.addEventListener("click", () => resolveTopicStale(btn.dataset.id, true));
+    });
+    document.querySelectorAll(".topic-remove-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (confirm("¿Eliminar este tema por completo? No se puede deshacer.")) resolveTopicStale(btn.dataset.id, false);
+      });
+    });
+
+    // Expands a topic's details panel (same effect as clicking its own .topic-expand chevron)
+    // so a flagged suggestion is visible immediately, without the admin hunting through 70+
+    // collapsed rows for the ~20 that got flagged.
+    function expandTopicRow(row) {
+      const expandBtn = row.querySelector(".topic-expand");
+      const details = row.querySelector(".topic-details");
+      if (expandBtn) expandBtn.setAttribute("aria-expanded", "true");
+      if (details) details.hidden = false;
+    }
+
+    // Runs reviews CONCURRENTLY in small batches instead of one at a time — one-by-one over 70+
+    // topics (each a real web search + LLM call) took several minutes; Brave Search's free tier
+    // is rate-limited per second, so this caps concurrency rather than firing all at once.
+    async function runInBatches(items, batchSize, worker) {
+      for (let i = 0; i < items.length; i += batchSize) {
+        const batch = items.slice(i, i + batchSize);
+        await Promise.all(batch.map(worker));
+      }
+    }
+
+    document.getElementById("topics-review-all-btn")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const status = document.getElementById("topics-review-all-status");
+      const summary = document.getElementById("topics-stale-summary");
+      const progress = document.getElementById("topics-progress");
+      const progressBar = document.getElementById("topics-progress-bar");
+      // This button means "check everything, right now" — it must actually do that. An earlier
+      // version silently skipped anything reviewed in the last 24h to go faster, but that broke
+      // the button's own promise: pressing "Revisar vigencia (activos)" and having it check
+      // ~0 topics reads as broken, not as a smart optimization. Every active topic gets a real,
+      // fresh check every time this is pressed — full stop.
+      const activeRows = [...document.querySelectorAll('.topic-row[data-active="true"]')];
+
+      btn.disabled = true;
+      summary.hidden = true;
+      summary.innerHTML = "";
+      progressBar.style.width = "0%";
+      progress.hidden = activeRows.length === 0;
+
+      let done = 0;
+      const staleCandidates = [];
+      const BATCH_SIZE = 8;
+
+      await runInBatches(activeRows, BATCH_SIZE, async (row) => {
+        const id = row.dataset.id;
+        const data = await runTopicReview(id, null);
+        done++;
+        status.textContent = `Revisando ${done}/${activeRows.length}…`;
+        progressBar.style.width = activeRows.length ? `${Math.round((done / activeRows.length) * 100)}%` : "100%";
+        if (data?.stale) {
+          expandTopicRow(row);
+          const name = row.querySelector(".topic-name")?.textContent ?? `Tema ${id}`;
+          staleCandidates.push({ id, name, reason: data.sourceUrl ? `${data.reason} (${data.sourceUrl})` : data.reason ?? "" });
+        }
+      });
+
+      progress.hidden = true;
+      status.textContent = `Listo: ${activeRows.length} revisados, ${staleCandidates.length} con posible desactualización.`;
+
+      if (staleCandidates.length > 0) {
+        summary.innerHTML = `<li class="topics-stale-summary__head">Candidatos (${staleCandidates.length}) — decide para cada uno:</li>` +
+          staleCandidates
+            .map(
+              (c) => `<li data-id="${c.id}">
+                <a href="#" class="topics-stale-summary__link" data-id="${c.id}">${c.name}</a>
+                <p class="topics-stale-summary__reason">${c.reason}</p>
+                <div class="topics-stale-summary__buttons">
+                  <button type="button" class="topic-keep-btn" data-id="${c.id}">✅ Se queda</button>
+                  <button type="button" class="topic-remove-btn" data-id="${c.id}">🗑️ Se va</button>
+                </div>
+              </li>`
+            )
+            .join("");
+        summary.hidden = false;
+        // The buttons just injected via innerHTML need their own listeners — delegate one
+        // listener on the summary container instead of re-querying/re-binding per item.
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById("topics-stale-summary")?.addEventListener("click", (e) => {
+      const keepBtn = e.target.closest(".topic-keep-btn");
+      const removeBtn = e.target.closest(".topic-remove-btn");
+      if (keepBtn) {
+        keepBtn.disabled = true;
+        resolveTopicStale(keepBtn.dataset.id, true);
+        return;
+      }
+      if (removeBtn) {
+        if (!confirm("¿Eliminar este tema por completo? No se puede deshacer.")) return;
+        removeBtn.disabled = true;
+        resolveTopicStale(removeBtn.dataset.id, false);
+        return;
+      }
+      const link = e.target.closest(".topics-stale-summary__link");
+      if (!link) return;
+      e.preventDefault();
+      const row = document.querySelector(`.topic-row[data-id="${link.dataset.id}"]`);
+      if (row) {
+        expandTopicRow(row);
+        row.scrollIntoView({ behavior: "smooth", block: "center" });
+        row.classList.add("is-highlighted");
+        setTimeout(() => row.classList.remove("is-highlighted"), 1500);
+      }
+    });
+
+    function applyTopicsFilter() {
+      const activeFilterBtn = document.querySelector(".filter-btn.is-active");
+      const filter = activeFilterBtn?.dataset.filter ?? "active";
+      const query = document.getElementById("topics-search")?.value.trim().toLowerCase() ?? "";
+      document.querySelectorAll(".topic-row").forEach((row) => {
+        const isActive = row.dataset.active === "true";
+        const matchesFilter = filter === "all" || (filter === "active") === isActive;
+        const matchesSearch = !query || row.dataset.label.includes(query);
+        row.classList.toggle("is-hidden", !(matchesFilter && matchesSearch));
+      });
+    }
+
+    document.querySelectorAll(".filter-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("is-active"));
+        btn.classList.add("is-active");
+        applyTopicsFilter();
+      });
+    });
+
+    document.getElementById("topics-search")?.addEventListener("input", applyTopicsFilter);
+    applyTopicsFilter();
+
+    const topicsList = document.getElementById("topics-list");
+    const selectModeBtn = document.getElementById("topics-select-mode-btn");
+    const bulkBar = document.getElementById("topics-bulk-bar");
+    const selectedCountEl = document.getElementById("topics-selected-count");
+
+    function updateSelectedCount() {
+      const n = document.querySelectorAll(".topic-select:checked").length;
+      selectedCountEl.textContent = `${n} seleccionado${n === 1 ? "" : "s"}`;
+      bulkBar.hidden = n === 0;
+    }
+
+    function exitSelectMode() {
+      topicsList?.classList.remove("select-mode");
+      selectModeBtn?.classList.remove("is-active");
+      document.querySelectorAll(".topic-select").forEach((cb) => (cb.checked = false));
+      document.querySelectorAll(".topic-row.is-selected").forEach((row) => row.classList.remove("is-selected"));
+      bulkBar.hidden = true;
+    }
+
+    selectModeBtn?.addEventListener("click", () => {
+      const on = !topicsList?.classList.contains("select-mode");
+      if (on) {
+        topicsList?.classList.add("select-mode");
+        selectModeBtn.classList.add("is-active");
+        updateSelectedCount();
+      } else {
+        exitSelectMode();
+      }
+    });
+
+    document.getElementById("topics-select-cancel")?.addEventListener("click", exitSelectMode);
+
+    document.querySelectorAll(".topic-select").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        cb.closest(".topic-row")?.classList.toggle("is-selected", cb.checked);
+        updateSelectedCount();
+      });
+    });
+
+    document.getElementById("topics-bulk-delete")?.addEventListener("click", async () => {
+      const checked = Array.from(document.querySelectorAll(".topic-select:checked"));
+      if (checked.length === 0) return;
+      if (!confirm(`¿Borrar ${checked.length} tema(s) seleccionados? Los que tengan posts asociados solo se desactivarán.`)) return;
+
+      const bulkBtn = document.getElementById("topics-bulk-delete");
+      bulkBtn.disabled = true;
+      let deleted = 0;
+      let deactivated = 0;
+      for (const cb of checked) {
+        const id = cb.dataset.id;
+        const row = cb.closest(".topic-row");
+        try {
+          const res = await fetch(`/api/brand/topics/${id}?token=${encodeURIComponent(token)}`, { method: "DELETE" });
+          const data = await res.json();
+          if (data.deleted) {
+            row?.remove();
+            deleted++;
+          } else {
+            row?.setAttribute("data-active", "false");
+            const toggle = row?.querySelector(".topic-toggle");
+            if (toggle) toggle.checked = false;
+            deactivated++;
+          }
+        } catch {
+          // leave this one as-is, keep going with the rest
+        }
+      }
+      bulkBtn.disabled = false;
+      exitSelectMode();
+      applyTopicsFilter();
+      alert(`Listo: ${deleted} borrado(s)${deactivated > 0 ? `, ${deactivated} desactivado(s) por tener posts asociados` : ""}.`);
+    });
+
     document.getElementById("topic-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const label = document.getElementById("topic-label").value.trim();
@@ -249,6 +1123,52 @@ if (authorized && env?.DB) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ label, description }),
+      });
+      location.reload();
+    });
+
+    document.getElementById("toggle-news-autopilot")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const currentlyPaused = btn.dataset.paused === "true";
+      await fetch(`/api/brand/news-autopilot-pause?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paused: !currentlyPaused }),
+      });
+      location.reload();
+    });
+
+    document.querySelectorAll(".source-toggle").forEach((box) => {
+      box.addEventListener("change", async () => {
+        const id = box.dataset.id;
+        await fetch(`/api/brand/news-sources/${id}?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ trusted: box.checked }),
+        });
+      });
+    });
+
+    document.querySelectorAll(".source-delete").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const row = btn.closest(".source-row");
+        const name = row?.querySelector(".source-name")?.textContent ?? "esta fuente";
+        if (!confirm(`¿Borrar "${name}" de la lista de fuentes?`)) return;
+        await fetch(`/api/brand/news-sources/${id}?token=${encodeURIComponent(token)}`, { method: "DELETE" });
+        row?.remove();
+      });
+    });
+
+    document.getElementById("source-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("source-name").value.trim();
+      const domain = document.getElementById("source-domain").value.trim();
+      if (!name) return;
+      await fetch(`/api/brand/news-sources?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, domain: domain || undefined }),
       });
       location.reload();
     });
@@ -351,7 +1271,7 @@ if (authorized && env?.DB) {
           return;
         }
         btn.disabled = false;
-        btn.textContent = "🖼️ Rechazar imagen (buscar otra)";
+        btn.textContent = "🖼️ Buscar otra imagen";
         if (res.ok && data.imageKey && img) {
           img.src = `/media/${data.imageKey}?t=${Date.now()}`;
         } else if (!data.imageKey) {
@@ -361,212 +1281,790 @@ if (authorized && env?.DB) {
       });
     });
   </script>
-</Base>
+</AdminLayout>
 
 <style>
-  .admin { padding-block: var(--space-4); }
+  .admin { padding-block: var(--space-2) var(--space-4); }
   .admin-nav { margin-bottom: var(--space-2); font-size: 0.85rem; }
-  .hint { color: var(--ink-soft); max-width: var(--measure); }
-
-  .pause-bar {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+  .hint { color: var(--ink-soft); max-width: var(--measure); font-size: 0.85rem; }
+  .empty-state {
+    color: var(--ink-soft);
+    border: 1px dashed var(--line);
+    border-radius: 0.6rem;
     padding: var(--space-2);
-    background: var(--mist);
+    text-align: center;
+  }
+  .empty-state p { margin: 0 0 var(--space-2); }
+  .empty-state .regen-progress { text-align: left; margin-top: var(--space-2); margin-bottom: 0; }
+  #generate-batch-btn {
+    background: var(--rhino);
+    color: #fff;
+    border: none;
     border-radius: 0.5rem;
+    padding: 0.65rem 1.15rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 2.75rem;
+  }
+
+  h1 { font-size: 1.35rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
+  h2, .section summary { font-size: 1rem; }
+
+  .count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.6rem;
+    height: 1.6rem;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    background: var(--mist);
+    color: var(--ink-soft);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+  }
+
+  /* ---- Idea compositor (research-assisted) ---- */
+  .composer {
+    border: 1px solid var(--line);
+    border-radius: 0.7rem;
+    padding: var(--space-2);
+    margin-bottom: var(--space-3);
+    background: var(--paper);
+  }
+  .composer textarea {
+    width: 100%;
+    min-height: 4.5rem;
+    margin-top: 0.5rem;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    font-family: inherit;
+    font-size: 1rem;
+    resize: vertical;
+  }
+  .composer-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+  }
+  .composer-row select,
+  .composer-row input[type="datetime-local"] {
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    font-size: 0.9rem;
+  }
+  .composer-row button {
+    background: var(--rhino);
+    color: #fff;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    min-height: 2.75rem;
+  }
+  .composer-row button:disabled { opacity: 0.6; cursor: default; }
+  @media (min-width: 42rem) {
+    .composer-row { flex-direction: row; }
+    .composer-row select { width: auto; }
+  }
+
+  /* ---- Sticky pause bar: always reachable with a thumb, first thing on the page ---- */
+  .pause-bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.75rem var(--space-2);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 0.7rem;
+    margin-bottom: var(--space-3);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  }
+  .pause-status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+  .pause-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  @media (min-width: 30rem) {
+    .pause-actions { width: auto; }
+  }
+  #regen-all-btn {
+    background: var(--rhino) !important;
+  }
+  .regen-progress { margin-bottom: var(--space-3); }
+  .regen-progress-track {
+    width: 100%;
+    height: 0.5rem;
+    background: var(--mist);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 0.35rem;
+  }
+  .regen-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--rhino);
+    border-radius: 999px;
+    transition: width 0.5s ease;
+  }
+
+  .auto-published-banner {
+    border: 2px solid var(--rhino);
+    border-radius: 0.7rem;
+    padding: var(--space-2);
     margin-bottom: var(--space-3);
   }
+
+  .news-pilot-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.6rem var(--space-2);
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    margin-bottom: var(--space-3);
+    font-size: 0.85rem;
+  }
+  .news-pilot-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+  .news-pilot-status .on { color: var(--rhino); font-weight: 600; }
+  .news-pilot-status .off { color: #b91c1c; font-weight: 600; }
+  .trust-chip {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    background: var(--mist);
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.3rem;
+  }
+  .trust-chip[data-enabled="true"] { background: color-mix(in srgb, var(--rhino) 15%, var(--paper)); }
+  #toggle-news-autopilot {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    min-height: 2.5rem;
+  }
+
+  .pause-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 999px;
+    background: var(--rhino);
+    flex-shrink: 0;
+  }
+  .pause-dot[data-paused="true"] { background: #b91c1c; }
   .pause-bar .on { color: var(--rhino); }
   .pause-bar .off { color: #b91c1c; }
   .pause-bar button {
     background: var(--ink);
     color: var(--paper);
     border: none;
-    border-radius: 0.4rem;
-    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
     cursor: pointer;
+    min-height: 2.75rem;
+    white-space: nowrap;
   }
 
-  .groups { display: grid; gap: var(--space-3); margin-top: var(--space-2); }
-  .group { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: var(--space-2); }
+  /* ---- Draft review cards: the primary content, one column by default ---- */
+  /* Plain grid, not CSS multi-column masonry — columns fills column-major (top-to-bottom,
+     then next column), which reads as "wrong" in a review queue where cards should scan
+     left-to-right, top-to-bottom (confirmed live 2026-07-23). align-items:start lets each
+     group keep its own natural height without stretching to match its row neighbor. */
+  .groups {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+  @media (min-width: 42rem) {
+    .groups { grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); }
+  }
+  .group { display: block; margin-bottom: 0; }
+  .group .draft { margin-bottom: var(--space-2); }
+  .group .draft:last-child { margin-bottom: 0; }
+  .group-label {
+    font-size: 0.75rem;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0;
+  }
   .draft {
     border: 1px solid var(--line);
-    border-radius: 0.5rem;
+    border-radius: 0.8rem;
     padding: var(--space-2);
+    background: var(--paper);
   }
-  .draft--flagged { border-color: #b91c1c; }
-  .meta { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-soft); margin: 0 0 0.4rem; }
-  .warn { color: #b91c1c; }
+  .draft--flagged { border-color: #b91c1c; border-width: 2px; }
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0 0.5rem;
+  }
+  .platform-badge {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: var(--mist);
+    color: var(--ink);
+    padding: 0.15rem 0.45rem;
+    border-radius: 0.3rem;
+  }
+  .variant-badge {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--ink-soft);
+  }
+  .news-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--rhino) 15%, var(--paper));
+    color: var(--ember);
+    padding: 0.15rem 0.45rem;
+    border-radius: 0.3rem;
+  }
+  .expiry-badge {
+    font-size: 0.7rem;
+    color: #b91c1c;
+    font-weight: 600;
+  }
+  .warn { color: #b91c1c; font-size: 0.82rem; margin: 0 0 0.5rem; }
+
+  .image-block { margin-bottom: 0.6rem; }
   .draft-image {
     width: 100%;
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 4 / 3;
     object-fit: cover;
-    border-radius: 0.4rem;
-    margin-bottom: 0.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.4rem;
   }
-  .content-box {
-    width: 100%;
-    min-height: 6rem;
-    border: 1px solid var(--line);
-    border-radius: 0.4rem;
-    padding: 0.5rem;
-    font-family: inherit;
-    resize: vertical;
-  }
-  .reason-box,
-  .hashtags-box {
-    width: 100%;
-    margin-top: 0.4rem;
-    padding: 0.4rem 0.6rem;
-    border: 1px solid var(--line);
-    border-radius: 0.4rem;
-    font-size: 0.8rem;
-  }
-
-  .hashtags-box {
-    color: var(--rhino);
-  }
-
-  .hashtags-fixed-hint {
-    margin: 0.2rem 0 0;
-    font-size: 0.72rem;
-  }
-  .actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-  .actions button { flex: 1; border: none; border-radius: 0.4rem; padding: 0.4rem 0; cursor: pointer; }
-  .approve { background: var(--rhino); color: #fff; }
-  .reject { background: var(--mist); color: var(--ink); }
-
-  .log { font-size: 0.85rem; color: var(--ink-soft); display: grid; gap: 0.3rem; }
-
-  .topics-list { list-style: none; padding: 0; display: grid; gap: 0.5rem; margin-bottom: var(--space-2); }
-  .topic-row {
-    border: 1px solid var(--line);
-    border-radius: 0.4rem;
-    padding: 0.5rem 0.8rem;
-  }
-  .topic-row label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
-  .topic-desc { margin: 0.2rem 0 0 1.6rem; font-size: 0.8rem; color: var(--ink-soft); }
-  .image-style-select {
-    margin: 0.4rem 0 0 1.6rem;
-    font-size: 0.78rem;
-    padding: 0.25rem 0.4rem;
-    border: 1px solid var(--line);
-    border-radius: 0.4rem;
-    background: var(--paper);
-    color: var(--ink);
-  }
-  .topic-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: var(--space-3);
-  }
-  .topic-form input {
-    flex: 1;
-    min-width: 10rem;
-    padding: 0.5rem 0.7rem;
-    border: 1px solid var(--line);
-    border-radius: 0.4rem;
-  }
-  .topic-form button {
-    background: var(--ink);
-    color: var(--paper);
-    border: none;
-    border-radius: 0.4rem;
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-  }
-
   .reject-image {
     display: block;
     width: 100%;
-    margin: 0.3rem 0 0.5rem;
-    background: none;
+    background: var(--mist);
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.6rem 0;
+    font-size: 0.8rem;
+    color: var(--ink);
+    cursor: pointer;
+    min-height: 2.5rem;
+  }
+
+  .field-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin: 0.6rem 0 0.3rem;
+  }
+  .content-box:first-of-type,
+  .draft > .field-label:first-child {
+    margin-top: 0;
+  }
+
+  .content-box {
+    width: 100%;
+    min-height: 7rem;
     border: 1px solid var(--line);
-    border-radius: 0.4rem;
-    padding: 0.35rem 0;
-    font-size: 0.75rem;
+    border-radius: 0.5rem;
+    padding: 0.65rem 0.75rem;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.5;
+    resize: vertical;
+    background: var(--paper);
+    color: var(--ink);
+  }
+
+  /* ---- Hashtag chip editor: used for both per-post and fixed hashtags ---- */
+  .chip-editor {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    background: var(--paper);
+  }
+  .chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+  }
+  .chip-list:empty { margin-bottom: 0; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: var(--mist);
+    color: var(--rhino);
+    border-radius: 999px;
+    padding: 0.3rem 0.3rem 0.3rem 0.7rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .chip-x {
+    background: none;
+    border: none;
     color: var(--ink-soft);
     cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0.15rem 0.4rem;
+    border-radius: 999px;
+  }
+  .chip-x:hover { background: rgba(0, 0, 0, 0.08); }
+  .chip-add-input {
+    width: 100%;
+    border: none;
+    padding: 0.3rem 0.2rem;
+    font-size: 0.9rem;
+    background: transparent;
+    color: var(--ink);
+  }
+  .chip-add-input:focus { outline: none; }
+
+  .hashtags-fixed-hint { margin: 0.35rem 0 0; font-size: 0.72rem; }
+
+  .sources-details { margin-top: 0.5rem; }
+  .sources-details summary { font-size: 0.78rem; color: var(--ink-soft); cursor: pointer; }
+  .sources-list { margin: 0.4rem 0 0; padding-left: 1.1rem; font-size: 0.78rem; color: var(--ink-soft); }
+  .sources-list li { margin-bottom: 0.3rem; }
+  .sources-list a { color: var(--rhino); }
+  .source-short { font-family: var(--font-mono); }
+
+  .reject-details { margin-top: 0.6rem; }
+  .reject-details summary {
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .reject-details .reason-box {
+    width: 100%;
+    margin-top: 0.4rem;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+  .actions button {
+    flex: 1;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.8rem 0;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    min-height: 3rem;
+  }
+  .approve { background: var(--rhino); color: #fff; }
+  .reject { background: var(--mist); color: var(--ink); font-weight: 500; }
+
+  /* ---- Collapsible secondary sections ---- */
+  .section {
+    border: 1px solid var(--line);
+    border-radius: 0.7rem;
+    margin-top: var(--space-2);
+    background: var(--paper);
+  }
+  .section summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.9rem var(--space-2);
+    cursor: pointer;
+    font-weight: 600;
+    list-style: none;
+  }
+  .section summary::-webkit-details-marker { display: none; }
+  .section summary::before {
+    content: "›";
+    display: inline-block;
+    transition: transform 0.15s ease;
+    color: var(--ink-soft);
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  .section[open] summary::before { transform: rotate(90deg); }
+  .section-body {
+    padding: 0 var(--space-2) var(--space-2);
+    border-top: 1px solid var(--line);
+    padding-top: var(--space-2);
+  }
+
+  .log { font-size: 0.85rem; color: var(--ink-soft); display: grid; gap: 0.4rem; list-style: none; padding: 0; margin: 0; }
+
+  /* ---- Topics toolbar: search + Activos/Todos/Inactivos filter, sticky-ish above the list ---- */
+  .topics-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 0.6rem 0;
+  }
+  #topics-search {
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    font-size: 0.95rem;
+    width: 100%;
+  }
+  .topics-filter { display: flex; gap: 0.4rem; }
+  .filter-btn {
+    flex: 1;
+    background: var(--mist);
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+    color: var(--ink-soft);
+    min-height: 2.5rem;
+  }
+  .filter-btn.is-active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  @media (min-width: 30rem) {
+    .topics-toolbar { flex-direction: row; align-items: center; }
+    #topics-search { width: auto; flex: 1; }
+    .topics-filter { flex-shrink: 0; }
+    .filter-btn { flex: none; }
+  }
+
+  /* ---- Select mode: a DISTINCT checkbox from the active/inactive toggle — clicking the
+     active toggle used to be mistaken for "selecting" a row, which silently reactivated
+     topics Esteban meant to bulk-delete (confirmed live 2026-07-21). This checkbox only
+     ever means "included in the next bulk delete", never touches `active`. ---- */
+  .topics-select-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+  #topics-select-mode-btn {
+    background: var(--mist);
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+    color: var(--ink);
+    min-height: 2.5rem;
+  }
+  #topics-select-mode-btn.is-active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .topics-bulk-bar {
+    display: none;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+  }
+  /* Author `display` rules beat the UA `[hidden]{display:none}` default, so without this
+     the bar showed even at 0 selected — confirmed live 2026-07-21. */
+  .topics-bulk-bar:not([hidden]) { display: flex; }
+  #topics-select-cancel {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    cursor: pointer;
+    color: var(--ink-soft);
+  }
+  #topics-bulk-delete {
+    background: #b91c1c;
+    color: #fff;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.7rem;
+    cursor: pointer;
+    min-height: 2.5rem;
+  }
+  .topic-select { width: 1.2rem; height: 1.2rem; flex-shrink: 0; display: none; }
+  /* Select mode swaps the active-toggle + per-row delete for the plain select checkbox,
+     so there's never a checkbox on screen that could mean two different things at once. */
+  #topics-list.select-mode .topic-select { display: inline-block; }
+  #topics-list.select-mode .topic-toggle { display: none; }
+  #topics-list.select-mode .topic-delete { display: none; }
+
+  /* ---- Compact single-line topic rows — description/style select collapse behind a
+     disclosure toggle so 40+ topics don't turn into a mile of scrolling. ---- */
+  .topics-list { list-style: none; padding: 0; display: grid; gap: 0.4rem; margin: 0.6rem 0 var(--space-2); }
+  .topic-row {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.55rem 0.7rem;
+    min-width: 0;
+  }
+  .topic-row[data-active="false"] { opacity: 0.55; }
+  .topic-row.is-hidden { display: none; }
+  .topic-row.is-selected { border-color: var(--rhino); background: color-mix(in srgb, var(--rhino) 8%, var(--paper)); }
+  .topic-row.is-highlighted { border-color: var(--rhino); box-shadow: 0 0 0 2px color-mix(in srgb, var(--rhino) 30%, transparent); transition: box-shadow 0.3s ease; }
+  .topics-stale-summary {
+    list-style: none;
+    margin: 0 0 0.75rem;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--rhino);
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--rhino) 6%, var(--paper));
+    font-size: 0.85rem;
+    display: grid;
+    gap: 0.35rem;
+  }
+  /* `display: grid` above beats the browser's own `[hidden] { display: none }` rule (author
+     styles win over the user-agent stylesheet at equal specificity) — without this, the box
+     stays visible-but-empty even while the `hidden` attribute is set. Same fix applied to the
+     progress bar below, which hit the identical bug. */
+  .topics-stale-summary[hidden] { display: none; }
+  .topics-progress {
+    height: 0.4rem;
+    border-radius: 999px;
+    background: var(--admin-surface-2);
+    overflow: hidden;
+    margin: 0 0 0.6rem;
+  }
+  .topics-progress[hidden] { display: none; }
+  .topics-progress__bar {
+    height: 100%;
+    background: var(--rhino);
+    border-radius: 999px;
+    transition: width 0.2s ease;
+  }
+  .topics-stale-summary__head { font-weight: 700; }
+  .topics-stale-summary li[data-id] { padding-bottom: 0.35rem; border-bottom: 1px solid color-mix(in srgb, var(--rhino) 15%, transparent); }
+  .topics-stale-summary li[data-id]:last-child { border-bottom: none; padding-bottom: 0; }
+  .topics-stale-summary__link { color: var(--rhino); font-weight: 600; text-decoration: none; }
+  .topics-stale-summary__link:hover { text-decoration: underline; }
+  .topics-stale-summary__reason { margin: 0.2rem 0 0.4rem; font-size: 0.8rem; color: var(--ink-soft); }
+  .topics-stale-summary__buttons { display: flex; gap: 0.5rem; }
+  .topic-main { display: flex; align-items: center; gap: 0.5rem; }
+  .topic-toggle-row { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; flex: 1; min-width: 0; }
+  .topic-toggle { width: 1.2rem; height: 1.2rem; flex-shrink: 0; }
+  .topic-name {
+    font-weight: 600;
+    font-size: 0.92rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+  }
+  .topic-row-actions { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; }
+  .topic-style-badge { font-size: 0.95rem; }
+  .topic-expand, .topic-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.3rem;
+    min-width: 2.2rem;
+    min-height: 2.2rem;
+    border-radius: 0.4rem;
+    color: var(--ink-soft);
+  }
+  .topic-expand[aria-expanded="true"] { transform: rotate(180deg); }
+  .topic-delete:hover { color: #b91c1c; }
+  .topic-details { margin: 0.5rem 0 0 1.8rem; }
+  .topic-desc { margin: 0 0 0.5rem; font-size: 0.82rem; color: var(--ink-soft); }
+  .image-style-select {
+    width: 100%;
+    font-size: 0.85rem;
+    padding: 0.45rem 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .topic-stale-badge { font-size: 0.9rem; }
+  .topic-review-meta { margin: 0.6rem 0 0; font-size: 0.78rem; color: var(--admin-text-soft); }
+  .topic-review-note { margin: 0.2rem 0 0; font-size: 0.8rem; color: var(--ink-soft); font-style: italic; }
+  .topic-review-btn {
+    margin-top: 0.5rem;
+    width: 100%;
+    min-height: 2.2rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--line);
+    background: var(--admin-surface-2);
+    color: var(--admin-text);
+    font-size: 0.82rem;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .topic-review-btn[disabled] { opacity: 0.6; cursor: default; }
+  .topic-stale-actions {
+    margin-top: 0.5rem;
+    padding: 0.6rem;
+    border: 1px solid var(--rhino);
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--rhino) 6%, var(--paper));
+  }
+  .topic-stale-actions[hidden] { display: none; }
+  .topic-stale-actions .topic-review-note { margin: 0 0 0.5rem; }
+  .topic-stale-actions__buttons,
+  .topics-stale-summary__buttons {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .topic-keep-btn, .topic-remove-btn {
+    flex: 1;
+    min-height: 2.2rem;
+    border-radius: 0.4rem;
+    border: none;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .topic-keep-btn { background: var(--rhino); color: #fff; }
+  .topic-remove-btn { background: var(--admin-surface-2); color: var(--admin-text); }
+  .topic-keep-btn[disabled], .topic-remove-btn[disabled] { opacity: 0.6; cursor: default; }
+  #topics-review-all-btn {
+    font-size: 0.82rem;
+    font-family: inherit;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--line);
+    background: var(--admin-surface-2);
+    color: var(--admin-text);
+    cursor: pointer;
+  }
+  #topics-review-all-btn[disabled] { opacity: 0.6; cursor: default; }
+  /* ---- Desktop: two columns so 40+ topics don't force endless single-column scrolling ---- */
+  @media (min-width: 48rem) {
+    .topics-list { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+    .sources-list { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  }
+
+  .sources-list { list-style: none; padding: 0; display: grid; gap: 0.4rem; margin: 0.6rem 0; }
+  .source-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.55rem 0.7rem;
+    min-width: 0;
+  }
+  .source-toggle-row { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; min-width: 0; flex: 1; }
+  .source-name { font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+  .source-domain { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-soft); }
+  .source-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.3rem;
+    min-width: 2.2rem;
+    min-height: 2.2rem;
+    border-radius: 0.4rem;
+    color: var(--ink-soft);
+    flex-shrink: 0;
+  }
+  .source-delete:hover { color: #b91c1c; }
+
+  .topic-form, .topic-brainstorm { margin-top: var(--space-2); }
+  .topic-form {
+    display: grid;
+    gap: 0.5rem;
+    border-top: 1px dashed var(--line);
+    padding-top: var(--space-2);
+  }
+  .topic-form input {
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    font-size: 0.95rem;
+  }
+  .topic-form button,
+  .input-row button,
+  #fixed-hashtags-save {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    min-height: 2.75rem;
+    font-size: 0.9rem;
   }
 
   .topic-brainstorm {
     border: 1px solid var(--line);
-    border-radius: 0.5rem;
+    border-radius: 0.6rem;
     padding: var(--space-2);
-    margin-bottom: var(--space-2);
   }
-
-  .brainstorm-input-row {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.4rem;
-  }
-
-  .brainstorm-input-row input {
-    flex: 1;
-    padding: 0.5rem 0.7rem;
+  .input-row { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
+  .input-row input {
+    padding: 0.6rem 0.7rem;
     border: 1px solid var(--line);
-    border-radius: 0.4rem;
+    border-radius: 0.5rem;
+    font-size: 0.95rem;
   }
-
-  .brainstorm-input-row button {
-    background: var(--rhino);
-    color: #fff;
-    border: none;
-    border-radius: 0.4rem;
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-    white-space: nowrap;
-  }
+  .input-row button { background: var(--rhino); }
 
   .brainstorm-chips {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
     gap: 0.5rem;
     margin-top: 0.6rem;
   }
-
   .brainstorm-chip {
     position: relative;
     border: 1px solid var(--line);
-    border-radius: 0.4rem;
-    padding: 0.5rem 0.6rem;
-    font-size: 0.82rem;
+    border-radius: 0.5rem;
+    padding: 0.6rem 0.7rem;
+    font-size: 0.85rem;
   }
-
-  .brainstorm-chip strong {
-    display: block;
-    margin-bottom: 0.2rem;
-    padding-right: 1.2rem;
-  }
-
-  .brainstorm-chip p {
-    margin: 0;
-    color: var(--ink-soft);
-    font-size: 0.75rem;
-  }
-
+  .brainstorm-chip strong { display: block; margin-bottom: 0.2rem; padding-right: 1.4rem; }
+  .brainstorm-chip p { margin: 0; color: var(--ink-soft); font-size: 0.78rem; }
   .chip-remove {
     position: absolute;
-    top: 0.3rem;
-    right: 0.4rem;
+    top: 0.4rem;
+    right: 0.5rem;
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 1.1rem;
     color: var(--ink-soft);
     line-height: 1;
+    padding: 0.3rem;
   }
-
   #brainstorm-save {
-    margin-top: 0.6rem;
+    margin-top: 0.7rem;
+    width: 100%;
     background: var(--ink);
     color: var(--paper);
     border: none;
-    border-radius: 0.4rem;
-    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    padding: 0.7rem 1rem;
     cursor: pointer;
+    min-height: 2.75rem;
+  }
+
+  #fixed-hashtags-editor { margin: 0.6rem 0; }
+  #fixed-hashtags-save { width: 100%; }
+  #fixed-hashtags-status { margin-top: 0.5rem; }
+
+  /* ---- From tablet width up: side-by-side form controls (drafts now flow via the
+     .groups grid above, not a per-group grid) ---- */
+  @media (min-width: 42rem) {
+    .input-row { flex-direction: row; }
+    .input-row input { flex: 1; }
+    .topic-form { grid-template-columns: 1fr 1fr auto; align-items: start; }
+    .topic-form p.field-label { grid-column: 1 / -1; margin: 0; }
+    #brainstorm-save, #fixed-hashtags-save { width: auto; }
   }
 </style>

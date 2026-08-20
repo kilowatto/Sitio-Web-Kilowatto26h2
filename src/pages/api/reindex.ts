@@ -1,11 +1,30 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { stripHtml } from "../../lib/html-text";
 
 export const prerender = false;
 
 const EMBEDDING_MODEL = "@cf/baai/bge-base-en-v1.5";
 
 type Chunk = { id: string; text: string; metadata: Record<string, unknown> };
+
+// One chunk per H2 section (not one giant blob per column) — the embedding model has a limited
+// context window, and a whole 4-9k char column would get silently truncated, losing everything
+// past the first section. Splitting lets Larry retrieve (and cite) the specific relevant part
+// of a column instead of just knowing the column exists.
+function splitColumnIntoSections(bodyHtml: string): Array<{ heading: string; text: string }> {
+  const parts = bodyHtml.split(/<h2>([\s\S]*?)<\/h2>/);
+  // parts alternates: [introHtml, h2Text, sectionHtml, h2Text, sectionHtml, ...]
+  const sections: Array<{ heading: string; text: string }> = [];
+  const intro = stripHtml(parts[0] ?? "").trim();
+  if (intro) sections.push({ heading: "Introducción", text: intro });
+  for (let i = 1; i < parts.length; i += 2) {
+    const heading = stripHtml(parts[i] ?? "").trim();
+    const text = stripHtml(parts[i + 1] ?? "").trim();
+    if (text) sections.push({ heading: heading || "Sección", text });
+  }
+  return sections;
+}
 
 async function buildChunks(): Promise<Chunk[]> {
   const chunks: Chunk[] = [];
@@ -46,22 +65,69 @@ async function buildChunks(): Promise<Chunk[]> {
     });
   }
 
-  const { results: family } = await env.DB.prepare(
-    "SELECT * FROM family_members ORDER BY sort_order"
-  ).all<any>();
-  for (const f of family ?? []) {
-    // Privacy: never index anything about Esteban's children/spouse composition — only ancestors/siblings/business-relevant facts.
+  const { results: quotes } = await env.DB.prepare("SELECT * FROM quotes ORDER BY sort_order").all<any>();
+  for (const q of quotes ?? []) {
     chunks.push({
-      id: `family:${f.id}`,
-      text: `${f.full_name}${f.nickname ? ` ("${f.nickname}")` : ""} — ${f.relationship} de Esteban Rey. ${f.bio ?? ""}`,
-      metadata: { entity_type: "family_member", entity_id: f.id, slug: f.slug },
+      id: `quote:${q.id}`,
+      text: `Esteban Rey, sobre ${q.category}: "${q.text}"`,
+      metadata: { entity_type: "quote", entity_id: q.id },
     });
   }
+
+  const { results: columns } = await env.DB.prepare("SELECT * FROM columns ORDER BY published_at DESC").all<any>();
+  for (const col of columns ?? []) {
+    const sections = splitColumnIntoSections(col.body_html);
+    sections.forEach((s, i) => {
+      chunks.push({
+        id: `column:${col.id}:${i}`,
+        text: `Columna de Esteban Rey (Kilowatto), "${col.title}"${col.subtitle ? ` — ${col.subtitle}` : ""} (${col.published_at}). Sección "${s.heading}": ${s.text}`,
+        metadata: { entity_type: "column", entity_id: col.id, slug: col.slug, section: s.heading },
+      });
+    });
+  }
+
+  // Pets, from /avestruces — not in D1 (it's a hardcoded static page), so mirrored here by hand
+  // so Larry actually knows and loves them, not just the humans/companies.
+  chunks.push({
+    id: "pets:luke-leia",
+    text: "Esteban tiene dos avestruces mascota, Luke y Leia (nombres de Star Wars), que llegaron de una granja de Mérida a los 2 meses de edad y hoy son gigantes. Son extremadamente sociables, metiches y les encanta la fiesta — se acercan a investigar visitas, cámaras y cualquier cosa que se mueva. Luke se cree el gerente de seguridad del terreno y tiene debilidad por objetos brillantes como lentes de sol y llaves de coche. Leia es la fiestera oficial, aparece corriendo en cuanto hay música o gente riendo. Un avestruz puede vivir 30-40 años, así que aunque ya son enormes, apenas son unos bebés.",
+    metadata: { entity_type: "pet", entity_id: "luke-leia" },
+  });
+  chunks.push({
+    id: "pets:yoda",
+    text: 'Yoda es un chapulín/langosta gigante (probablemente Tropidacris cristata) que vive en el terreno de Esteban y es amigo de las avestruces Luke y Leia. Le pusieron ese nombre por su tamaño descomunal, su tono verde-amarillo y la calma con la que se deja cargar en la mano.',
+    metadata: { entity_type: "pet", entity_id: "yoda" },
+  });
+  chunks.push({
+    id: "pets:red-leader",
+    text: 'Red Leader y Red Two son un par de caracaras crestados (rapaces, comúnmente confundidas con águilas) que se paran casi a diario en la misma rama seca del terreno de Esteban, cerca de donde viven las avestruces Luke y Leia. Los nombres son de escuadrón, porque siempre vuelan en formación de dos.',
+    metadata: { entity_type: "pet", entity_id: "red-leader" },
+  });
+  chunks.push({
+    id: "pets:buffalos",
+    text: "Esteban también tiene búfalos de agua en el terreno, llamados Ezra, Zeb, Sabine y Hera (nombres de una tripulación rebelde). Viven cerca de las avestruces Luke y Leia. La manada acaba de crecer: Hera tuvo una cría, un ternero sano llamado Jacen, como el hijo que Hera Syndulla tiene en el canon de Star Wars Rebels.",
+    metadata: { entity_type: "pet", entity_id: "buffalos" },
+  });
+  chunks.push({
+    id: "pets:qui-gon",
+    text: "Qui-Gon Jinn es un mono aullador negro o saraguato yucateco (Alouatta pigra) que empezó a aparecer entre los árboles más altos del terreno de Esteban, cerca de donde viven las avestruces Luke y Leia. Le pusieron ese nombre por lo sereno y tranquilo que se ve en lo alto del árbol, como el Jedi. Antes de verlo ya se escuchaba: el aullido de un mono aullador se oye a uno o dos kilómetros de distancia.",
+    metadata: { entity_type: "pet", entity_id: "qui-gon" },
+  });
+  chunks.push({
+    id: "pets:plo-koon",
+    text: "El maestro Plo Koon es un mapache norteño (Procyon lotor) que se pasa el día escondido e inmóvil en los árboles más altos del terreno de Esteban, sobre donde viven las avestruces Luke y Leia, y baja de noche a buscar comida. Le pusieron ese nombre porque, como el Jedi Kel Dor, nunca se quita el antifaz — en su caso, la máscara negra alrededor de los ojos típica del mapache.",
+    metadata: { entity_type: "pet", entity_id: "plo-koon" },
+  });
 
   return chunks;
 }
 
-export const POST: APIRoute = async () => {
+export const POST: APIRoute = async ({ request }) => {
+  const url = new URL(request.url);
+  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
+    return new Response("unauthorized", { status: 401 });
+  }
+
   const chunks = await buildChunks();
   const vectors = [];
 
@@ -73,6 +139,10 @@ export const POST: APIRoute = async () => {
 
   if (vectors.length > 0) {
     await env.VECTORIZE.upsert(vectors);
+  }
+
+  if (env?.KILOWATTO_KV) {
+    await env.KILOWATTO_KV.put("last_reindex_at", new Date().toISOString());
   }
 
   return new Response(JSON.stringify({ indexed: vectors.length }), {

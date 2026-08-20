@@ -1,0 +1,471 @@
+---
+import Base from "./Base.astro";
+
+interface Props {
+  title: string;
+  active?: string;
+  authorized?: boolean;
+}
+
+const { title, active = "", authorized = true } = Astro.props;
+
+// Shared nav for both the desktop sidebar and the mobile bottom tab bar — same 4 fixed
+// destinations + "Más" (Entidades/Configuración/Cerrar sesión), per Esteban's call.
+const NAV_ITEMS = [
+  { href: "/admin/social", label: "Posting automático", icon: "📣" },
+  { href: "/admin/reports", label: "Reportes", icon: "📊" },
+  { href: "/admin/fotos", label: "Fotos", icon: "🖼️" },
+  { href: "/admin/prensa", label: "Prensa", icon: "📰" },
+];
+const MORE_ITEMS = [
+  { href: "/admin", label: "Inicio", icon: "🏠" },
+  { href: "/admin/columnas", label: "Columnas", icon: "📝" },
+  { href: "/admin/comentarios", label: "Comentarios", icon: "💬" },
+  { href: "/admin/entidades", label: "Entidades", icon: "🏷️" },
+  { href: "/admin/contacto", label: "Contacto", icon: "✉️" },
+  { href: "/admin/settings", label: "Configuración", icon: "⚙️" },
+];
+---
+
+<Base title={title}>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  {
+    !authorized ? (
+      <slot />
+    ) : (
+      <div class="admin-shell">
+        <!-- Desktop/tablet sidebar -->
+        <aside class="admin-sidebar" id="admin-sidebar">
+          <button type="button" id="sidebar-collapse-btn" class="sidebar-collapse-btn" title="Colapsar/expandir" aria-label="Colapsar/expandir menú">
+            ☰
+          </button>
+          <a href="/admin" class="sidebar-brand">
+            <span class="sidebar-brand-mark">K</span>
+            <span class="sidebar-label">Kilowatto</span>
+          </a>
+          <nav class="sidebar-nav">
+            {NAV_ITEMS.map((item) => (
+              <a href={item.href} class="sidebar-link" aria-current={active === item.href ? "page" : undefined}>
+                <span class="nav-icon">{item.icon}</span>
+                <span class="sidebar-label">{item.label}</span>
+              </a>
+            ))}
+            <p class="sidebar-divider sidebar-label">Más</p>
+            {MORE_ITEMS.map((item) => (
+              <a href={item.href} class="sidebar-link" aria-current={active === item.href ? "page" : undefined}>
+                <span class="nav-icon">{item.icon}</span>
+                <span class="sidebar-label">{item.label}</span>
+              </a>
+            ))}
+          </nav>
+          <button type="button" id="admin-logout-btn" class="sidebar-link sidebar-logout">
+            <span class="nav-icon">↩️</span>
+            <span class="sidebar-label">Cerrar sesión</span>
+          </button>
+        </aside>
+
+        <main class="admin-main">
+          <slot />
+        </main>
+
+        <!-- Mobile bottom tab bar -->
+        <nav class="bottom-tabs" aria-label="Navegación principal">
+          {NAV_ITEMS.map((item) => (
+            <a href={item.href} class="bottom-tab" aria-current={active === item.href ? "page" : undefined}>
+              <span class="nav-icon">{item.icon}</span>
+              <span class="bottom-tab-label">{item.label}</span>
+            </a>
+          ))}
+          <button type="button" class="bottom-tab" id="more-tab-btn">
+            <span class="nav-icon">⋯</span>
+            <span class="bottom-tab-label">Más</span>
+          </button>
+        </nav>
+
+        <!-- "Más" bottom sheet -->
+        <div class="sheet-backdrop" id="more-sheet-backdrop" hidden></div>
+        <div class="bottom-sheet" id="more-sheet" hidden>
+          <div class="bottom-sheet-handle"></div>
+          {MORE_ITEMS.map((item) => (
+            <a href={item.href} class="sheet-link">
+              <span class="nav-icon">{item.icon}</span> {item.label}
+            </a>
+          ))}
+          <button type="button" class="sheet-link sheet-link--danger" id="sheet-logout-btn">
+            ↩️ Cerrar sesión
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  <script>
+    // ---- Sidebar collapse (desktop), persisted so it doesn't reset every navigation ----
+    const sidebar = document.getElementById("admin-sidebar");
+    const collapseBtn = document.getElementById("sidebar-collapse-btn");
+    if (localStorage.getItem("kw-admin-sidebar-collapsed") === "true") {
+      sidebar?.classList.add("is-collapsed");
+    }
+    collapseBtn?.addEventListener("click", () => {
+      const collapsed = sidebar?.classList.toggle("is-collapsed");
+      localStorage.setItem("kw-admin-sidebar-collapsed", String(!!collapsed));
+    });
+
+    // ---- Logout (shared by sidebar + "Más" sheet) ----
+    async function doLogout() {
+      await fetch("/api/auth/logout", { method: "POST" });
+      location.href = "/admin";
+    }
+    document.getElementById("admin-logout-btn")?.addEventListener("click", doLogout);
+    document.getElementById("sheet-logout-btn")?.addEventListener("click", doLogout);
+
+    // ---- Generic bottom-sheet open/close (the "Más" sheet, and reusable by page scripts
+    // via window.openBottomSheet / closeBottomSheet for approve/reject and edit flows) ----
+    function openSheet(sheetEl, backdropEl) {
+      backdropEl.hidden = false;
+      sheetEl.hidden = false;
+      requestAnimationFrame(() => {
+        backdropEl.classList.add("is-visible");
+        sheetEl.classList.add("is-open");
+      });
+    }
+    function closeSheet(sheetEl, backdropEl) {
+      backdropEl.classList.remove("is-visible");
+      sheetEl.classList.remove("is-open");
+      setTimeout(() => {
+        backdropEl.hidden = true;
+        sheetEl.hidden = true;
+      }, 220);
+    }
+
+    const moreSheet = document.getElementById("more-sheet");
+    const moreBackdrop = document.getElementById("more-sheet-backdrop");
+    document.getElementById("more-tab-btn")?.addEventListener("click", () => openSheet(moreSheet, moreBackdrop));
+    moreBackdrop?.addEventListener("click", () => closeSheet(moreSheet, moreBackdrop));
+
+    // Draggable dismiss (touch) — drag the handle/sheet down past a threshold to close.
+    function makeDraggable(sheetEl, backdropEl) {
+      let startY = 0;
+      let currentY = 0;
+      let dragging = false;
+      sheetEl.addEventListener("touchstart", (e) => {
+        dragging = true;
+        startY = e.touches[0].clientY;
+        sheetEl.style.transition = "none";
+      });
+      sheetEl.addEventListener("touchmove", (e) => {
+        if (!dragging) return;
+        currentY = Math.max(0, e.touches[0].clientY - startY);
+        sheetEl.style.transform = `translateY(${currentY}px)`;
+      });
+      sheetEl.addEventListener("touchend", () => {
+        dragging = false;
+        sheetEl.style.transition = "";
+        sheetEl.style.transform = "";
+        if (currentY > 90) closeSheet(sheetEl, backdropEl);
+        currentY = 0;
+      });
+    }
+    if (moreSheet && moreBackdrop) makeDraggable(moreSheet, moreBackdrop);
+
+    // Exposed so individual admin pages can open/close their own bottom sheets (approve/
+    // reject a draft, edit a topic/source) without re-implementing this each time.
+    window.kwBottomSheet = { open: openSheet, close: closeSheet, makeDraggable };
+
+    // ---- Swipe-to-delete on list rows: any element with [data-swipe-delete] gets a
+    // reveal-on-swipe delete action (data-swipe-action attr = callback name on window) ----
+    function initSwipeToDelete(root) {
+      root.querySelectorAll("[data-swipe-delete]").forEach((row) => {
+        if (row.dataset.swipeReady) return;
+        row.dataset.swipeReady = "true";
+        let startX = 0;
+        let dx = 0;
+        const content = row.querySelector("[data-swipe-content]") || row;
+        row.addEventListener(
+          "touchstart",
+          (e) => {
+            startX = e.touches[0].clientX;
+            content.style.transition = "none";
+          },
+          { passive: true }
+        );
+        row.addEventListener(
+          "touchmove",
+          (e) => {
+            dx = Math.min(0, e.touches[0].clientX - startX);
+            content.style.transform = `translateX(${Math.max(dx, -88)}px)`;
+          },
+          { passive: true }
+        );
+        row.addEventListener("touchend", () => {
+          content.style.transition = "";
+          if (dx < -60) {
+            content.style.transform = "translateX(-88px)";
+            row.classList.add("swipe-revealed");
+          } else {
+            content.style.transform = "";
+            row.classList.remove("swipe-revealed");
+          }
+          dx = 0;
+        });
+      });
+    }
+    window.kwInitSwipeToDelete = initSwipeToDelete;
+    initSwipeToDelete(document);
+  </script>
+</Base>
+
+<style is:global>
+  /* ---- Admin-specific identity: Inter/system-UI, deliberately more neutral "SaaS
+     dashboard" than the public site's editorial Fraunces/Sora — Esteban's explicit call.
+     Same orange accent (--rhino) and same dark-mode toggle/localStorage key as the public
+     site, just a different type/surface treatment layered on top. ---- */
+  .admin-shell,
+  .admin-shell input,
+  .admin-shell button,
+  .admin-shell select,
+  .admin-shell textarea {
+    font-family:
+      "Inter",
+      -apple-system,
+      "SF Pro Text",
+      system-ui,
+      sans-serif;
+  }
+  .admin-shell {
+    --admin-bg: #ffffff;
+    --admin-surface: #f9fafb;
+    --admin-surface-2: #f3f4f6;
+    --admin-border: #e5e7eb;
+    --admin-text: #111827;
+    --admin-text-soft: #6b7280;
+    background: var(--admin-bg);
+    color: var(--admin-text);
+    min-height: 100vh;
+  }
+  @media (prefers-color-scheme: dark) {
+    .admin-shell {
+      --admin-bg: #0a0a0a;
+      --admin-surface: #161616;
+      --admin-surface-2: #1f1f1f;
+      --admin-border: #2a2a2a;
+      --admin-text: #f5f5f5;
+      --admin-text-soft: #a1a1aa;
+    }
+  }
+  :root[data-theme="dark"] .admin-shell {
+    --admin-bg: #0a0a0a;
+    --admin-surface: #161616;
+    --admin-surface-2: #1f1f1f;
+    --admin-border: #2a2a2a;
+    --admin-text: #f5f5f5;
+    --admin-text-soft: #a1a1aa;
+  }
+  :root[data-theme="light"] .admin-shell {
+    --admin-bg: #ffffff;
+    --admin-surface: #f9fafb;
+    --admin-surface-2: #f3f4f6;
+    --admin-border: #e5e7eb;
+    --admin-text: #111827;
+    --admin-text-soft: #6b7280;
+  }
+
+  .admin-shell * { transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease; }
+
+  .nav-icon { font-size: 1.15rem; line-height: 1; }
+
+  /* ---- Desktop sidebar ---- */
+  .admin-sidebar {
+    display: none;
+  }
+  @media (min-width: 64rem) {
+    .admin-shell { display: flex; }
+    .admin-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      width: 15rem;
+      flex-shrink: 0;
+      padding: 1rem 0.75rem;
+      border-right: 1px solid var(--admin-border);
+      background: var(--admin-surface);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    .admin-sidebar.is-collapsed { width: 4.25rem; }
+    .admin-sidebar.is-collapsed .sidebar-label { display: none; }
+    .admin-main { flex: 1; min-width: 0; padding: 1.5rem 2rem; }
+  }
+  .sidebar-collapse-btn {
+    align-self: flex-end;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 0.4rem;
+    color: var(--admin-text-soft);
+    border-radius: 0.4rem;
+  }
+  .sidebar-collapse-btn:hover { background: var(--admin-surface-2); }
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    text-decoration: none;
+    color: var(--admin-text);
+    font-weight: 700;
+  }
+  .sidebar-brand-mark {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    background: var(--rhino);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .sidebar-nav { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; }
+  .sidebar-divider {
+    margin: 0.75rem 0 0.15rem 0.6rem;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--admin-text-soft);
+  }
+  .sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.6rem 0.6rem;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    color: var(--admin-text);
+    font-size: 0.9rem;
+    font-weight: 500;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+  }
+  .sidebar-link:hover { background: var(--admin-surface-2); }
+  .sidebar-link[aria-current="page"] { background: color-mix(in srgb, var(--rhino) 12%, transparent); color: var(--rhino); }
+  .sidebar-logout { margin-top: auto; color: var(--admin-text-soft); }
+
+  /* ---- Mobile bottom tab bar ---- */
+  .bottom-tabs {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    display: flex;
+    background: var(--admin-surface);
+    border-top: 1px solid var(--admin-border);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  @media (min-width: 64rem) {
+    .bottom-tabs { display: none; }
+  }
+  .bottom-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.5rem 0.25rem 0.4rem;
+    min-height: 3.5rem;
+    text-decoration: none;
+    color: var(--admin-text-soft);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .bottom-tab[aria-current="page"] { color: var(--rhino); }
+  .bottom-tab-label { font-size: 0.68rem; font-weight: 500; }
+  .admin-main { padding: 1rem 1rem calc(4.5rem + env(safe-area-inset-bottom, 0)); }
+
+  /* ---- Bottom sheet (shared by "Más" and page-level actions) ---- */
+  .sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 40;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .sheet-backdrop.is-visible { opacity: 1; }
+  .bottom-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 41;
+    background: var(--admin-surface);
+    border-radius: 1.1rem 1.1rem 0 0;
+    padding: 0.5rem 1rem calc(1.5rem + env(safe-area-inset-bottom, 0));
+    transform: translateY(100%);
+    transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .bottom-sheet.is-open { transform: translateY(0); }
+  .bottom-sheet-handle {
+    width: 2.5rem;
+    height: 0.3rem;
+    background: var(--admin-border);
+    border-radius: 999px;
+    margin: 0.5rem auto 1rem;
+  }
+  .sheet-link {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.85rem 0.5rem;
+    text-decoration: none;
+    color: var(--admin-text);
+    font-size: 0.95rem;
+    font-weight: 500;
+    border-bottom: 1px solid var(--admin-border);
+    background: none;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .sheet-link:last-child { border-bottom: none; }
+  .sheet-link--danger { color: #dc2626; }
+  @media (min-width: 64rem) {
+    .bottom-sheet, .sheet-backdrop { display: none; }
+  }
+
+  /* ---- Swipe-to-delete rows ---- */
+  [data-swipe-delete] { position: relative; overflow: hidden; }
+  [data-swipe-content] { position: relative; background: var(--admin-surface); z-index: 1; }
+  .swipe-delete-action {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 88px;
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+</style>

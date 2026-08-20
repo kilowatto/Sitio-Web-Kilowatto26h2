@@ -13,14 +13,16 @@ interface Props {
   locale?: string;
   dir?: "ltr" | "rtl";
   image?: string;
+  ogType?: string;
 }
 
 const {
   title,
-  description = "Esteban Rey — Kilowatto. Trayectoria, empresas e inversiones.",
+  description = "Esteban Rey — Kilowatto. Trayectoria, empresas y proyectos.",
   locale = "es-MX",
   dir = "ltr",
-  image = "/larry/larry-avatar.png",
+  image = "/larry/larry-avatar-share.jpg",
+  ogType = "profile",
 } = Astro.props;
 const absoluteImage = image.startsWith("http") ? image : `https://kilowatto.com${image}`;
 
@@ -38,7 +40,7 @@ const pathWithoutLocale = currentPrefix ? path.slice(currentPrefix.length + 1) |
     <title>{title}</title>
     <meta name="description" content={description} />
 
-    <meta property="og:type" content="profile" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={`https://kilowatto.com${path}`} />
@@ -50,7 +52,26 @@ const pathWithoutLocale = currentPrefix ? path.slice(currentPrefix.length + 1) |
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={absoluteImage} />
 
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192" />
+    <link rel="icon" href="/favicon-512.png" type="image/png" sizes="512x512" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Kilowatto" />
+    <meta name="theme-color" content="#ff5f14" />
+    {
+      !path.startsWith("/admin") && (
+        <>
+          {/* Standalone-app mode (manifest + apple-mobile-web-app-capable) is scoped OUT of
+             /admin — confirmed live 2026-07-20: once the manifest's start_url is present,
+             iOS "Add to Home Screen" launches THAT url instead of the page you added it
+             from, breaking a direct /admin shortcut. Public pages keep the full PWA icon
+             treatment; admin keeps plain-bookmark behavior (adds whatever page you're on). */}
+          <link rel="manifest" href="/manifest.webmanifest" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+        </>
+      )
+    }
     <link rel="canonical" href={`https://kilowatto.com${path}`} />
     <link rel="alternate" hreflang="x-default" href={`https://kilowatto.com${pathWithoutLocale}`} />
     {
@@ -64,10 +85,27 @@ const pathWithoutLocale = currentPrefix ? path.slice(currentPrefix.length + 1) |
     }
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    {/* Loaded non-render-blocking (the classic loadCSS pattern): fetched as a low-priority
+       "print" stylesheet, then swapped to "all" on load. display=swap in the URL already
+       means text renders in the fallback font immediately either way — this just stops the
+       fetch itself from holding up first paint. */}
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    />
     <link
       href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     {
       gtmId && (
         <script

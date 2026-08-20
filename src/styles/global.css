@@ -7,7 +7,7 @@
   --ink: #16130f;
   --ink-soft: #4a4238;
   --rhino: #ff5f14;
-  --ember: #c8420a;
+  --ember: #b83b09;
   --volt: #ffcf3f;
   --line: rgba(22, 19, 15, 0.12);
 
@@ -57,7 +57,7 @@
   --ink: #16130f;
   --ink-soft: #4a4238;
   --rhino: #ff5f14;
-  --ember: #c8420a;
+  --ember: #b83b09;
   --volt: #ffcf3f;
   --line: rgba(22, 19, 15, 0.12);
   color-scheme: light;
@@ -208,6 +208,7 @@ a {
 /* Shared chrome: topbar, chapters, rows/cards, footer, Larry widget — reused across every page. */
 
 .topbar {
+  position: relative;
   border-bottom: 1px solid var(--line);
 }
 
@@ -227,23 +228,296 @@ a {
   color: var(--ink);
 }
 
-.nav {
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: 1rem;
+  top: -3rem;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 0.6rem 1rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--line);
+  text-decoration: none;
+  z-index: 1000;
+  transition: top 0.15s ease;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+/* ---------- Desktop mega-menu (hidden below the nav breakpoint) ---------- */
+.nav-desktop {
   display: none;
-  gap: var(--space-3);
+}
+
+.nav-cat {
+  position: relative;
+}
+
+.nav-cat__trigger {
+  font: inherit;
+  font-size: 0.92rem;
+  background: none;
+  border: none;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0.6rem 0.2rem;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.nav-cat__trigger::after {
+  content: "▾";
+  font-size: 0.7em;
+  transition: transform 0.15s ease;
+}
+
+.nav-cat__trigger[aria-expanded="true"]::after {
+  transform: rotate(180deg);
+}
+
+.nav-cat__panel {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 100%;
+  margin-top: 0.5rem;
+  min-width: 14rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  padding: var(--space-1);
+  /* Above .kw-tt-card (the middleware-injected entity tooltip, z-index 60). */
+  z-index: 70;
+}
+
+.nav-cat__panel[hidden] {
+  display: none;
+}
+
+.nav-cat__panel a {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.4rem;
+  text-decoration: none;
+  color: var(--ink);
   font-size: 0.92rem;
 }
 
-.nav a {
-  text-decoration: none;
+.nav-cat__panel a:hover,
+.nav-cat__panel a:focus-visible {
+  background: var(--mist);
 }
 
-.nav a[aria-current="page"] {
+.nav-cat__panel a[aria-current="page"] {
   color: var(--ember);
+  font-weight: 600;
 }
 
-@media (min-width: 780px) {
-  .nav {
+.nav-standalone {
+  font-size: 0.92rem;
+  text-decoration: none;
+  color: var(--ink);
+  padding: 0.6rem 0.2rem;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.nav-standalone[aria-current="page"] {
+  color: var(--ember);
+  font-weight: 600;
+}
+
+@media (min-width: 900px) {
+  /* 900px: chosen to fit the longest category label set (e.g. German "Unternehmen und
+     Projekte") alongside the wordmark and language switcher without wrapping — this replaces
+     the old one-off 780px nav breakpoint (the site's other breakpoints are 640/720/768). */
+  .nav-desktop {
     display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+}
+
+/* ---------- Mobile: hamburger + full-screen <dialog> overlay ---------- */
+.menu-toggle {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.28rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.menu-toggle span {
+  display: block;
+  width: 1.15rem;
+  height: 2px;
+  margin-inline: auto;
+  background: var(--ink);
+}
+
+@media (min-width: 900px) {
+  .menu-toggle {
+    display: none;
+  }
+}
+
+.nav-overlay {
+  margin: 0;
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100dvh;
+  border: none;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.nav-overlay::backdrop {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.nav-overlay__inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.nav-overlay__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.nav-overlay__close {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.nav-overlay__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--space-2) var(--space-2);
+}
+
+.nav-overlay__standalone {
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+  padding: var(--space-2) 0.2rem;
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 1.05rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.nav-overlay__standalone[aria-current="page"] {
+  color: var(--ember);
+  font-weight: 600;
+}
+
+.nav-disclosure {
+  border-bottom: 1px solid var(--line);
+}
+
+.nav-disclosure__trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 3rem;
+  padding: var(--space-2) 0.2rem;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 1.05rem;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: start;
+}
+
+.nav-disclosure__chevron {
+  flex-shrink: 0;
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.nav-disclosure__chevron::before {
+  content: "▾";
+  font-size: 0.85em;
+}
+
+.nav-disclosure__trigger[aria-expanded="true"] .nav-disclosure__chevron {
+  transform: rotate(180deg);
+}
+
+.nav-disclosure__panel {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--space-2);
+}
+
+.nav-disclosure__panel[hidden] {
+  display: none;
+}
+
+.nav-disclosure__panel a {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  margin-inline-start: 0.5rem;
+  text-decoration: none;
+  color: var(--ink-soft);
+  font-size: 0.98rem;
+  border-radius: 0.4rem;
+}
+
+.nav-disclosure__panel a:hover,
+.nav-disclosure__panel a:focus-visible {
+  background: var(--mist);
+  color: var(--ink);
+}
+
+.nav-disclosure__panel a[aria-current="page"],
+.nav-disclosure__panel a[aria-current="true"] {
+  color: var(--ember);
+  font-weight: 600;
+}
+
+@media (max-width: 899px) {
+  .lang-switch-wrap {
+    /* Lives inside the mobile overlay's own language Disclosure section instead. */
+    display: none;
   }
 }
 
@@ -268,7 +542,7 @@ a {
 
 .lang-menu {
   position: absolute;
-  right: 0;
+  inset-inline-end: 0;
   top: calc(100% + 0.4rem);
   background: var(--paper);
   border: 1px solid var(--line);
@@ -278,7 +552,7 @@ a {
   padding: 0.3rem;
   min-width: 11rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  z-index: 50;
+  z-index: 70;
 }
 
 .lang-menu a {
@@ -396,6 +670,30 @@ a {
   margin: 0.2em 0;
 }
 
+.project-card {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-card__image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+  border-bottom: 1px solid var(--line);
+}
+
+.project-card__body {
+  padding: var(--space-2);
+}
+
+.project-card__body h3 {
+  margin: 0.2em 0;
+}
+
 .page-head {
   padding-block: var(--space-4) var(--space-3);
 }
@@ -413,6 +711,103 @@ a {
   border-top: 1px solid var(--line);
   font-size: 0.88rem;
   color: var(--ink-soft);
+}
+.footer-profiles {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: 0.4em;
+}
+.footer-profiles a {
+  color: var(--ember);
+  font-weight: 600;
+  text-decoration: none;
+}
+.footer-profiles a:hover {
+  text-decoration: underline;
+}
+
+.tito-egg {
+  display: inline-block;
+  margin-left: 0.5em;
+  opacity: 0.18;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  user-select: none;
+}
+.tito-egg:hover,
+.tito-egg:focus-visible {
+  opacity: 0.9;
+  outline: none;
+}
+
+.tito-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tito-modal[hidden] {
+  display: none;
+}
+.tito-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+}
+.tito-modal__inner {
+  position: relative;
+  z-index: 1;
+  max-width: min(90vw, 32rem);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+.tito-modal__page {
+  width: 100%;
+  max-height: 72vh;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 0.4rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.tito-modal__close {
+  position: absolute;
+  top: -2.5rem;
+  right: 0;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.4rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.tito-modal__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.tito-modal__nav button {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  border-radius: 999px;
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.tito-modal__nav button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.tito-modal__counter {
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
 }
 
 .larry {
@@ -506,7 +901,9 @@ a {
 }
 
 .larry-msg--user {
-  background: var(--rhino);
+  /* var(--ember), not --rhino -- white text on the brighter orange fails WCAG contrast
+     (3.04:1, needs 4.5:1); ember is the same brand family at a shade dark enough to pass. */
+  background: var(--ember);
   color: #fff;
   align-self: flex-end;
 }
@@ -528,7 +925,8 @@ a {
 }
 
 .larry-panel__form button {
-  background: var(--rhino);
+  /* Same contrast fix as .larry-msg--user above. */
+  background: var(--ember);
   color: #fff;
   border: none;
   border-radius: 0.5rem;

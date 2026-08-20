@@ -5,7 +5,22 @@ import { encryptSetting } from "../../../lib/crypto";
 
 export const prerender = false;
 
-const KEYS = ["X_BEARER_TOKEN", "LINKEDIN_ACCESS_TOKEN", "LINKEDIN_PERSON_URN"];
+const KEYS = [
+  "X_BEARER_TOKEN",
+  "X_API_KEY",
+  "X_API_KEY_SECRET",
+  "X_ACCESS_TOKEN",
+  "X_ACCESS_TOKEN_SECRET",
+  // Not used by any posting code path yet (postToX uses OAuth 1.0a) — saved for later in
+  // case Esteban ever wants the OAuth2 3-legged flow instead. Generated automatically by X
+  // when "User authentication settings" was enabled on the app (2026-07-20).
+  "X_OAUTH2_CLIENT_ID",
+  "X_OAUTH2_CLIENT_SECRET",
+  "LINKEDIN_CLIENT_ID",
+  "LINKEDIN_CLIENT_SECRET",
+  "LINKEDIN_ACCESS_TOKEN",
+  "LINKEDIN_PERSON_URN",
+];
 
 export const GET: APIRoute = async ({ cookies }) => {
   const userId = await getSessionUserId(cookies, env);

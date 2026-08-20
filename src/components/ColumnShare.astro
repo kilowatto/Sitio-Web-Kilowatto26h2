@@ -1,0 +1,95 @@
+---
+// Reader-facing share affordance for a column's detail page. LinkedIn's share-offsite URL
+// only accepts the target URL — it ignores title/summary params and always makes the person
+// sharing type their own commentary — so this pairs the share popup (URL only, LinkedIn
+// fetches the og:image/title card itself) with a separate "copy suggested caption" button,
+// since there's no way to pre-fill LinkedIn's post text from a website.
+interface Props {
+  url: string;
+  title: string;
+  subtitle?: string | null;
+  locale?: string;
+}
+const { url, title, subtitle, locale = "es-MX" } = Astro.props;
+
+const LABELS: Record<string, { share: string; copy: string; copied: string; cta: string }> = {
+  "es-MX": { share: "Compartir en LinkedIn", copy: "Copiar texto sugerido", copied: "¡Copiado!", cta: "Lee la columna completa:" },
+  en: { share: "Share on LinkedIn", copy: "Copy suggested caption", copied: "Copied!", cta: "Read the full column:" },
+  "pt-BR": { share: "Compartilhar no LinkedIn", copy: "Copiar legenda sugerida", copied: "Copiado!", cta: "Leia a coluna completa:" },
+  fr: { share: "Partager sur LinkedIn", copy: "Copier le texte suggéré", copied: "Copié !", cta: "Lisez la chronique complète :" },
+  de: { share: "Auf LinkedIn teilen", copy: "Vorschlagstext kopieren", copied: "Kopiert!", cta: "Ganze Kolumne lesen:" },
+  ar: { share: "مشاركة على LinkedIn", copy: "نسخ النص المقترح", copied: "تم النسخ!", cta: "اقرأ المقال كاملاً:" },
+  "zh-Hans": { share: "分享到 LinkedIn", copy: "复制建议文案", copied: "已复制！", cta: "阅读全文：" },
+  ja: { share: "LinkedInでシェア", copy: "投稿文をコピー", copied: "コピーしました！", cta: "コラム全文を読む：" },
+};
+const labels = LABELS[locale] ?? LABELS["es-MX"];
+
+const caption = [title, subtitle, labels.cta + " " + url].filter(Boolean).join("\n\n");
+const shareHref = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
+---
+
+<div class="column-share" data-caption={caption}>
+  <a class="column-share__btn column-share__btn--linkedin" href={shareHref} target="_blank" rel="noopener noreferrer">
+    {labels.share}
+  </a>
+  <button type="button" class="column-share__btn column-share__btn--copy" data-copy-label={labels.copy} data-copied-label={labels.copied}>
+    {labels.copy}
+  </button>
+</div>
+
+<style>
+  .column-share {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+    max-width: 42rem;
+  }
+  .column-share__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem;
+    border-radius: 999px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: inherit;
+    text-decoration: none;
+    transition: background-color 0.15s ease;
+  }
+  .column-share__btn:hover {
+    background: var(--line);
+  }
+  .column-share__btn--linkedin {
+    background: #0a66c2;
+    border-color: #0a66c2;
+    color: #fff;
+  }
+  .column-share__btn--linkedin:hover {
+    background: #004182;
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>(".column-share").forEach((wrap) => {
+    const caption = wrap.dataset.caption ?? "";
+    const btn = wrap.querySelector<HTMLButtonElement>(".column-share__btn--copy");
+    if (!btn) return;
+    const idleLabel = btn.dataset.copyLabel ?? btn.textContent ?? "";
+    const copiedLabel = btn.dataset.copiedLabel ?? idleLabel;
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(caption);
+        btn.textContent = copiedLabel;
+        setTimeout(() => (btn.textContent = idleLabel), 2000);
+      } catch {
+        // Clipboard API can be denied by the browser — fail silently, the button just won't confirm.
+      }
+    });
+  });
+</script>

@@ -3,9 +3,16 @@ import Site from "../../layouts/Site.astro";
 import { localeFromParam } from "../../lib/locales";
 import { loadTranslations, t } from "../../lib/i18n";
 import { env } from "cloudflare:workers";
+import { CAPTION_FAILURE_SENTINEL } from "../../lib/photo-caption";
 
 const locale = localeFromParam(Astro.params.locale);
-if (!locale || locale.canonical) return Astro.redirect("/galeria", 302);
+// See src/pages/[locale]/index.astro for why this is split — an unrecognized single path
+// segment must 404, not silently redirect home as if it were a locale.
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+if (locale.canonical) return Astro.redirect("/galeria", 302);
 
 let photos: any[] = [];
 let photosTr = new Map<string, string>();
@@ -18,6 +25,16 @@ if (env?.DB) {
 }
 const albums = [...new Set(photos.map((p: any) => p.album).filter(Boolean))];
 
+// "Mes Año" only — precise enough to be interesting, vague enough not to read like a
+// timestamped location log. Full taken_date stays in admin/JSON-LD only.
+function formatMonthYear(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return "";
+  const formatted = new Intl.DateTimeFormat(locale.code, { month: "long", year: "numeric" }).format(d);
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+}
+
 const TITLES: Record<string, [string, string, string]> = {
   en: ["Gallery", "Moments, not just facts.", "All"],
   "pt-BR": ["Galeria", "Momentos, não só fatos.", "Todas"],
@@ -28,9 +45,33 @@ const TITLES: Record<string, [string, string, string]> = {
   ja: ["ギャラリー", "事実だけでなく、瞬間を。", "すべて"],
 };
 const [title, heading, allLabel] = TITLES[locale.code] ?? ["Galería", "Momentos, no solo hechos.", "Todas"];
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "ImageGallery",
+  name: `${title} — Kilowatto`,
+  associatedMedia: photos.map((p: any) => {
+    const caption = t(photosTr, p.id, "caption", p.caption) || (p.ai_caption === CAPTION_FAILURE_SENTINEL ? "" : p.ai_caption) || "";
+    return {
+      "@type": "ImageObject",
+      contentUrl: `https://kilowatto.com/media/${p.r2_key}`,
+      description: caption,
+      ...(p.taken_city ? { contentLocation: { "@type": "Place", name: p.taken_city } } : {}),
+      ...(p.taken_date ? { dateCreated: p.taken_date } : {}),
+    };
+  }),
+};
 ---
 
-<Site title={`${title} — Kilowatto`} active="/galeria" locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
+<Site
+  title={`${title} — Kilowatto`}
+  description="Fotografías de Esteban Rey (Kilowatto): trayectoria, empresas, Yucatech Festival y vida personal."
+  active="/galeria"
+  locale={locale.code}
+  dir={locale.rtl ? "rtl" : "ltr"}
+>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
   <section class="page-head">
     <div class="container">
       <p class="eyebrow">{title}</p>
@@ -59,11 +100,31 @@ const [title, heading, allLabel] = TITLES[locale.code] ?? ["Galería", "Momentos
         ) : (
           <div class="masonry">
             {photos.map((p: any) => {
-              const caption = t(photosTr, p.id, "caption", p.caption) || p.ai_caption;
+              const caption = t(photosTr, p.id, "caption", p.caption) || (p.ai_caption === CAPTION_FAILURE_SENTINEL ? "" : p.ai_caption);
+              const monthYear = formatMonthYear(p.taken_date);
+              const meta = [p.taken_city, monthYear].filter(Boolean).join(" · ");
               return (
-                <figure class="masonry__item" data-album={p.album ?? ""}>
-                  <img src={`/media/${p.r2_key}`} alt={caption || ""} loading="lazy" />
-                  {caption && <figcaption>{caption}</figcaption>}
+                <figure
+                  class="masonry__item"
+                  data-album={p.album ?? ""}
+                  data-full={`/media/${p.r2_key}?w=1400`}
+                  data-caption={caption ?? ""}
+                  data-meta={meta}
+                  tabindex="0"
+                >
+                  <img
+                    src={`/media/${p.r2_key}?w=500`}
+                    srcset={`/media/${p.r2_key}?w=300 300w, /media/${p.r2_key}?w=500 500w, /media/${p.r2_key}?w=800 800w, /media/${p.r2_key}?w=1100 1100w`}
+                    sizes="(max-width: 640px) 100vw, (max-width: 960px) 50vw, 33vw"
+                    alt={caption || ""}
+                    loading="lazy"
+                  />
+                  {(caption || meta) && (
+                    <figcaption>
+                      {meta && <span class="meta-line">{meta}</span>}
+                      {caption && <span class="caption-line">{caption}</span>}
+                    </figcaption>
+                  )}
                 </figure>
               );
             })}
@@ -72,6 +133,14 @@ const [title, heading, allLabel] = TITLES[locale.code] ?? ["Galería", "Momentos
       }
     </div>
   </section>
+
+  <div id="lightbox" class="lightbox" hidden>
+    <button class="lightbox__close" type="button" aria-label="Close">×</button>
+    <figure class="lightbox__figure">
+      <img id="lightbox-img" alt="" />
+      <figcaption id="lightbox-caption"></figcaption>
+    </figure>
+  </div>
 
   <script>
     const buttons = document.querySelectorAll<HTMLButtonElement>(".filter");
@@ -85,6 +154,77 @@ const [title, heading, allLabel] = TITLES[locale.code] ?? ["Galería", "Momentos
           item.style.display = album === "all" || item.dataset.album === album ? "" : "none";
         });
       });
+    });
+
+    // Desktop gets hover (pure CSS, see below). Touch devices get an explicit tap-to-reveal,
+    // tap-outside-to-hide toggle instead, since there's no real ":hover" on a touchscreen.
+    let activeItem: HTMLElement | null = null;
+    function closeActive() {
+      activeItem?.classList.remove("is-revealed");
+      activeItem = null;
+    }
+    items.forEach((item) => {
+      item.addEventListener("click", (e) => {
+        if (!window.matchMedia("(hover: none)").matches) return; // desktop: hover already handles it
+        if (item === activeItem) return; // let the second tap open the lightbox instead
+        e.preventDefault();
+        closeActive();
+        item.classList.add("is-revealed");
+        activeItem = item;
+      });
+    });
+    document.addEventListener("click", (e) => {
+      if (activeItem && !activeItem.contains(e.target as Node)) closeActive();
+    });
+
+    // Lightbox: click/Enter opens it (grid thumbnails AND this modal both show the same
+    // description/city/date overlay per the chosen design).
+    const lightbox = document.getElementById("lightbox") as HTMLElement;
+    const lightboxImg = document.getElementById("lightbox-img") as HTMLImageElement;
+    const lightboxCaption = document.getElementById("lightbox-caption") as HTMLElement;
+
+    function openLightbox(item: HTMLElement) {
+      lightboxImg.src = item.dataset.full ?? "";
+      lightboxImg.alt = item.dataset.caption ?? "";
+      lightboxCaption.innerHTML = "";
+      if (item.dataset.meta) {
+        const metaEl = document.createElement("span");
+        metaEl.className = "meta-line";
+        metaEl.textContent = item.dataset.meta;
+        lightboxCaption.appendChild(metaEl);
+      }
+      if (item.dataset.caption) {
+        const capEl = document.createElement("span");
+        capEl.className = "caption-line";
+        capEl.textContent = item.dataset.caption;
+        lightboxCaption.appendChild(capEl);
+      }
+      lightbox.hidden = false;
+    }
+    function closeLightbox() {
+      lightbox.hidden = true;
+      lightboxImg.src = "";
+    }
+
+    items.forEach((item) => {
+      item.addEventListener("click", (e) => {
+        const isTouchFirstTap = window.matchMedia("(hover: none)").matches && item !== activeItem;
+        if (isTouchFirstTap) return; // handled above — first tap reveals, doesn't open yet
+        openLightbox(item);
+      });
+      item.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openLightbox(item);
+        }
+      });
+    });
+    document.querySelector(".lightbox__close")?.addEventListener("click", closeLightbox);
+    lightbox.addEventListener("click", (e) => {
+      if (e.target === lightbox) closeLightbox();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !lightbox.hidden) closeLightbox();
     });
   </script>
 </Site>
@@ -107,8 +247,8 @@ const [title, heading, allLabel] = TITLES[locale.code] ?? ["Galería", "Momentos
     color: var(--ink-soft);
   }
   .filter.active {
-    background: var(--rhino);
-    border-color: var(--rhino);
+    background: var(--ember);
+    border-color: var(--ember);
     color: #fff;
   }
   .masonry {
@@ -131,6 +271,7 @@ const [title, heading, allLabel] = TITLES[locale.code] ?? ["Galería", "Momentos
     position: relative;
     overflow: hidden;
     border-radius: 0.5rem;
+    cursor: pointer;
   }
   .masonry__item img {
     width: 100%;
@@ -139,15 +280,83 @@ const [title, heading, allLabel] = TITLES[locale.code] ?? ["Galería", "Momentos
   .masonry__item figcaption {
     position: absolute;
     inset: auto 0 0 0;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
     color: #fff;
-    font-size: 0.82rem;
-    padding: 1.5rem 0.75rem 0.5rem;
+    padding: 1.5rem 0.75rem 0.6rem;
     opacity: 0;
     transition: opacity 0.2s;
   }
+  .masonry__item .meta-line {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    opacity: 0.85;
+  }
+  .masonry__item .caption-line {
+    font-size: 0.82rem;
+  }
   .masonry__item:hover figcaption,
-  .masonry__item:focus-within figcaption {
+  .masonry__item:focus-within figcaption,
+  .masonry__item.is-revealed figcaption {
     opacity: 1;
+  }
+
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 8, 6, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: var(--space-2);
+  }
+  /* [hidden] and .lightbox{display:flex} share the same specificity, so author CSS wins
+     the cascade and the modal stays visible regardless of the attribute unless this rule
+     (attribute + class = higher specificity) explicitly restores the native behavior. */
+  .lightbox[hidden] {
+    display: none;
+  }
+  .lightbox__figure {
+    max-width: 90vw;
+    max-height: 90vh;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .lightbox__figure img {
+    max-width: 90vw;
+    max-height: 78vh;
+    object-fit: contain;
+    border-radius: 0.4rem;
+  }
+  .lightbox__figure figcaption {
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding-top: 0.6rem;
+  }
+  .lightbox__figure .meta-line {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--volt);
+  }
+  .lightbox__figure .caption-line {
+    font-size: 0.95rem;
+  }
+  .lightbox__close {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.5rem;
   }
 </style>

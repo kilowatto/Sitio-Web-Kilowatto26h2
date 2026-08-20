@@ -3,13 +3,19 @@
 // can't call `wrangler secret put` on itself, so a web-form-editable credential can't
 // live there).
 //
-// X: needs X_BEARER_TOKEN (OAuth2 user-context token with write scope, from a Developer
-//    Portal app on Esteban's own account — posting is pay-per-use now, ~$0.015/post).
+// X: posting needs OAuth 1.0a (X_API_KEY, X_API_KEY_SECRET, X_ACCESS_TOKEN,
+//    X_ACCESS_TOKEN_SECRET, all four from the Keys & Tokens page of Esteban's own
+//    Developer Portal app — the app must have "Read and Write" permission BEFORE the
+//    Access Token is generated, or it inherits read-only). X_BEARER_TOKEN (the plain
+//    App-only bearer token) is read-only — confirmed live 2026-07-20 via
+//    `x-access-level: read` on a real API response — so it's kept only for the metrics
+//    GET call in publish.ts, never for posting. Posting is pay-per-use, ~$0.015/post.
 // LinkedIn: needs LINKEDIN_ACCESS_TOKEN (w_member_social scope via "Share on LinkedIn"
 //    product) + LINKEDIN_PERSON_URN (the numeric member URN, from /v2/userinfo once
 //    authorized). Token expires every 60 days — needs a refresh-token flow before this
 //    can run unattended for long.
 import { decryptSetting } from "./crypto";
+import { buildOAuth1Header } from "./oauth1";
 
 interface PublishResult {
   ok: boolean;
@@ -25,14 +31,27 @@ export async function getSetting(env: any, key: string): Promise<string | null> 
 }
 
 export async function postToX(env: any, content: string): Promise<PublishResult> {
-  const bearerToken = await getSetting(env, "X_BEARER_TOKEN");
-  if (!bearerToken) {
-    return { ok: false, error: "X_BEARER_TOKEN no configurado — agrégalo en /admin/settings" };
+  const [apiKey, apiKeySecret, accessToken, accessTokenSecret] = await Promise.all([
+    getSetting(env, "X_API_KEY"),
+    getSetting(env, "X_API_KEY_SECRET"),
+    getSetting(env, "X_ACCESS_TOKEN"),
+    getSetting(env, "X_ACCESS_TOKEN_SECRET"),
+  ]);
+  if (!apiKey || !apiKeySecret || !accessToken || !accessTokenSecret) {
+    return {
+      ok: false,
+      error:
+        "Faltan credenciales OAuth 1.0a de X (X_API_KEY/X_API_KEY_SECRET/X_ACCESS_TOKEN/X_ACCESS_TOKEN_SECRET) — agrégalas en /admin/settings. El X_BEARER_TOKEN simple es de solo lectura, no puede publicar.",
+    };
   }
-  const res = await fetch("https://api.x.com/2/tweets", {
+
+  const url = "https://api.x.com/2/tweets";
+  const authorization = await buildOAuth1Header("POST", url, { apiKey, apiKeySecret, accessToken, accessTokenSecret });
+
+  const res = await fetch(url, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${bearerToken}`,
+      authorization,
       "content-type": "application/json",
     },
     body: JSON.stringify({ text: content }),

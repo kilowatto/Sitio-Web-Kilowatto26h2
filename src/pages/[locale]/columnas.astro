@@ -1,0 +1,78 @@
+---
+import Site from "../../layouts/Site.astro";
+import ColumnList from "../../components/ColumnList.astro";
+import { localeFromParam } from "../../lib/locales";
+import { loadTranslations, t } from "../../lib/i18n";
+import { getColumnsPage, type ColumnRow } from "../../lib/columns-query";
+import { env } from "cloudflare:workers";
+
+const locale = localeFromParam(Astro.params.locale);
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+if (locale.canonical) return Astro.redirect("/columnas", 302);
+
+let columns: ColumnRow[] = [];
+let totalPages = 1;
+if (env?.DB) {
+  const page = await getColumnsPage(env, 1);
+  const tr = await loadTranslations(env.DB, "columns", locale.code);
+  columns = page.rows.map((c) => ({
+    ...c,
+    title: t(tr, c.id, "title", c.title) as string,
+    subtitle: t(tr, c.id, "subtitle", c.subtitle),
+    body_html: t(tr, c.id, "body_html", c.body_html) as string,
+  }));
+  totalPages = page.totalPages;
+}
+
+const EMPTY_STATE: Record<string, string> = {
+  en: "Coming soon — the first column is on its way.",
+  "pt-BR": "Em breve — a primeira coluna está a caminho.",
+  fr: "Bientôt disponible — la première chronique arrive.",
+  de: "Demnächst — die erste Kolumne ist unterwegs.",
+  ar: "قريباً — أول مقال في الطريق.",
+  "zh-Hans": "即将推出 — 第一篇专栏正在路上。",
+  ja: "近日公開 — 最初のコラムは近日中に。",
+};
+const emptyState = EMPTY_STATE[locale.code] ?? "Próximamente — la primera columna está en camino.";
+
+const TITLES: Record<string, { eyebrow: string; heading: string }> = {
+  en: { eyebrow: "Columns", heading: "What I write about tech, AI and business" },
+  "pt-BR": { eyebrow: "Colunas", heading: "O que escrevo sobre tecnologia, IA e negócios" },
+  fr: { eyebrow: "Chroniques", heading: "Ce que j'écris sur la tech, l'IA et les affaires" },
+  de: { eyebrow: "Kolumnen", heading: "Was ich über Technologie, KI und Business schreibe" },
+  ar: { eyebrow: "مقالات", heading: "ما أكتبه عن التقنية والذكاء الاصطناعي والأعمال" },
+  "zh-Hans": { eyebrow: "专栏", heading: "我写的科技、人工智能与商业观察" },
+  ja: { eyebrow: "コラム", heading: "テクノロジー、AI、ビジネスについて書いていること" },
+};
+const pageTitles = TITLES[locale.code] ?? { eyebrow: "Columnas", heading: "Lo que escribo sobre tecnología, IA y negocios" };
+---
+
+<Site
+  title={`${pageTitles.eyebrow} — Kilowatto`}
+  description="Columnas de opinión de Esteban Rey (Kilowatto) sobre tecnología, IA y negocios."
+  active="/columnas"
+  locale={locale.code}
+  dir={locale.rtl ? "rtl" : "ltr"}
+>
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">{pageTitles.eyebrow}</p>
+      <h1>{pageTitles.heading}</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      {
+        columns.length === 0 ? (
+          <p class="hero__sub">{emptyState}</p>
+        ) : (
+          <ColumnList columns={columns} currentPage={1} totalPages={totalPages} basePath={`/${locale.code}/columnas`} />
+        )
+      }
+    </div>
+  </section>
+</Site>

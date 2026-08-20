@@ -1,0 +1,54 @@
+---
+import Site from "../../layouts/Site.astro";
+import PressList from "../../components/PressList.astro";
+import { env } from "cloudflare:workers";
+
+const PAGE_SIZE = 12;
+
+const pageParam = Astro.params.page;
+const pageNum = Number(pageParam);
+
+// Page 1 lives at /prensa itself — /prensa/1 would be a duplicate URL for the same content,
+// bad for SEO (split ranking signals), so redirect it to the canonical form. Anything else
+// that isn't a clean positive integer is a real 404, not a soft-fallback to page 1.
+if (!pageParam || !/^\d+$/.test(pageParam) || pageNum < 2) {
+  if (pageNum === 1) return Astro.redirect("/prensa", 301);
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+
+let mentions: any[] = [];
+let totalPages = 1;
+if (env?.DB) {
+  const [countRes, res] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS n FROM press_mentions WHERE status = 'published'").first<any>(),
+    env.DB
+      .prepare("SELECT * FROM press_mentions WHERE status = 'published' ORDER BY published_at DESC LIMIT ? OFFSET ?")
+      .bind(PAGE_SIZE, (pageNum - 1) * PAGE_SIZE)
+      .all(),
+  ]);
+  mentions = res?.results ?? [];
+  totalPages = Math.max(1, Math.ceil((countRes?.n ?? 0) / PAGE_SIZE));
+}
+
+// Asking for a page past the end is a real 404 too — not an empty page pretending to exist.
+if (pageNum > totalPages || mentions.length === 0) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+---
+
+<Site title={`Prensa — página ${pageNum} — Esteban Rey`} active="/prensa">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Prensa</p>
+      <h1>Lo que se ha escrito sobre Kilowatto</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <PressList mentions={mentions} currentPage={pageNum} totalPages={totalPages} basePath="/prensa" />
+    </div>
+  </section>
+</Site>

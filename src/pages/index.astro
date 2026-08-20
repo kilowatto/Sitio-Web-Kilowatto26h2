@@ -1,30 +1,32 @@
 ---
 import Site from "../layouts/Site.astro";
 import Spark from "../components/Spark.astro";
+import PullQuote from "../components/PullQuote.astro";
 import { env } from "cloudflare:workers";
 
 let profile = null;
 let companies: any[] = [];
-let investments: any[] = [];
+let projects: any[] = [];
 let heroPhoto: any = null;
 
 if (env?.DB) {
-  const [profileRes, companiesRes, investmentsRes, heroPhotoRes] = await Promise.all([
+  const [profileRes, companiesRes, projectsRes, heroPhotoRes] = await Promise.all([
     env.DB.prepare("SELECT * FROM profile WHERE id = 1").first(),
     env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all(),
-    env.DB.prepare("SELECT * FROM investments ORDER BY sort_order").all(),
+    // Same self-updating list as /empresas — only ever shows projects the weekly refresh
+    // worker last confirmed reachable. See src/lib/projects-refresh.ts.
+    env.DB.prepare("SELECT * FROM projects WHERE is_reachable = 1 ORDER BY sort_order").all(),
     env.DB.prepare(
       "SELECT r2_key FROM photos WHERE approval_status = 'approved' AND (solo_subject = 1 OR is_profile_photo = 1) ORDER BY RANDOM() LIMIT 1"
     ).first(),
   ]);
   profile = profileRes;
   companies = companiesRes?.results ?? [];
-  investments = investmentsRes?.results ?? [];
+  projects = projectsRes?.results ?? [];
   heroPhoto = heroPhotoRes;
 }
 
 const latestCompanies = companies.slice(-3).reverse();
-const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rhino-investments").slice(0, 2);
 ---
 
 <Site
@@ -39,8 +41,72 @@ const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rh
     "url": "https://kilowatto.com",
     "jobTitle": "CEO",
     "worksFor": { "@type": "Organization", "name": "Ignia Cloud" },
-    "sameAs": ["https://x.com/kilowatto"],
+    // Wikidata entity created 2026-07-23 (Q140672978) — this is the single strongest signal
+    // for Google's Knowledge Graph to disambiguate him from the same-named Venezuelan singer.
+    // Real LinkedIn URL confirmed by Esteban 2026-07-25.
+    "sameAs": ["https://x.com/kilowatto", "https://www.wikidata.org/wiki/Q140672978", "https://www.linkedin.com/in/kilowatto/"],
     "description": profile?.bio_short ?? undefined,
+  })} />
+
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Ignia Cloud",
+    "founder": { "@type": "Person", "name": "Esteban Rey" },
+    "url": "https://kilowatto.com/empresas",
+  })} />
+
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Kilowatto",
+    "url": "https://kilowatto.com",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://www.google.com/search?q=site:kilowatto.com+{search_term_string}",
+      "query-input": "required name=search_term_string",
+    },
+  })} />
+
+  {/* Explicit disambiguation signal for Google/AI Overviews — a same-named Venezuelan
+      singer-songwriter otherwise dominates the bare "Esteban Rey" query. */}
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "¿Quién es Esteban Rey (Kilowatto)?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Esteban Rey Ortega, conocido en la industria tecnológica como \"Kilowatto\", es un arquitecto de sistemas, CEO e inversionista serial mexicano con más de 25 años de trayectoria. Es fundador y CEO de Ignia Cloud, fundador del Yucatech Festival en Mérida, y opera Orange Rhino Investments, con participación en Cereza y DeSiCi.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "¿Esteban Rey (Kilowatto) es el mismo Esteban Rey cantante?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "No. Existe un cantautor venezolano homónimo (proyectos musicales como Chamito Sound y Amor Cromático) que no tiene ninguna relación con Esteban Rey Ortega, el empresario tecnológico mexicano de este sitio, fundador de Ignia Cloud.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "¿Por qué le dicen \"Kilowatto\" a Esteban Rey?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "\"Kilowatto\" es el apodo con el que se le conoce en la industria tecnológica mexicana desde sus inicios en cómputo y telecomunicaciones, y hoy es su marca personal.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "¿Qué empresas ha fundado Esteban Rey?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Esteban Rey Ortega es fundador y CEO de Ignia Cloud (nube soberana para México y Latinoamérica, cuyas marcas incluyen a Aluna), fundador del Yucatech Festival, y tiene proyectos activos en Cereza y DeSiCi a través de su vehículo de inversión Orange Rhino Investments.",
+        },
+      },
+    ],
   })} />
 
   <section class="hero">
@@ -54,7 +120,16 @@ const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rh
             "25+ años construyendo tecnología, empresas y equipos en América Latina."}
         </p>
       </div>
-      {heroPhoto && <img class="hero__photo" src={`/media/${heroPhoto.r2_key}`} alt="Esteban Rey" />}
+      {heroPhoto && (
+        <img
+          class="hero__photo"
+          src={`/media/${heroPhoto.r2_key}?w=500`}
+          srcset={`/media/${heroPhoto.r2_key}?w=500 500w, /media/${heroPhoto.r2_key}?w=900 900w`}
+          sizes="(max-width: 720px) 100vw, 22rem"
+          alt="Esteban Rey"
+          fetchpriority="high"
+        />
+      )}
     </div>
   </section>
 
@@ -82,24 +157,45 @@ const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rh
     </div>
   </section>
 
-  <section class="chapter chapter--mist">
-    <div class="container">
-      <p class="eyebrow">Orange Rhino Investments</p>
-      <h2>Estrategia de mancuerna: tecnología y economía real.</h2>
-      <ul class="cards">
-        {
-          featuredInvestments.map((i: any) => (
-            <li class="card">
-              <p class="eyebrow">{i.category}</p>
-              <h3>{i.name}</h3>
-              {i.summary && <p>{i.summary}</p>}
-            </li>
-          ))
-        }
-      </ul>
-      <p class="see-more"><a href="/inversiones">Ver todas las inversiones →</a></p>
-    </div>
-  </section>
+  <PullQuote placement="home" />
+
+  {projects.length > 0 && (
+    <section class="chapter chapter--mist">
+      <div class="container">
+        <p class="eyebrow">Mis proyectos</p>
+        <h2>En vivo, ahora mismo.</h2>
+        <ul class="cards">
+          {
+            projects.slice(0, 5).map((p: any) => (
+              <li class="card project-card">
+                {p.image_r2_key && (
+                  <img
+                    src={`/media/${p.image_r2_key}?w=600`}
+                    srcset={`/media/${p.image_r2_key}?w=500 500w, /media/${p.image_r2_key}?w=800 800w, /media/${p.image_r2_key}?w=1100 1100w`}
+                    sizes="(max-width: 640px) 100vw, 50vw"
+                    alt={`Captura de pantalla de ${p.name}`}
+                    loading="lazy"
+                    class="project-card__image"
+                  />
+                )}
+                <div class="project-card__body">
+                  {p.role && <p class="eyebrow">{p.role}</p>}
+                  <h3>{p.name}</h3>
+                  {p.summary && <p>{p.summary}</p>}
+                  <p>
+                    <a href={p.url} target="_blank" rel="noopener">
+                      {p.url.replace(/^https?:\/\//, "")}
+                    </a>
+                  </p>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="see-more"><a href="/empresas">Ver empresas y proyectos →</a></p>
+      </div>
+    </section>
+  )}
 
   <section class="chapter">
     <div class="container chapter--split">
@@ -115,6 +211,47 @@ const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rh
     </div>
   </section>
 
+  <section class="chapter faq-section">
+    <div class="container">
+      <p class="eyebrow">Preguntas frecuentes</p>
+      <h2>Antes de que preguntes.</h2>
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>¿Quién es Esteban Rey (Kilowatto)?</summary>
+          <p>
+            Esteban Rey Ortega, conocido en la industria tecnológica como "Kilowatto", es un arquitecto de sistemas,
+            CEO e inversionista serial mexicano con más de 25 años de trayectoria. Es fundador y CEO de Ignia Cloud,
+            fundador del Yucatech Festival en Mérida, y opera Orange Rhino Investments, con participación en
+            Cereza y DeSiCi.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>¿Esteban Rey (Kilowatto) es el mismo Esteban Rey cantante?</summary>
+          <p>
+            No. Existe un cantautor venezolano homónimo (proyectos musicales como Chamito Sound y Amor Cromático)
+            que no tiene ninguna relación con Esteban Rey Ortega, el empresario tecnológico mexicano de este sitio,
+            fundador de Ignia Cloud.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>¿Por qué le dicen "Kilowatto" a Esteban Rey?</summary>
+          <p>
+            "Kilowatto" es el apodo con el que se le conoce en la industria tecnológica mexicana desde sus inicios
+            en cómputo y telecomunicaciones, y hoy es su marca personal.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>¿Qué empresas ha fundado Esteban Rey?</summary>
+          <p>
+            Es fundador y CEO de Ignia Cloud (nube soberana para México y Latinoamérica, cuyas marcas incluyen a
+            Aluna), fundador del Yucatech Festival, y tiene proyectos activos en Cereza y DeSiCi a través de su
+            vehículo de inversión Orange Rhino Investments.
+          </p>
+        </details>
+      </div>
+    </div>
+  </section>
+
   <section class="chapter chapter--mist larry-intro">
     <div class="container larry-intro__inner">
       <img src="/larry/larry-gym.webp" alt="" width="220" height="220" loading="lazy" />
@@ -123,7 +260,7 @@ const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rh
         <h2>Larry</h2>
         <p class="hero__sub">
           Serio, pero no solemne — como su jefe. Pregúntale lo que quieras sobre
-          la trayectoria, las empresas o las inversiones.
+          la trayectoria, las empresas o los proyectos.
         </p>
       </div>
     </div>
@@ -131,6 +268,28 @@ const featuredInvestments = investments.filter((i: any) => i.slug !== "orange-rh
 </Site>
 
 <style>
+  .faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: var(--space-3);
+    max-width: var(--measure);
+  }
+  .faq-item {
+    border: 1px solid var(--line);
+    padding: 0.9rem 1.1rem;
+  }
+  .faq-item summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+  }
+  .faq-item p {
+    margin: 0.75rem 0 0;
+    color: var(--ink-soft);
+  }
+
   .hero {
     padding-block: var(--space-5) var(--space-4);
   }

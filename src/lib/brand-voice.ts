@@ -1,3 +1,5 @@
+import { stripHtml } from "./html-text";
+
 // Shared context builder for the personal-brand post generator — pulls real voice
 // samples + known bio facts so drafts sound like Esteban, not like a generic AI CEO.
 
@@ -10,8 +12,9 @@ export const FORBIDDEN_TOPICS_NOTE = `Reglas estrictas, nunca las rompas:
 - Como inversionista (Orange Rhino Investments), nunca uses lenguaje que suene a asesoría o solicitud de inversión ("deberías invertir en X", rendimientos específicos, "consejo financiero"). Solo opiniones/experiencias personales.`;
 
 export async function buildVoiceContext(DB: any) {
-  const [samples, profile, companies, investments] = await Promise.all([
+  const [samples, columnSamples, profile, companies, investments] = await Promise.all([
     DB.prepare("SELECT platform, content FROM social_posts ORDER BY posted_at DESC LIMIT 15").all(),
+    DB.prepare("SELECT title, subtitle, body_html FROM columns ORDER BY published_at DESC LIMIT 6").all(),
     DB.prepare("SELECT * FROM profile WHERE id = 1").first(),
     DB.prepare("SELECT name, role, summary, is_current FROM companies ORDER BY sort_order").all(),
     DB.prepare("SELECT name, category, summary FROM investments ORDER BY sort_order").all(),
@@ -21,19 +24,34 @@ export async function buildVoiceContext(DB: any) {
     .map((s: any) => `[${s.platform}] "${s.content}"`)
     .join("\n");
 
+  // Full body_html would blow up the prompt (columns run 4-9k chars) — an opening excerpt is
+  // enough to carry tone/register, which is all this block is for (bioFacts below still grounds
+  // actual claims). Kept separate from voiceSamples (short-post shape) since it's a different
+  // register — long-form columns read differently than a punchy X post.
+  const columnVoiceSamples = (columnSamples?.results ?? [])
+    .map((c: any) => {
+      const excerpt = stripHtml(c.body_html).slice(0, 500);
+      return `[columna] "${c.title}"${c.subtitle ? ` — ${c.subtitle}` : ""}\n${excerpt}...`;
+    })
+    .join("\n\n");
+
   const bioFacts = {
     profile: profile ? { display_name: profile.display_name, bio_short: profile.bio_short } : null,
     companies: companies?.results ?? [],
     investments: investments?.results ?? [],
   };
 
-  return { voiceSamples, bioFacts };
+  return { voiceSamples, columnVoiceSamples, bioFacts };
 }
 
-export function voicePromptBlock(voiceSamples: string, bioFacts: any) {
+export function voicePromptBlock(voiceSamples: string, bioFacts: any, columnVoiceSamples?: string) {
   return `Ejemplos REALES de cómo escribe Esteban Rey (@Kilowatto) — imita este registro, no un tono genérico de "CEO de LinkedIn":
 ${voiceSamples || "(sin ejemplos guardados todavía — usa un tono directo, técnico cuando aplique, seguro de sí mismo, ocasionalmente informal/humano, nunca corporativo-genérico)"}
-
+${
+  columnVoiceSamples
+    ? `\nEjemplos de sus columnas largas de opinión (mismo autor, registro más extenso — úsalos para tono/estructura si estás escribiendo algo largo):\n${columnVoiceSamples}\n`
+    : ""
+}
 Hechos reales verificados sobre Esteban (nunca inventes datos, fechas o logros fuera de esto):
 ${JSON.stringify(bioFacts, null, 2)}
 

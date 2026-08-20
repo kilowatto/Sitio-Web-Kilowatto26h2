@@ -1,5 +1,5 @@
 ---
-import Base from "../../layouts/Base.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
 import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
 import { checkAdminAuth } from "../../lib/admin-auth";
@@ -8,128 +8,480 @@ const token = await checkAdminAuth(Astro, env);
 const authorized = !!token;
 
 let fotosCount = 0;
+let commentsPendingCount = 0;
 let entidadesCount = 0;
-let prensaCount = 0;
-let socialCount = 0;
+let prensaPendingCount = 0;
+let pressToday = 0;
+let postsToday = 0;
+let histogram: { day: string; count: number }[] = [];
+let quickApprove: any = null;
+let nearestExpiry: any = null;
+let latestPhoto: any = null;
+let followerX: any = null;
+let followerLinkedin: any = null;
+let engagementRate7d = 0;
+let newsTrust: Record<string, any> = {};
+let newsPaused = false;
+let autopilotPaused = false;
+let lastTickAt: string | null = null;
+let recentFailedCount = 0;
+let projectsTotal = 0;
+let projectsReachable = 0;
+let lastProjectsRefreshAt: string | null = null;
+let lastReindexAt: string | null = null;
+
 if (authorized && env?.DB) {
-  const [f, e, p, s] = await Promise.all([
+  const [
+    f,
+    e,
+    pPending,
+    pToday,
+    sToday,
+    histRes,
+    quickRes,
+    expiryRes,
+    photoRes,
+    followerRes,
+    metricsRes,
+    trustRes,
+    newsPausedKv,
+    autopilotPausedKv,
+    lastTickKv,
+    failedRes,
+    projectsRes,
+    lastProjectsRefreshKv,
+    commentsPendingRes,
+    lastReindexKv,
+  ] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS n FROM photos WHERE approval_status = 'pending'").first(),
     env.DB.prepare("SELECT COUNT(*) AS n FROM entities WHERE approval_status = 'pending'").first(),
     env.DB.prepare("SELECT COUNT(*) AS n FROM press_mentions WHERE status = 'pending'").first(),
-    env.DB.prepare("SELECT COUNT(*) AS n FROM brand_posts WHERE status = 'pending_approval'").first(),
+    env.DB.prepare("SELECT COUNT(*) AS n FROM press_mentions WHERE date(discovered_at) = date('now')").first(),
+    env.DB.prepare("SELECT COUNT(*) AS n FROM brand_posts WHERE status = 'posted' AND date(posted_at) = date('now')").first(),
+    env.DB.prepare(
+      `SELECT date(discovered_at) AS day, COUNT(*) AS n FROM press_mentions
+       WHERE discovered_at >= datetime('now', '-30 days') GROUP BY day`
+    ).all(),
+    env.DB.prepare(
+      `SELECT * FROM brand_posts WHERE status = 'pending_approval' ORDER BY created_at ASC LIMIT 1`
+    ).first(),
+    env.DB.prepare(
+      `SELECT id, platform, content, expires_at FROM brand_posts
+       WHERE kind = 'news_reaction' AND status = 'pending_approval' AND expires_at IS NOT NULL
+       ORDER BY expires_at ASC LIMIT 1`
+    ).first(),
+    env.DB.prepare(
+      `SELECT r2_key FROM photos WHERE approval_status = 'pending' ORDER BY uploaded_at DESC LIMIT 1`
+    ).first(),
+    env.DB.prepare(
+      `SELECT platform, followers, fetched_at,
+              ROW_NUMBER() OVER (PARTITION BY platform ORDER BY fetched_at DESC) AS rn
+       FROM follower_snapshots`
+    ).all(),
+    env.DB.prepare(
+      `SELECT m.impressions, m.likes, m.comments, m.shares
+       FROM brand_posts p
+       JOIN (
+         SELECT brand_post_id, impressions, likes, comments, shares,
+                ROW_NUMBER() OVER (PARTITION BY brand_post_id ORDER BY fetched_at DESC) AS rn
+         FROM brand_post_metrics
+       ) m ON m.brand_post_id = p.id AND m.rn = 1
+       WHERE p.status = 'posted' AND p.posted_at >= datetime('now', '-7 days')`
+    ).all(),
+    env.DB.prepare(`SELECT * FROM news_reaction_trust`).all(),
+    env.KILOWATTO_KV.get("news_autopilot_paused"),
+    env.KILOWATTO_KV.get("brand_autopilot_paused"),
+    env.KILOWATTO_KV.get("last_tick_at"),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM brand_posts WHERE status = 'failed' AND created_at >= datetime('now', '-2 days')`).first(),
+    env.DB.prepare(`SELECT COUNT(*) AS n, SUM(is_reachable) AS reachable FROM projects`).first(),
+    env.KILOWATTO_KV.get("last_projects_refresh_at"),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM comments WHERE status = 'pending'`).first(),
+    env.KILOWATTO_KV.get("last_reindex_at"),
   ]);
+
   fotosCount = (f as any)?.n ?? 0;
+  commentsPendingCount = (commentsPendingRes as any)?.n ?? 0;
   entidadesCount = (e as any)?.n ?? 0;
-  prensaCount = (p as any)?.n ?? 0;
-  socialCount = (s as any)?.n ?? 0;
+  prensaPendingCount = (pPending as any)?.n ?? 0;
+  pressToday = (pToday as any)?.n ?? 0;
+  postsToday = (sToday as any)?.n ?? 0;
+
+  const histMap = new Map((histRes.results ?? []).map((r: any) => [r.day, r.n]));
+  const days: { day: string; count: number }[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+    days.push({ day: d, count: (histMap.get(d) as number) ?? 0 });
+  }
+  histogram = days;
+
+  quickApprove = quickRes ?? null;
+  nearestExpiry = expiryRes ?? null;
+  latestPhoto = photoRes ?? null;
+
+  const followerRows = (followerRes.results ?? []) as any[];
+  followerX = followerRows.find((r) => r.platform === "x" && r.rn === 1) ?? null;
+  followerLinkedin = followerRows.find((r) => r.platform === "linkedin" && r.rn === 1) ?? null;
+
+  const metricRows = (metricsRes.results ?? []) as any[];
+  const withImpr = metricRows.filter((r) => r.impressions > 0);
+  engagementRate7d = withImpr.length
+    ? withImpr.reduce((s, r) => s + (r.likes + r.comments + r.shares) / r.impressions, 0) / withImpr.length
+    : 0;
+
+  newsTrust = Object.fromEntries(((trustRes.results ?? []) as any[]).map((t) => [t.platform, t]));
+  newsPaused = newsPausedKv === "true";
+  autopilotPaused = autopilotPausedKv === "true";
+  lastTickAt = lastTickKv;
+  recentFailedCount = (failedRes as any)?.n ?? 0;
+  projectsTotal = (projectsRes as any)?.n ?? 0;
+  projectsReachable = (projectsRes as any)?.reachable ?? 0;
+  lastProjectsRefreshAt = lastProjectsRefreshKv;
+  lastReindexAt = lastReindexKv;
 }
 
-const sections = [
-  { href: "/admin/fotos", label: "Fotos", count: fotosCount, desc: "Revisar y aprobar fotos subidas" },
-  { href: "/admin/entidades", label: "Entidades", count: entidadesCount, desc: "Tooltips de Wikidata pendientes" },
-  { href: "/admin/prensa", label: "Prensa", count: prensaCount, desc: "Menciones de prensa detectadas" },
-  { href: "/admin/social", label: "Marca personal", count: socialCount, desc: "Borradores de X/LinkedIn de Larry" },
-];
+function timeAgo(iso: string | null): string {
+  if (!iso) return "nunca";
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 2) return "hace un momento";
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `hace ${hours}h`;
+  return `hace ${Math.floor(hours / 24)}d`;
+}
+
+const maxHist = Math.max(...histogram.map((h) => h.count), 1);
+// Simple moving-average trend line (3-day window) over the same 30 points, as an SVG polyline.
+const trendPoints = histogram
+  .map((_, i) => {
+    const window = histogram.slice(Math.max(0, i - 2), i + 1);
+    const avg = window.reduce((s, h) => s + h.count, 0) / window.length;
+    const x = (i / (histogram.length - 1)) * 300;
+    const y = 60 - (avg / maxHist) * 56;
+    return `${x},${y}`;
+  })
+  .join(" ");
 ---
 
-<Base title="Panel de administración">
-  <div class="container admin-hub">
-    {
-      !authorized ? (
-        <AdminLogin />
-      ) : (
-        <>
-          <div class="top-row">
-            <h1>Panel de administración</h1>
-            <div class="top-actions">
-              <a href="/admin/settings">Configuración</a>
-              <button id="logout-btn" type="button">Cerrar sesión</button>
-            </div>
-          </div>
-          <div class="sections">
-            {sections.map((s) => (
-              <a href={s.href} class="section-card">
-                {s.count > 0 && <span class="badge">{s.count}</span>}
-                <h2>{s.label}</h2>
-                <p>{s.desc}</p>
-              </a>
-            ))}
-          </div>
-        </>
-      )
-    }
-  </div>
+<AdminLayout title="Panel de administración" active="/admin" authorized={authorized}>
+  {
+    !authorized ? (
+      <AdminLogin />
+    ) : (
+      <>
+        <div class="hub-top">
+          <h1>Panel de administración</h1>
+        </div>
 
-  <script>
-    document.getElementById("logout-btn")?.addEventListener("click", async () => {
-      await fetch("/api/auth/logout", { method: "POST" });
-      location.reload();
+        <div class="widget-grid">
+          <div class="widget widget--priority">
+            <p class="widget-label">Menciones de hoy</p>
+            <p class="widget-big">{pressToday + postsToday}</p>
+            <p class="widget-sub">📰 {pressToday} prensa · 📣 {postsToday} publicados</p>
+          </div>
+
+          {quickApprove && (
+            <div class="widget widget--priority widget--approve" data-id={quickApprove.id}>
+              <p class="widget-label">Aprobar rápido</p>
+              <div class="quick-approve-body">
+                {quickApprove.image_r2_key && (
+                  <div class="quick-approve-image-wrap">
+                    <img src={`/media/${quickApprove.image_r2_key}?w=150`} alt="" class="quick-approve-image" data-id={quickApprove.id} />
+                    <button type="button" class="quick-approve-reload" data-id={quickApprove.id} title="Generar otra imagen" aria-label="Generar otra imagen">🔄</button>
+                  </div>
+                )}
+                <div class="quick-approve-text">
+                  <p class="widget-platform">{quickApprove.platform.toUpperCase()} · {quickApprove.kind}</p>
+                  <p class="widget-content">{quickApprove.content.slice(0, 90)}…</p>
+                </div>
+              </div>
+              <div class="widget-actions">
+                <button type="button" class="quick-approve" data-id={quickApprove.id}>✓ Aprobar</button>
+                <button type="button" class="quick-reject" data-id={quickApprove.id}>Rechazar</button>
+              </div>
+            </div>
+          )}
+
+          {nearestExpiry && (
+            <div class="widget widget--priority">
+              <p class="widget-label">⏱️ Próxima a vencer</p>
+              <p class="widget-platform">{nearestExpiry.platform.toUpperCase()}</p>
+              <p class="widget-content">{nearestExpiry.content.slice(0, 80)}…</p>
+              <a href="/admin/social" class="widget-link">Revisar ahora →</a>
+            </div>
+          )}
+
+          <div class="widget widget--priority widget--histogram">
+            <p class="widget-label">Menciones (30 días)</p>
+            <svg viewBox="0 0 300 60" class="histogram-svg" preserveAspectRatio="none">
+              {histogram.map((h, i) => (
+                <rect
+                  x={(i / histogram.length) * 300}
+                  y={60 - (h.count / maxHist) * 56}
+                  width={300 / histogram.length - 1}
+                  height={(h.count / maxHist) * 56}
+                  class="histogram-bar"
+                />
+              ))}
+              <polyline points={trendPoints} class="histogram-trend" fill="none" />
+            </svg>
+          </div>
+
+          <a href="/admin/fotos" class="widget widget-link-card">
+            <p class="widget-label">Fotos pendientes</p>
+            <p class="widget-big">{fotosCount}</p>
+            {latestPhoto && <img src={`/media/${latestPhoto.r2_key}?w=500`} class="widget-thumb" alt="" />}
+          </a>
+
+          <a href="/admin/prensa" class="widget widget-link-card">
+            <p class="widget-label">Prensa pendiente</p>
+            <p class="widget-big">{prensaPendingCount}</p>
+          </a>
+
+          <a href="/admin/comentarios" class="widget widget-link-card">
+            <p class="widget-label">Comentarios pendientes</p>
+            <p class="widget-big">{commentsPendingCount}</p>
+          </a>
+
+          <div class="widget">
+            <p class="widget-label">Seguidores</p>
+            <p class="widget-sub">X: <strong>{followerX?.followers ?? "—"}</strong></p>
+            <p class="widget-sub">LinkedIn: <strong>{followerLinkedin?.followers ?? "—"}</strong></p>
+          </div>
+
+          <div class="widget">
+            <p class="widget-label">Interacción (7 días)</p>
+            <p class="widget-big">{(engagementRate7d * 100).toFixed(1)}%</p>
+          </div>
+
+          <div class="widget">
+            <p class="widget-label">📰 Piloto de noticias</p>
+            <p class="widget-sub">{newsPaused ? "🔴 pausado" : "🟢 activo"}</p>
+            <p class="widget-sub">X: {newsTrust.x?.autopilot_enabled ? "autopublica" : `${newsTrust.x?.consecutive_clean_approvals ?? 0}/10`}</p>
+            <p class="widget-sub">LinkedIn: {newsTrust.linkedin?.autopilot_enabled ? "autopublica" : `${newsTrust.linkedin?.consecutive_clean_approvals ?? 0}/10`}</p>
+          </div>
+
+          <div class="widget">
+            <p class="widget-label">Salud del sistema</p>
+            <p class="widget-sub">Autopiloto: {autopilotPaused ? "🔴 pausado" : "🟢 activo"}</p>
+            <p class="widget-sub">Último tick: {timeAgo(lastTickAt)}</p>
+            {recentFailedCount > 0 && <p class="widget-sub widget-alert">⚠️ {recentFailedCount} fallidos recientes</p>}
+          </div>
+
+          <div class="widget" id="projects-widget">
+            <p class="widget-label">Mis proyectos</p>
+            <p class="widget-sub">{projectsReachable}/{projectsTotal} en línea</p>
+            {projectsReachable < projectsTotal && <p class="widget-sub widget-alert">⚠️ {projectsTotal - projectsReachable} caído(s) — oculto(s) del sitio</p>}
+            <p class="widget-sub">Última revisión: <span id="projects-last-check">{timeAgo(lastProjectsRefreshAt)}</span></p>
+            <button type="button" id="projects-refresh-btn">🔄 Actualizar ahora</button>
+            <p id="projects-refresh-status" class="widget-sub"></p>
+          </div>
+
+          <div class="widget" id="reindex-widget">
+            <p class="widget-label">🤖 Conocimiento de Larry</p>
+            <p class="widget-sub">Última reindexación: <span id="reindex-last-check">{timeAgo(lastReindexAt)}</span></p>
+            <button type="button" id="reindex-btn">🔄 Reindexar ahora</button>
+            <p id="reindex-status" class="widget-sub"></p>
+          </div>
+
+          <a href="/admin/entidades" class="widget widget-link-card">
+            <p class="widget-label">Entidades</p>
+            <p class="widget-big">{entidadesCount}</p>
+          </a>
+        </div>
+      </>
+    )
+  }
+
+  <script define:vars={{ token }}>
+    document.querySelectorAll(".quick-approve").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        btn.disabled = true;
+        await fetch(`/api/brand/${id}/approve?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        location.reload();
+      });
+    });
+    document.querySelectorAll(".quick-reject").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        btn.disabled = true;
+        await fetch(`/api/brand/${id}/reject?token=${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        location.reload();
+      });
+    });
+
+    document.querySelectorAll(".quick-approve-reload").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const img = document.querySelector(`.quick-approve-image[data-id="${id}"]`);
+        btn.disabled = true;
+        btn.classList.add("is-loading");
+        btn.textContent = "⏳";
+        try {
+          const res = await fetch(`/api/brand/${id}/reject-image?token=${encodeURIComponent(token)}`, { method: "POST" });
+          const data = await res.json();
+          if (data.imageKey && img) img.src = `/media/${data.imageKey}`;
+        } finally {
+          btn.disabled = false;
+          btn.classList.remove("is-loading");
+          btn.textContent = "🔄";
+        }
+      });
+    });
+
+    document.getElementById("projects-refresh-btn")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const status = document.getElementById("projects-refresh-status");
+      btn.disabled = true;
+      status.textContent = "Revisando cada proyecto…";
+      try {
+        const res = await fetch(`/api/projects/refresh?token=${encodeURIComponent(token)}`, { method: "POST" });
+        const data = await res.json();
+        const ok = data.outcomes?.filter((o) => o.ok).length ?? 0;
+        status.textContent = `Listo: ${ok}/${data.checked ?? 0} en línea.`;
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        status.textContent = "Se perdió la conexión — intenta de nuevo.";
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("reindex-btn")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const status = document.getElementById("reindex-status");
+      btn.disabled = true;
+      status.textContent = "Reindexando contenido para Larry…";
+      try {
+        const res = await fetch(`/api/reindex?token=${encodeURIComponent(token)}`, { method: "POST" });
+        const data = await res.json();
+        status.textContent = `Listo: ${data.indexed ?? 0} fragmentos indexados.`;
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        status.textContent = "Se perdió la conexión — intenta de nuevo.";
+        btn.disabled = false;
+      }
     });
   </script>
-</Base>
+</AdminLayout>
 
 <style>
-  .admin-hub {
-    padding-block: var(--space-4);
-  }
-  .top-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  .top-actions {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    font-size: 0.85rem;
-  }
-  .top-actions button {
-    background: none;
-    border: 1px solid var(--line);
-    border-radius: 0.4rem;
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-    color: inherit;
-  }
-  .sections {
+  .hub-top { margin-bottom: 1.25rem; }
+  .hub-top h1 { font-size: 1.5rem; margin: 0; }
+
+  .widget-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-    gap: var(--space-2);
-    margin-top: var(--space-3);
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
   }
-  .section-card {
-    position: relative;
-    display: block;
-    border: 1px solid var(--line);
-    border-radius: 0.6rem;
-    padding: var(--space-2);
-    color: inherit;
-    text-decoration: none;
-    transition: border-color 0.15s ease;
+  @media (min-width: 30rem) {
+    .widget-grid { grid-template-columns: repeat(2, 1fr); }
   }
-  .section-card:hover {
-    border-color: var(--rhino);
+  @media (min-width: 64rem) {
+    .widget-grid { grid-template-columns: repeat(3, 1fr); }
   }
-  .section-card h2 {
-    margin: 0 0 0.3rem;
-    font-size: 1.1rem;
+  @media (min-width: 90rem) {
+    .widget-grid { grid-template-columns: repeat(4, 1fr); }
   }
-  .section-card p {
-    margin: 0;
-    font-size: 0.85rem;
-    color: var(--ink-soft);
+
+  /* Mobile: only the priority widgets show above the fold by default ordering — CSS
+     `order` puts them first regardless of DOM position, matching Esteban's pick. */
+  .widget {
+    background: var(--admin-surface);
+    border: 1px solid var(--admin-border);
+    border-radius: 0.9rem;
+    padding: 1rem;
   }
-  .badge {
-    position: absolute;
-    top: 0.7rem;
-    right: 0.7rem;
-    background: var(--rhino);
-    color: #fff;
-    border-radius: 999px;
-    padding: 0.1rem 0.55rem;
+  .widget-link-card { text-decoration: none; color: inherit; display: block; }
+  .widget-label {
     font-size: 0.75rem;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--admin-text-soft);
+    margin: 0 0 0.4rem;
   }
+  .widget-big { font-size: 2rem; font-weight: 700; margin: 0; line-height: 1; }
+  .widget-sub { font-size: 0.85rem; color: var(--admin-text-soft); margin: 0.15rem 0; }
+  .widget-alert { color: #dc2626; font-weight: 600; }
+  .widget-platform { font-size: 0.75rem; font-weight: 600; color: var(--rhino); margin: 0 0 0.3rem; }
+  .widget-content { font-size: 0.88rem; margin: 0; }
+
+  .quick-approve-body { display: flex; gap: 0.7rem; align-items: flex-start; margin-bottom: 0.6rem; }
+  .quick-approve-image-wrap {
+    position: relative;
+    width: 4.5rem;
+    height: 4.5rem;
+    flex-shrink: 0;
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+  .quick-approve-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .quick-approve-reload {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    border: none;
+    font-size: 1.3rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  /* Desktop: reveal on hover, like the gallery pattern. */
+  @media (hover: hover) {
+    .quick-approve-image-wrap:hover .quick-approve-reload { opacity: 1; }
+  }
+  /* Touch devices have no hover — keep the reload control visible but understated instead
+     of hiding it behind a gesture nobody would discover on their own. */
+  @media (hover: none) {
+    .quick-approve-reload { opacity: 1; background: rgba(0, 0, 0, 0.32); font-size: 1.1rem; }
+  }
+  .quick-approve-reload[disabled] { cursor: default; }
+  .quick-approve-reload.is-loading { opacity: 1; }
+  .quick-approve-text { flex: 1; min-width: 0; }
+  .widget-actions { display: flex; gap: 0.5rem; }
+  .widget-actions button {
+    flex: 1;
+    min-height: 2.5rem;
+    border-radius: 0.5rem;
+    border: none;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .quick-approve { background: var(--rhino); color: #fff; }
+  .quick-reject { background: var(--admin-surface-2); color: var(--admin-text); }
+  .widget-link { font-size: 0.82rem; color: var(--rhino); font-weight: 600; text-decoration: none; }
+  .widget-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 0.5rem; margin-top: 0.5rem; }
+
+  .histogram-svg { width: 100%; height: 4rem; }
+  .histogram-bar { fill: color-mix(in srgb, var(--rhino) 35%, transparent); }
+  .histogram-trend { stroke: var(--rhino); stroke-width: 2; }
+
+  #projects-refresh-btn,
+  #reindex-btn {
+    width: 100%;
+    margin-top: 0.5rem;
+    min-height: 2.5rem;
+    border-radius: 0.5rem;
+    border: none;
+    background: var(--admin-surface-2);
+    color: var(--admin-text);
+    font-size: 0.82rem;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  #projects-refresh-btn[disabled],
+  #reindex-btn[disabled] { opacity: 0.6; cursor: default; }
 </style>

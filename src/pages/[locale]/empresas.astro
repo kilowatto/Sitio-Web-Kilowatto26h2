@@ -1,28 +1,57 @@
 ---
 import Site from "../../layouts/Site.astro";
+import PullQuote from "../../components/PullQuote.astro";
 import { env } from "cloudflare:workers";
 import { localeFromParam } from "../../lib/locales";
 import { loadTranslations, t } from "../../lib/i18n";
+import { projectsLabels, navLabels } from "../../lib/nav-labels";
 
 const locale = localeFromParam(Astro.params.locale);
-if (!locale || locale.canonical) return Astro.redirect("/empresas", 302);
+// See src/pages/[locale]/index.astro for why this is split — an unrecognized single path
+// segment must 404, not silently redirect home as if it were a locale.
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+if (locale.canonical) return Astro.redirect("/empresas", 302);
+
+const pl = projectsLabels(locale.code);
+const nl = navLabels(locale.code);
 
 let companies: any[] = [];
+let projects: any[] = [];
 let tr = new Map<string, string>();
+let projectsTr = new Map<string, string>();
 if (env?.DB) {
-  const res = await env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all();
-  companies = res?.results ?? [];
-  tr = await loadTranslations(env.DB, "companies", locale.code);
+  const [companiesRes, projectsRes] = await Promise.all([
+    env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all(),
+    // Only ever shows projects the weekly refresh worker last confirmed reachable — see
+    // src/lib/projects-refresh.ts. Down sites disappear on their own, no manual curation.
+    env.DB.prepare("SELECT * FROM projects WHERE is_reachable = 1 ORDER BY sort_order").all(),
+  ]);
+  companies = companiesRes?.results ?? [];
+  projects = projectsRes?.results ?? [];
+  [tr, projectsTr] = await Promise.all([
+    loadTranslations(env.DB, "companies", locale.code),
+    loadTranslations(env.DB, "projects", locale.code),
+  ]);
 }
 ---
 
-<Site title="Empresas — Esteban Rey" active="/empresas" locale={locale.code} dir={locale.rtl ? "rtl" : "ltr"}>
+<Site
+  title={`${nl.empresas} — Esteban Rey`}
+  description="Ignia Cloud, Yucatech Festival, Cereza, Aluna y DeSiCi: las empresas y proyectos activos de Esteban Rey (Kilowatto)."
+  active="/empresas"
+  locale={locale.code}
+  dir={locale.rtl ? "rtl" : "ltr"}
+>
   <section class="page-head">
     <div class="container">
       <p class="eyebrow">Empresas</p>
       <h1>Kilowatto</h1>
     </div>
   </section>
+  <PullQuote placement="empresas" locale={locale.code} />
   <section class="chapter">
     <div class="container">
       <ol class="rows">
@@ -44,4 +73,54 @@ if (env?.DB) {
       </ol>
     </div>
   </section>
+
+  {projects.length > 0 && (
+    <section class="chapter">
+      <div class="container">
+        <p class="eyebrow">{pl.eyebrow}</p>
+        <h2>{pl.heading}</h2>
+        <ul class="cards">
+          {
+            projects.map((p: any) => (
+              <li class="card project-card">
+                {p.image_r2_key && (
+                  <img
+                    src={`/media/${p.image_r2_key}?w=600`}
+                    srcset={`/media/${p.image_r2_key}?w=500 500w, /media/${p.image_r2_key}?w=800 800w, /media/${p.image_r2_key}?w=1100 1100w`}
+                    sizes="(max-width: 640px) 100vw, 50vw"
+                    alt={`Screenshot of ${p.name}`}
+                    loading="lazy"
+                    class="project-card__image"
+                  />
+                )}
+                <div class="project-card__body">
+                  {p.role && <p class="eyebrow">{t(projectsTr, p.id, "role", p.role)}</p>}
+                  <h3>{p.name}</h3>
+                  {p.summary && <p>{t(projectsTr, p.id, "summary", p.summary)}</p>}
+                  <p>
+                    <a href={p.url} target="_blank" rel="noopener">
+                      {p.url.replace(/^https?:\/\//, "")}
+                    </a>
+                  </p>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+  )}
+
+  {
+    projects.map((p: any) => (
+      <script type="application/ld+json" set:html={JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: p.name,
+        url: p.url,
+        founder: { "@type": "Person", name: "Esteban Rey" },
+        description: p.summary ?? undefined,
+      })} />
+    ))
+  }
 </Site>

@@ -1,0 +1,172 @@
+---
+import Site from "../../layouts/Site.astro";
+
+const HEADSHOT = "photos/familia/4d44a978-0e7c-4356-a506-0b764917aa21.jpg";
+
+const BIOS = {
+  corta:
+    "Esteban Rey Ortega, conocido como \"Kilowatto\", es un arquitecto de sistemas, CEO e inversionista serial mexicano con más de 25 años en tecnología. Es fundador y CEO de Ignia Cloud y fundador del Yucatech Festival.",
+  parrafo:
+    "Esteban Rey Ortega (\"Kilowatto\") es un arquitecto de sistemas y CEO mexicano con más de 25 años de trayectoria en tecnología. Es fundador y director ejecutivo de Ignia Cloud, una plataforma de nube soberana para México y Latinoamérica con partners como Microsoft, Dell Technologies, Cisco Systems y Canonical, y cuyas marcas incluyen a Aluna (gestión integral de eventos). Es también fundador del Yucatech Festival, evento anual de tecnología e innovación en Mérida, Yucatán, que financia de su propio bolsillo. A través de Orange Rhino Investments participa como inversionista serial en Cereza y DeSiCi.",
+  pagina: [
+    "Esteban Rey Ortega, conocido en la industria tecnológica mexicana como \"Kilowatto\", es arquitecto de sistemas, CEO e inversionista serial con más de 25 años de trayectoria en tecnología, cómputo y telecomunicaciones.",
+    "Es fundador y director ejecutivo de Ignia Cloud, una plataforma de infraestructura en la nube híbrida y multicloud diseñada específicamente para empresas mexicanas y latinoamericanas, con un SLA de 99.99% y partners como Microsoft, OpenStack, Dell Technologies, Cisco Systems, Acronis y Canonical. Ignia Cloud tiene oficinas en Ciudad de México y Magnolia, Texas, y opera la marca Aluna de gestión integral de eventos.",
+    "En 2025 fundó el Yucatech Festival, un evento de tecnología, negocios e innovación celebrado en el Centro Internacional de Congresos de Yucatán, en Mérida — la primera edición, en abril de 2026, reunió a más de 500 asistentes con ponentes como Uri Levine, cofundador de Waze. Esteban lo financia de su propio bolsillo, sin fines de lucro, porque cree que el sur-sureste de México puede convertirse en el próximo hub tecnológico de la región.",
+    "A través de su vehículo de inversión, Orange Rhino Investments (fundado en 2021), participa como inversionista serial en Cereza (software de recursos humanos) y DeSiCi (desarrollo de software y soluciones cloud, empresa que él mismo fundó en 2008 y hoy opera bajo la dirección de Roberto, su CEO).",
+    "Ha sido invitado distinguido de la Cumbre Mundial del Conocimiento 2025 y ha participado como ponente en foros como el ARIA Summit, además de ser entrevistado por medios especializados en tecnología sobre transformación digital, nube híbrida y soberanía digital.",
+  ],
+};
+
+const QUICK_FACTS = [
+  ["Nombre completo", "Esteban Rey Ortega"],
+  ["Conocido como", "Kilowatto"],
+  ["Puesto actual", "Fundador y CEO, Ignia Cloud"],
+  ["Otros proyectos", "Yucatech Festival (fundador), Aluna (marca de Ignia Cloud), Cereza, DeSiCi"],
+  ["Vehículo de inversión", "Orange Rhino Investments"],
+  ["Sede", "Ciudad de México, México"],
+  ["Sitio oficial", "kilowatto.com"],
+];
+
+const LINKS = [
+  { label: "Sitio oficial", url: "https://kilowatto.com" },
+  { label: "Ignia Cloud", url: "https://www.ignia.cloud" },
+  { label: "Yucatech Festival", url: "https://yuca.tech" },
+  { label: "X (@kilowatto)", url: "https://x.com/kilowatto" },
+  { label: "Wikidata", url: "https://www.wikidata.org/wiki/Q140672978" },
+];
+---
+
+<Site title="Kit de prensa — Esteban Rey" active="/prensa" description="Kit de prensa de Esteban Rey (Kilowatto): biografía, fotografías y datos rápidos para periodistas y organizadores de eventos.">
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Para periodistas y organizadores</p>
+      <h1>Kit de prensa</h1>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container kit-layout">
+      <img
+        src={`/media/${HEADSHOT}?w=600`}
+        srcset={`/media/${HEADSHOT}?w=600 600w, /media/${HEADSHOT}?w=1000 1000w`}
+        sizes="(max-width: 640px) 100vw, 30rem"
+        alt="Esteban Rey Ortega hablando en el Senado de la República sobre inteligencia artificial"
+        class="kit-photo"
+        loading="eager"
+      />
+      <div>
+        <p class="hero__sub">
+          Todo lo que necesitas para citarme correctamente o invitarme a tu evento — bio lista
+          para usar, datos rápidos y una fotografía en alta resolución. Para cualquier otra cosa,
+          <a href="/contacto">escríbeme directo</a>.
+        </p>
+        <ul class="quick-facts">
+          {QUICK_FACTS.map(([label, value]) => (
+            <li><strong>{label}:</strong> {value}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist">
+    <div class="container">
+      <h2>Biografía</h2>
+
+      <div class="bio-block">
+        <p class="bio-label">Una línea</p>
+        <p class="bio-text">{BIOS.corta}</p>
+      </div>
+
+      <div class="bio-block">
+        <p class="bio-label">Un párrafo</p>
+        <p class="bio-text">{BIOS.parrafo}</p>
+      </div>
+
+      <div class="bio-block">
+        <p class="bio-label">Biografía completa</p>
+        {BIOS.pagina.map((p) => <p class="bio-text">{p}</p>)}
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <h2>Fotografía</h2>
+      <p class="hero__sub">Uso libre para prensa, con crédito a kilowatto.com.</p>
+      <a href={`/media/${HEADSHOT}`} download class="download-link">Descargar en alta resolución →</a>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist">
+    <div class="container">
+      <h2>Enlaces oficiales</h2>
+      <ul class="link-list">
+        {LINKS.map((l) => (
+          <li><a href={l.url} target="_blank" rel="noopener">{l.label}</a></li>
+        ))}
+      </ul>
+    </div>
+  </section>
+</Site>
+
+<style>
+  .kit-layout {
+    display: grid;
+    gap: var(--space-4);
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+  @media (min-width: 720px) {
+    .kit-layout {
+      grid-template-columns: minmax(0, 18rem) 1fr;
+    }
+  }
+  .kit-photo {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    border-radius: 0.5rem;
+  }
+  .quick-facts {
+    list-style: none;
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.45rem;
+    font-size: 0.92rem;
+  }
+  .quick-facts strong {
+    font-weight: 600;
+  }
+  .bio-block {
+    margin-bottom: var(--space-3);
+    max-width: var(--measure);
+  }
+  .bio-label {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ember);
+    margin: 0 0 0.3rem;
+  }
+  .bio-text {
+    color: var(--ink-soft);
+  }
+  .download-link {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-weight: 600;
+  }
+  .link-list {
+    list-style: none;
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.5rem;
+  }
+  .link-list a {
+    font-weight: 600;
+  }
+</style>

@@ -1,5 +1,5 @@
 ---
-import Base from "../../layouts/Base.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
 import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
 import { checkAdminAuth } from "../../lib/admin-auth";
@@ -26,7 +26,17 @@ if (authorized) {
 
   const settings = await env.DB.prepare("SELECT key, updated_at FROM brand_api_settings").all<any>();
   const set = new Map((settings?.results ?? []).map((r: any) => [r.key, r.updated_at]));
-  apiKeyStatus = ["X_BEARER_TOKEN", "LINKEDIN_ACCESS_TOKEN", "LINKEDIN_PERSON_URN"].map((k) => ({
+  apiKeyStatus = [
+    "X_BEARER_TOKEN",
+    "X_API_KEY",
+    "X_API_KEY_SECRET",
+    "X_ACCESS_TOKEN",
+    "X_ACCESS_TOKEN_SECRET",
+    "X_OAUTH2_CLIENT_ID",
+    "X_OAUTH2_CLIENT_SECRET",
+    "LINKEDIN_ACCESS_TOKEN",
+    "LINKEDIN_PERSON_URN",
+  ].map((k) => ({
     key: k,
     configured: set.has(k),
     updatedAt: set.get(k) ?? null,
@@ -34,14 +44,13 @@ if (authorized) {
 }
 ---
 
-<Base title="Configuración — Admin">
-  <div class="container admin">
+<AdminLayout title="Configuración — Admin" active="/admin/settings" authorized={authorized}>
+  <div class="settings-page">
     {
       !authorized ? (
         <AdminLogin />
       ) : (
         <>
-          <p class="admin-nav"><a href="/admin">← Panel de administración</a></p>
           <h1>Configuración</h1>
 
           {mustChangePassword && (
@@ -172,7 +181,17 @@ if (authorized) {
       const msg = document.getElementById("api-keys-msg");
       const form = e.target;
       const body = {};
-      for (const key of ["X_BEARER_TOKEN", "LINKEDIN_ACCESS_TOKEN", "LINKEDIN_PERSON_URN"]) {
+      for (const key of [
+        "X_BEARER_TOKEN",
+        "X_API_KEY",
+        "X_API_KEY_SECRET",
+        "X_ACCESS_TOKEN",
+        "X_ACCESS_TOKEN_SECRET",
+        "X_OAUTH2_CLIENT_ID",
+        "X_OAUTH2_CLIENT_SECRET",
+        "LINKEDIN_ACCESS_TOKEN",
+        "LINKEDIN_PERSON_URN",
+      ]) {
         const val = form.querySelector(`#${key}`)?.value;
         if (val) body[key] = val;
       }
@@ -185,40 +204,46 @@ if (authorized) {
       if (res.ok) setTimeout(() => location.reload(), 1000);
     });
   </script>
-</Base>
+</AdminLayout>
 
 <style>
-  .admin { padding-block: var(--space-4); max-width: 32rem; }
-  .admin-nav { margin-bottom: var(--space-2); font-size: 0.85rem; }
+  .settings-page { max-width: 32rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 1rem; }
   .banner {
     background: #b91c1c;
     color: #fff;
     padding: 0.6rem 1rem;
-    border-radius: 0.4rem;
-    margin-bottom: var(--space-2);
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
   }
-  section { margin-bottom: var(--space-4); }
-  section h2 { margin-bottom: var(--space-2); }
+  section { margin-bottom: 2rem; }
+  section h2 { font-size: 1.05rem; margin-bottom: 0.75rem; }
   form { display: flex; flex-direction: column; gap: 0.5rem; }
-  label { font-size: 0.85rem; color: var(--ink-soft); }
+  label { font-size: 0.85rem; color: var(--admin-text-soft); }
   input {
-    padding: 0.6rem 0.8rem;
-    border: 1px solid var(--line);
-    border-radius: 0.4rem;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 0.5rem;
+    background: var(--admin-surface);
+    color: var(--admin-text);
+    font-family: inherit;
   }
   button[type="submit"], #add-passkey {
-    background: var(--ink);
-    color: var(--paper);
+    background: var(--rhino);
+    color: #fff;
     border: none;
-    border-radius: 0.4rem;
-    padding: 0.6rem 1.2rem;
+    border-radius: 0.5rem;
+    padding: 0.65rem 1.2rem;
     cursor: pointer;
     margin-top: 0.4rem;
+    font-family: inherit;
+    font-weight: 600;
+    min-height: 2.75rem;
   }
-  .msg { font-size: 0.85rem; color: var(--ink-soft); min-height: 1.2em; }
-  .passkey-list { list-style: none; padding: 0; font-size: 0.9rem; color: var(--ink-soft); margin-bottom: 0.6rem; }
+  .msg { font-size: 0.85rem; color: var(--admin-text-soft); min-height: 1.2em; }
+  .passkey-list { list-style: none; padding: 0; font-size: 0.9rem; color: var(--admin-text-soft); margin-bottom: 0.6rem; }
   .key-row { margin-bottom: 0.6rem; }
   .ok { color: var(--rhino); font-size: 0.75rem; }
   .missing { color: #b91c1c; font-size: 0.75rem; }
-  .hint { color: var(--ink-soft); font-size: 0.85rem; }
+  .hint { color: var(--admin-text-soft); font-size: 0.85rem; }
 </style>

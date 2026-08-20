@@ -1,7 +1,7 @@
 ---
 import Base from "./Base.astro";
 import { LOCALES } from "../lib/locales";
-import { navLabels } from "../lib/nav-labels";
+import { navLabels, categoryLabels, navA11yLabels } from "../lib/nav-labels";
 
 interface Props {
   title: string;
@@ -9,82 +9,232 @@ interface Props {
   active?: string;
   locale?: string;
   dir?: "ltr" | "rtl";
+  ogType?: string;
+  image?: string;
 }
 
-const { title, description, active, locale = "es-MX", dir = "ltr" } = Astro.props;
+const { title, description, active, locale = "es-MX", dir = "ltr", ogType, image } = Astro.props;
 const prefix = locale === "es-MX" ? "" : `/${locale}`;
 
 const nl = navLabels(locale);
-const baseLinks = [
-  { href: "/trayectoria", label: nl.trayectoria },
-  { href: "/empresas", label: nl.empresas },
-  { href: "/inversiones", label: nl.inversiones },
-  { href: "/yucatech", label: nl.yucatech },
-  { href: "/prensa", label: nl.prensa },
-  { href: "/familia", label: nl.familia },
-  { href: "/galeria", label: nl.galeria },
-];
+const cl = categoryLabels(locale);
+const a11y = navA11yLabels(locale);
 
+// Categorized taxonomy for the mega-menu (desktop) / accordion (mobile overlay). Flattened
+// immediately below into the same baseLinks/links shape the rest of this file (and every page
+// passing active="/foo") already expects — aria-current matching, the BreadcrumbList, and the
+// new SiteNavigationElement schema all read from that one flattened array, unchanged.
+const categories = [
+  {
+    key: "personal",
+    label: cl.personal,
+    links: [
+      { href: "/trayectoria", label: nl.trayectoria },
+      // Only translated to Spanish and English so far — gated to avoid a nav link that
+      // redirects away from a locale a visitor is actually browsing in.
+      ...(locale === "es-MX" ? [{ href: "/cv", label: "CV" }] : []),
+      ...(locale === "en" ? [{ href: "/cv", label: "Resume" }] : []),
+      { href: "/avestruces", label: nl.avestruces },
+      { href: "/comida", label: nl.comida },
+      { href: "/curiosidades", label: nl.curiosidades },
+      { href: "/galeria", label: nl.galeria },
+      // Spanish-only for now — not yet translated to the other 11 locales, so only linked
+      // from the canonical site to avoid a nav link that 404s everywhere else.
+      ...(locale === "es-MX" ? [{ href: "/biblioteca", label: "Biblioteca" }] : []),
+    ],
+  },
+  {
+    key: "negocios",
+    label: cl.negocios,
+    links: [
+      { href: "/empresas", label: nl.empresas },
+      { href: "/inversiones", label: nl.inversiones },
+      { href: "/yucatech", label: nl.yucatech },
+    ],
+  },
+  {
+    key: "medios",
+    label: cl.medios,
+    links: [
+      { href: "/prensa", label: nl.prensa },
+      { href: "/columnas", label: nl.columnas },
+    ],
+  },
+];
+const standalone = { href: "/contacto", label: nl.contacto };
+
+const baseLinks = [...categories.flatMap((c) => c.links), standalone];
 const links = baseLinks.map((l) => ({ ...l, href: `${prefix}${l.href}` }));
 const currentLocale = LOCALES.find((l) => l.code === locale) ?? LOCALES[0];
+
+const currentLink = baseLinks.find((l) => l.href === active);
+const breadcrumbItems = [
+  { "@type": "ListItem", position: 1, name: "Kilowatto", item: `https://kilowatto.com${prefix || "/"}` },
+  ...(currentLink
+    ? [{ "@type": "ListItem", position: 2, name: currentLink.label, item: `https://kilowatto.com${prefix}${currentLink.href}` }]
+    : []),
+];
+
+// Realistic-tier structured data (Google doesn't confirm this drives rich results — it's the
+// harmless-extra tier, not a claimed SEO win) computed from the same flattened `links` array.
+const siteNavElements = links.map((l) => ({
+  "@type": "SiteNavigationElement",
+  name: l.label,
+  url: `https://kilowatto.com${l.href}`,
+}));
 ---
 
-<Base title={title} description={description} locale={locale} dir={dir}>
+<Base title={title} description={description} locale={locale} dir={dir} ogType={ogType} image={image}>
+  <a href="#main-content" class="skip-link">{a11y.skipToContent}</a>
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: breadcrumbItems,
+  })} />
+  <script type="application/ld+json" set:html={JSON.stringify(siteNavElements)} />
   <header class="topbar">
     <div class="container topbar__inner">
       <a href={prefix || "/"} class="wordmark">Kilowatto</a>
-      <nav class="nav" aria-label="Principal">
+
+      <nav class="nav-desktop" aria-label="Principal">
         {
-          links.map((l) => (
-            <a href={l.href} aria-current={active === l.href ? "page" : undefined}>
-              {l.label}
-            </a>
+          categories.map((cat) => (
+            <div class="nav-cat">
+              <button type="button" class="nav-cat__trigger" aria-expanded="false" aria-haspopup="true" data-cat={cat.key}>
+                {cat.label}
+              </button>
+              <div class="nav-cat__panel" data-cat-panel={cat.key} hidden>
+                {cat.links.map((l) => (
+                  <a href={`${prefix}${l.href}`} aria-current={active === l.href ? "page" : undefined}>
+                    {l.label}
+                  </a>
+                ))}
+              </div>
+            </div>
           ))
         }
+        <a href={`${prefix}${standalone.href}`} class="nav-standalone" aria-current={active === standalone.href ? "page" : undefined}>
+          {standalone.label}
+        </a>
       </nav>
-      <div class="lang-switch-wrap">
-        <button class="lang-switch" type="button" id="lang-toggle" aria-haspopup="listbox" aria-expanded="false">
-          {currentLocale.code}
+
+      <div class="topbar__right">
+        <div class="lang-switch-wrap">
+          <button class="lang-switch" type="button" id="lang-toggle" aria-haspopup="listbox" aria-expanded="false">
+            {currentLocale.code}
+          </button>
+          <ul class="lang-menu" id="lang-menu" hidden role="listbox">
+            {
+              LOCALES.map((l) => (
+                <li>
+                  <a href={l.code === "es-MX" ? "/" : `/${l.code}/`} aria-current={l.code === locale ? "true" : undefined}>
+                    {l.name}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+        <button class="menu-toggle" type="button" id="menu-toggle" aria-label={a11y.openMenu} aria-haspopup="dialog" aria-controls="nav-overlay" aria-expanded="false">
+          <span></span>
+          <span></span>
+          <span></span>
         </button>
-        <ul class="lang-menu" id="lang-menu" hidden role="listbox">
-          {
-            LOCALES.map((l) => (
-              <li>
-                <a href={l.code === "es-MX" ? "/" : `/${l.code}/`} aria-current={l.code === locale ? "true" : undefined}>
-                  {l.name}
-                </a>
-              </li>
-            ))
-          }
-        </ul>
       </div>
     </div>
   </header>
 
-  <main>
+  <dialog class="nav-overlay" id="nav-overlay" aria-label="Principal">
+    <div class="nav-overlay__inner">
+      <div class="nav-overlay__head">
+        <a href={prefix || "/"} class="wordmark">Kilowatto</a>
+        <button type="button" class="nav-overlay__close" id="nav-overlay-close" aria-label={a11y.closeMenu}>✕</button>
+      </div>
+      <div class="nav-overlay__body">
+        {
+          categories.map((cat) => (
+            <div class="nav-disclosure">
+              <button type="button" class="nav-disclosure__trigger" aria-expanded="false" data-disclosure={cat.key}>
+                {cat.label}
+                <span class="nav-disclosure__chevron" aria-hidden="true" />
+              </button>
+              <div class="nav-disclosure__panel" data-disclosure-panel={cat.key} hidden>
+                {cat.links.map((l) => (
+                  <a href={`${prefix}${l.href}`} aria-current={active === l.href ? "page" : undefined}>
+                    {l.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))
+        }
+
+        <a href={`${prefix}${standalone.href}`} class="nav-overlay__standalone" aria-current={active === standalone.href ? "page" : undefined}>
+          {standalone.label}
+        </a>
+
+        <div class="nav-disclosure">
+          <button type="button" class="nav-disclosure__trigger" aria-expanded="false" data-disclosure="lang">
+            {a11y.language}: {currentLocale.name}
+            <span class="nav-disclosure__chevron" aria-hidden="true" />
+          </button>
+          <div class="nav-disclosure__panel" data-disclosure-panel="lang" hidden>
+            {
+              LOCALES.map((l) => (
+                <a href={l.code === "es-MX" ? "/" : `/${l.code}/`} aria-current={l.code === locale ? "true" : undefined}>
+                  {l.name}
+                </a>
+              ))
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <main id="main-content">
     <slot />
   </main>
 
   <footer class="site-footer">
     <div class="container">
+      <p class="footer-profiles">
+        <a href="https://x.com/kilowatto" target="_blank" rel="noopener me">X</a>
+        <a href="https://www.linkedin.com/in/kilowatto/" target="_blank" rel="noopener me">LinkedIn</a>
+        <a href="https://www.wikidata.org/wiki/Q140672978" target="_blank" rel="noopener">Wikidata</a>
+      </p>
       <p>
-        Diseñado y potenciado por <strong>Ignia Cloud</strong>. <a href="/stack">Cómo está hecho →</a>
+        Diseñado y potenciado por <strong>Ignia Cloud</strong>. <a href="/stack">Cómo está hecho →</a> · <a href="/privacidad">Privacidad</a>
+        <span class="tito-egg" id="tito-egg" role="button" tabindex="0" aria-label="Un cuento de Navidad">❄</span>
       </p>
     </div>
   </footer>
 
+  <div class="tito-modal" id="tito-modal" hidden role="dialog" aria-modal="true" aria-label="Cuando Tito conoció a Santa">
+    <div class="tito-modal__backdrop" id="tito-backdrop"></div>
+    <div class="tito-modal__inner">
+      <button type="button" class="tito-modal__close" id="tito-close" aria-label="Cerrar">✕</button>
+      <img id="tito-page" class="tito-modal__page" src="" alt="" width="900" height="900" />
+      <div class="tito-modal__nav">
+        <button type="button" id="tito-prev" aria-label="Página anterior">←</button>
+        <span id="tito-counter" class="tito-modal__counter"></span>
+        <button type="button" id="tito-next" aria-label="Página siguiente">→</button>
+      </div>
+    </div>
+  </div>
+
   <button class="larry" type="button" id="larry-toggle" aria-label="Hablar con Larry" aria-expanded="false">
-    <img src="/larry/larry-avatar.png" alt="" width="44" height="44" />
+    <img src="/larry/larry-avatar.webp" alt="" width="44" height="44" />
   </button>
 
   <div class="larry-panel" id="larry-panel" hidden>
     <header class="larry-panel__head">
-      <img src="/larry/larry-avatar.png" alt="" width="28" height="28" />
+      <img src="/larry/larry-avatar.webp" alt="" width="28" height="28" />
       <strong>Larry</strong>
       <button type="button" id="larry-close" aria-label="Cerrar">✕</button>
     </header>
     <div class="larry-panel__log" id="larry-log">
-      <p class="larry-msg larry-msg--bot">¡Qué onda! Pregúntame lo que quieras sobre Esteban, sus empresas o sus inversiones.</p>
+      <p class="larry-msg larry-msg--bot">¡Qué onda! Pregúntame lo que quieras sobre Esteban, sus empresas o sus proyectos.</p>
     </div>
     <form class="larry-panel__form" id="larry-form">
       <input type="text" id="larry-input" placeholder="Escribe tu pregunta…" autocomplete="off" />
@@ -93,6 +243,111 @@ const currentLocale = LOCALES.find((l) => l.code === locale) ?? LOCALES[0];
   </div>
 
   <script>
+    // ---------- Desktop mega-menu: exclusive Disclosure triggers, hover (NN/g-timed) + click ----------
+    const HOVER_SHOW_DELAY = 500;
+    const HOVER_HIDE_DELAY = 500;
+    const navDesktop = document.querySelector(".nav-desktop");
+    const catTriggers = document.querySelectorAll<HTMLButtonElement>(".nav-cat__trigger");
+    let openCatKey: string | null = null;
+    let showTimer: ReturnType<typeof setTimeout> | undefined;
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
+
+    function closeAllCats() {
+      catTriggers.forEach((btn) => btn.setAttribute("aria-expanded", "false"));
+      document.querySelectorAll(".nav-cat__panel").forEach((panel) => panel.setAttribute("hidden", ""));
+      openCatKey = null;
+    }
+
+    function openCat(key: string) {
+      if (openCatKey === key) return;
+      closeAllCats();
+      document.querySelector(`.nav-cat__trigger[data-cat="${key}"]`)?.setAttribute("aria-expanded", "true");
+      document.querySelector(`.nav-cat__panel[data-cat-panel="${key}"]`)?.removeAttribute("hidden");
+      openCatKey = key;
+    }
+
+    catTriggers.forEach((trigger) => {
+      const key = trigger.dataset.cat!;
+      trigger.addEventListener("click", () => (openCatKey === key ? closeAllCats() : openCat(key)));
+      trigger.addEventListener("mouseenter", () => {
+        clearTimeout(hideTimer);
+        showTimer = setTimeout(() => openCat(key), HOVER_SHOW_DELAY);
+      });
+      trigger.addEventListener("mouseleave", () => {
+        clearTimeout(showTimer);
+        hideTimer = setTimeout(() => {
+          if (openCatKey === key) closeAllCats();
+        }, HOVER_HIDE_DELAY);
+      });
+    });
+
+    document.querySelectorAll(".nav-cat__panel").forEach((panel) => {
+      panel.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+      panel.addEventListener("mouseleave", () => {
+        hideTimer = setTimeout(() => closeAllCats(), HOVER_HIDE_DELAY);
+      });
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!(e.target instanceof Node)) return;
+      if (!navDesktop?.contains(e.target)) closeAllCats();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && openCatKey) closeAllCats();
+    });
+
+    // ---------- Mobile: hamburger opens a full-screen <dialog> overlay ----------
+    const menuToggle = document.getElementById("menu-toggle");
+    const navOverlay = document.getElementById("nav-overlay") as HTMLDialogElement | null;
+    const overlayClose = document.getElementById("nav-overlay-close");
+
+    // Route every dismissal path (close button, backdrop click, viewport growing past the
+    // desktop breakpoint) through one explicit function rather than the dialog's native "close"
+    // event — this codebase has repeatedly hit environments where visibility-gated browser
+    // events (transitionend, rAF, IntersectionObserver) don't fire reliably; doing the
+    // aria-expanded/focus reset ourselves at each call site is robust regardless of that.
+    function closeOverlay() {
+      if (!navOverlay?.open) return;
+      navOverlay.close();
+      menuToggle?.setAttribute("aria-expanded", "false");
+      menuToggle?.focus();
+    }
+
+    menuToggle?.addEventListener("click", () => {
+      navOverlay?.showModal();
+      menuToggle.setAttribute("aria-expanded", "true");
+    });
+    overlayClose?.addEventListener("click", closeOverlay);
+    navOverlay?.addEventListener("click", (e) => {
+      if (e.target === navOverlay) closeOverlay();
+    });
+    navOverlay?.addEventListener("cancel", (e) => {
+      // Native Escape-to-close dismissal — prevent the default close so closeOverlay() stays
+      // the single source of truth for the follow-up state resets.
+      e.preventDefault();
+      closeOverlay();
+    });
+
+    // Auto-close if the viewport grows past the desktop breakpoint (keep in sync with the
+    // `@media (min-width: 900px)` rule in global.css).
+    const desktopMq = window.matchMedia("(min-width: 900px)");
+    desktopMq.addEventListener("change", (e) => {
+      if (e.matches) closeOverlay();
+    });
+
+    // Independent accordion sections inside the overlay (each category + the language switcher
+    // expand/collapse on their own — unlike the desktop mega-menu, these are NOT exclusive).
+    document.querySelectorAll<HTMLButtonElement>(".nav-disclosure__trigger").forEach((trigger) => {
+      trigger.addEventListener("click", () => {
+        const key = trigger.dataset.disclosure!;
+        const panel = document.querySelector(`.nav-disclosure__panel[data-disclosure-panel="${key}"]`);
+        const isOpen = trigger.getAttribute("aria-expanded") === "true";
+        trigger.setAttribute("aria-expanded", isOpen ? "false" : "true");
+        if (isOpen) panel?.setAttribute("hidden", "");
+        else panel?.removeAttribute("hidden");
+      });
+    });
+
     const langToggle = document.getElementById("lang-toggle");
     const langMenu = document.getElementById("lang-menu");
     langToggle?.addEventListener("click", () => {
@@ -164,6 +419,69 @@ const currentLocale = LOCALES.find((l) => l.code === locale) ?? LOCALES[0];
       } catch {
         log?.lastElementChild?.remove();
         addMessage("Se me cruzaron los cables, intenta de nuevo.", "bot");
+      }
+    });
+
+    const TITO_PAGES = 23;
+    const titoEgg = document.getElementById("tito-egg");
+    const titoModal = document.getElementById("tito-modal");
+    const titoBackdrop = document.getElementById("tito-backdrop");
+    const titoClose = document.getElementById("tito-close");
+    const titoPageImg = document.getElementById("tito-page") as HTMLImageElement;
+    const titoCounter = document.getElementById("tito-counter");
+    const titoPrev = document.getElementById("tito-prev");
+    const titoNext = document.getElementById("tito-next");
+    let titoCurrent = 1;
+
+    function titoRender() {
+      const n = String(titoCurrent).padStart(2, "0");
+      if (titoPageImg) titoPageImg.src = `/media/libros/tito/page-${n}.webp`;
+      if (titoCounter) titoCounter.textContent = `${titoCurrent} / ${TITO_PAGES}`;
+      if (titoPrev) (titoPrev as HTMLButtonElement).disabled = titoCurrent === 1;
+      if (titoNext) (titoNext as HTMLButtonElement).disabled = titoCurrent === TITO_PAGES;
+    }
+
+    function titoOpen() {
+      titoCurrent = 1;
+      titoRender();
+      titoModal?.removeAttribute("hidden");
+    }
+
+    function titoCloseModal() {
+      titoModal?.setAttribute("hidden", "");
+    }
+
+    titoEgg?.addEventListener("click", titoOpen);
+    titoEgg?.addEventListener("keydown", (e) => {
+      if (e instanceof KeyboardEvent && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        titoOpen();
+      }
+    });
+    titoBackdrop?.addEventListener("click", titoCloseModal);
+    titoClose?.addEventListener("click", titoCloseModal);
+    titoPrev?.addEventListener("click", () => {
+      if (titoCurrent > 1) {
+        titoCurrent--;
+        titoRender();
+      }
+    });
+    titoNext?.addEventListener("click", () => {
+      if (titoCurrent < TITO_PAGES) {
+        titoCurrent++;
+        titoRender();
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (titoModal?.hasAttribute("hidden")) return;
+      if (e.key === "Escape") titoCloseModal();
+      if (e.key === "ArrowLeft" && titoCurrent > 1) {
+        titoCurrent--;
+        titoRender();
+      }
+      if (e.key === "ArrowRight" && titoCurrent < TITO_PAGES) {
+        titoCurrent++;
+        titoRender();
       }
     });
   </script>

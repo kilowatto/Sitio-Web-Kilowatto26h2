@@ -1,0 +1,275 @@
+---
+// Anonymous, account-free commenting for a column. Nothing submitted here is ever shown until
+// Esteban approves it in /admin/comentarios — that moderation gate (not login, not CAPTCHA) is
+// the real defense against abuse; see comment-moderation.ts for the supporting rate-limit/ban
+// checks that keep his queue itself from filling with junk.
+import { env } from "cloudflare:workers";
+
+interface Props {
+  columnId: number;
+  locale?: string;
+}
+const { columnId, locale = "es-MX" } = Astro.props;
+
+const L: Record<string, Record<string, string>> = {
+  "es-MX": {
+    heading: "Comentarios",
+    empty: "Sé el primero en comentar.",
+    namePlaceholder: "Tu nombre (opcional)",
+    bodyPlaceholder: "Escribe tu comentario…",
+    submit: "Enviar comentario",
+    sending: "Enviando…",
+    success: "Gracias — tu comentario quedará visible después de una revisión rápida.",
+    error: "No se pudo enviar. Intenta de nuevo.",
+    anon: "Anónimo",
+  },
+  en: {
+    heading: "Comments",
+    empty: "Be the first to comment.",
+    namePlaceholder: "Your name (optional)",
+    bodyPlaceholder: "Write your comment…",
+    submit: "Post comment",
+    sending: "Sending…",
+    success: "Thanks — your comment will show up after a quick review.",
+    error: "Couldn't send it. Try again.",
+    anon: "Anonymous",
+  },
+  "pt-BR": {
+    heading: "Comentários",
+    empty: "Seja o primeiro a comentar.",
+    namePlaceholder: "Seu nome (opcional)",
+    bodyPlaceholder: "Escreva seu comentário…",
+    submit: "Enviar comentário",
+    sending: "Enviando…",
+    success: "Obrigado — seu comentário aparecerá após uma revisão rápida.",
+    error: "Não foi possível enviar. Tente de novo.",
+    anon: "Anônimo",
+  },
+  fr: {
+    heading: "Commentaires",
+    empty: "Soyez le premier à commenter.",
+    namePlaceholder: "Votre nom (facultatif)",
+    bodyPlaceholder: "Écrivez votre commentaire…",
+    submit: "Publier",
+    sending: "Envoi…",
+    success: "Merci — votre commentaire apparaîtra après une vérification rapide.",
+    error: "Échec de l'envoi. Réessayez.",
+    anon: "Anonyme",
+  },
+  de: {
+    heading: "Kommentare",
+    empty: "Sei der Erste, der kommentiert.",
+    namePlaceholder: "Dein Name (optional)",
+    bodyPlaceholder: "Schreib deinen Kommentar…",
+    submit: "Kommentar senden",
+    sending: "Senden…",
+    success: "Danke — dein Kommentar erscheint nach einer kurzen Prüfung.",
+    error: "Senden fehlgeschlagen. Versuch's noch mal.",
+    anon: "Anonym",
+  },
+  ar: {
+    heading: "التعليقات",
+    empty: "كن أول من يعلق.",
+    namePlaceholder: "اسمك (اختياري)",
+    bodyPlaceholder: "اكتب تعليقك…",
+    submit: "إرسال التعليق",
+    sending: "جارٍ الإرسال…",
+    success: "شكرًا — سيظهر تعليقك بعد مراجعة سريعة.",
+    error: "تعذر الإرسال. حاول مرة أخرى.",
+    anon: "مجهول",
+  },
+  "zh-Hans": {
+    heading: "评论",
+    empty: "抢先发表评论。",
+    namePlaceholder: "你的名字（可选）",
+    bodyPlaceholder: "写下你的评论…",
+    submit: "发表评论",
+    sending: "发送中…",
+    success: "谢谢——审核后即可显示。",
+    error: "发送失败，请重试。",
+    anon: "匿名",
+  },
+  ja: {
+    heading: "コメント",
+    empty: "最初のコメントを書きましょう。",
+    namePlaceholder: "お名前（任意）",
+    bodyPlaceholder: "コメントを書く…",
+    submit: "コメントを送信",
+    sending: "送信中…",
+    success: "ありがとうございます。確認後に表示されます。",
+    error: "送信できませんでした。もう一度お試しください。",
+    anon: "匿名",
+  },
+};
+const t = L[locale] ?? L["es-MX"];
+
+const { results: approved } = env?.DB
+  ? await env.DB.prepare(
+      "SELECT id, author_name, body, created_at FROM comments WHERE column_id = ? AND status = 'approved' ORDER BY created_at ASC"
+    )
+      .bind(columnId)
+      .all()
+  : { results: [] as any[] };
+---
+
+<section class="comments" data-column-id={columnId}>
+  <h2 class="comments__heading">{t.heading}</h2>
+
+  {approved.length === 0 ? (
+    <p class="comments__empty">{t.empty}</p>
+  ) : (
+    <ul class="comments__list">
+      {approved.map((c: any) => (
+        <li class="comments__item">
+          <p class="comments__meta">
+            <strong>{c.author_name || t.anon}</strong> · {c.created_at.slice(0, 10)}
+          </p>
+          <p class="comments__body">{c.body}</p>
+        </li>
+      ))}
+    </ul>
+  )}
+
+  <form class="comments__form">
+    <input type="text" name="author_name" maxlength="80" placeholder={t.namePlaceholder} class="comments__input" />
+    <input type="text" name="website" class="comments__honeypot" tabindex="-1" autocomplete="off" aria-hidden="true" />
+    <textarea name="body" required maxlength="2000" placeholder={t.bodyPlaceholder} class="comments__textarea" rows="4"></textarea>
+    <button type="submit" class="comments__submit">{t.submit}</button>
+    <p class="comments__status" role="status"></p>
+  </form>
+</section>
+
+<style>
+  .comments {
+    max-width: 42rem;
+    margin-top: var(--space-5);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+  }
+  .comments__heading {
+    font-family: var(--font-display);
+    margin-bottom: var(--space-2);
+  }
+  .comments__empty {
+    color: var(--ink-soft, #666);
+    font-size: 0.92rem;
+  }
+  .comments__list {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+  .comments__item {
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    padding: 0.85rem 1rem;
+    background: var(--paper);
+  }
+  .comments__meta {
+    font-size: 0.82rem;
+    color: var(--ink-soft, #666);
+    margin: 0 0 0.35rem;
+  }
+  .comments__body {
+    margin: 0;
+    white-space: pre-wrap;
+    line-height: 1.5;
+  }
+  .comments__form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .comments__input,
+  .comments__textarea {
+    font: inherit;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    background: var(--bg);
+    color: inherit;
+    resize: vertical;
+  }
+  .comments__honeypot {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .comments__submit {
+    align-self: flex-start;
+    background: var(--ember);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 0.6rem 1.3rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .comments__submit:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .comments__status {
+    font-size: 0.88rem;
+    min-height: 1.2em;
+    margin: 0;
+  }
+  .comments__status[data-state="error"] {
+    color: #b83b09;
+  }
+  .comments__status[data-state="success"] {
+    color: #1a7f37;
+  }
+</style>
+
+<script define:vars={{ successMsg: t.success, errorMsg: t.error, sendingMsg: t.sending, submitLabel: t.submit }}>
+  document.querySelectorAll(".comments").forEach((section) => {
+    const columnId = section.dataset.columnId;
+    const form = section.querySelector(".comments__form");
+    if (!form) return;
+    const status = form.querySelector(".comments__status");
+    const btn = form.querySelector(".comments__submit");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(form);
+      const author_name = formData.get("author_name")?.toString() ?? "";
+      const bodyText = formData.get("body")?.toString() ?? "";
+      const website = formData.get("website")?.toString() ?? "";
+
+      btn.disabled = true;
+      btn.textContent = sendingMsg;
+      status.dataset.state = "";
+      status.textContent = "";
+
+      try {
+        const res = await fetch(`/api/columns/${columnId}/comments`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ author_name, body: bodyText, website }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          status.dataset.state = "error";
+          status.textContent = data.error || errorMsg;
+        } else {
+          status.dataset.state = "success";
+          status.textContent = successMsg;
+          form.reset();
+        }
+      } catch {
+        status.dataset.state = "error";
+        status.textContent = errorMsg;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = submitLabel;
+      }
+    });
+  });
+</script>
