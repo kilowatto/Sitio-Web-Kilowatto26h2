@@ -27,3 +27,7 @@ pnpm-debug.log*
 
 # Claude Code session state
 .claude/scheduled_tasks.lock
+
+# raw/unreviewed personal photo staging - never commit (unprocessed, potential PII, this repo is public)
+fotos temporales/
+fotos temporales 2/
