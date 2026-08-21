@@ -2,6 +2,7 @@
 import Site from "../layouts/Site.astro";
 import Spark from "../components/Spark.astro";
 import PullQuote from "../components/PullQuote.astro";
+import Trayectoria from "../components/Trayectoria.astro";
 import { env } from "cloudflare:workers";
 
 let profile = null;
@@ -25,8 +26,6 @@ if (env?.DB) {
   projects = projectsRes?.results ?? [];
   heroPhoto = heroPhotoRes;
 }
-
-const latestCompanies = companies.slice(-3).reverse();
 ---
 
 <Site
@@ -137,22 +136,7 @@ const latestCompanies = companies.slice(-3).reverse();
     <div class="container">
       <p class="eyebrow">Trayectoria</p>
       <h2>De configurar firewalls a los 16, a fundar la nube naranja.</h2>
-      <ol class="rows">
-        {
-          latestCompanies.map((c: any) => (
-            <li class="row">
-              <span class="row__range">
-                {c.start_date ?? ""}
-                {c.end_date ? `–${c.end_date}` : c.is_current ? "–hoy" : ""}
-              </span>
-              <div>
-                <h3>{c.name}</h3>
-                {c.role && <p class="row__role">{c.role}</p>}
-              </div>
-            </li>
-          ))
-        }
-      </ol>
+      <Trayectoria companies={companies} />
       <p class="see-more"><a href="/trayectoria">Ver toda la trayectoria →</a></p>
     </div>
   </section>

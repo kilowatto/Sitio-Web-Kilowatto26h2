@@ -1,0 +1,410 @@
+---
+interface Props {
+  companies: any[];
+}
+const { companies } = Astro.props;
+
+const now = new Date();
+const HOY = now.getFullYear() + now.getMonth() / 12;
+
+function parseYear(value: string | null): number | null {
+  if (!value) return null;
+  const monthMatch = /^(\d{4})-(\d{2})$/.exec(value);
+  if (monthMatch) {
+    return parseInt(monthMatch[1], 10) + (parseInt(monthMatch[2], 10) - 1) / 12;
+  }
+  const year = parseInt(value, 10);
+  return Number.isNaN(year) ? null : year;
+}
+
+const rows = (companies ?? []).filter((c: any) => c.show_in_timeline !== 0);
+
+const parsedAll = rows
+  .map((c: any) => {
+    const start = parseYear(c.start_date);
+    const isOngoing = !c.end_date && !!c.is_current;
+    const end = isOngoing ? HOY : parseYear(c.end_date) ?? (start != null ? start + 1 : null);
+    return { ...c, start, end, isOngoing, isAdvisory: !!c.is_advisory };
+  })
+  .filter((c: any) => c.start != null)
+  .sort((a: any, b: any) => a.start - b.start);
+
+const START_YEAR = parsedAll.length
+  ? Math.floor(Math.min(...parsedAll.map((c: any) => c.start)))
+  : Math.floor(HOY);
+const AXIS_END_YEAR = Math.ceil(HOY) + 1;
+const PXY = 42;
+const AXIS_H = Math.round((AXIS_END_YEAR - START_YEAR) * PXY);
+
+function px(year: number) {
+  return Math.round((year - START_YEAR) * PXY);
+}
+
+function assignLanes(items: any[]) {
+  const laneEnds: number[] = [];
+  return items.map((item) => {
+    let lane = laneEnds.findIndex((endYear) => endYear <= item.start);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(item.end);
+    } else {
+      laneEnds[lane] = item.end;
+    }
+    return { ...item, lane };
+  });
+}
+
+const opAssigned = assignLanes(parsedAll.filter((c: any) => !c.isAdvisory));
+const advAssigned = assignLanes(parsedAll.filter((c: any) => c.isAdvisory));
+
+const OP_LANES = opAssigned.length ? Math.max(...opAssigned.map((c: any) => c.lane + 1)) : 1;
+const ADV_LANES = advAssigned.length ? Math.max(...advAssigned.map((c: any) => c.lane + 1)) : 0;
+
+const LABEL_W = 28;
+const OP_X = LABEL_W + 18;
+const OP_W = 12;
+const OP_GAP = 4;
+const ADV_GAP_BEFORE = ADV_LANES > 0 ? 14 : 0;
+const ADV_W = 7;
+const ADV_GAP = 4;
+const ADV_X = OP_X + OP_LANES * OP_W + Math.max(0, OP_LANES - 1) * OP_GAP + ADV_GAP_BEFORE;
+const AXIS_COL_W =
+  ADV_X + ADV_LANES * ADV_W + Math.max(0, ADV_LANES - 1) * ADV_GAP + (ADV_LANES > 0 ? 10 : 18);
+
+const TONES: Record<string, string> = {
+  ula: "color-mix(in oklch, var(--ink) 82%, var(--ember) 18%)",
+  prochemex: "color-mix(in oklch, var(--ink) 60%, var(--ember) 40%)",
+  desici: "color-mix(in oklch, var(--ink) 72%, var(--ember) 28%)",
+  "desici-consejero": "color-mix(in oklch, var(--ink) 72%, var(--ember) 28%)",
+  oncloud: "color-mix(in oklch, var(--ink) 40%, var(--ember) 60%)",
+  octapus: "color-mix(in oklch, var(--ink) 45%, var(--ember) 55%)",
+  "orange-rhino": "color-mix(in oklch, var(--ember) 35%, var(--rhino) 65%)",
+  pilou: "var(--volt)",
+  finsus: "color-mix(in oklch, var(--rhino) 68%, var(--ink) 32%)",
+  "ignia-cloud": "var(--rhino)",
+  cereza: "var(--ink-soft)",
+};
+const FALLBACK_TONE = "color-mix(in oklch, var(--ink) 50%, var(--ember) 50%)";
+
+function place(items: any[], x: number, w: number) {
+  return items.map((c: any) => {
+    const top = px(c.start);
+    const bottom = c.isOngoing ? AXIS_H : px(c.end);
+    const height = Math.max(bottom - top, 10);
+    return {
+      ...c,
+      top,
+      bottom,
+      height,
+      left: x + c.lane * (w + (w === OP_W ? OP_GAP : ADV_GAP)),
+      width: w,
+      color: TONES[c.slug] ?? FALLBACK_TONE,
+    };
+  });
+}
+
+const opEntries = place(opAssigned, OP_X, OP_W);
+const advEntries = place(advAssigned, ADV_X, ADV_W);
+const allEntries = [...opEntries, ...advEntries].sort((a, b) => a.start - b.start);
+
+const TICK_STEP = 4;
+const ticks: number[] = [];
+for (let y = Math.ceil(START_YEAR / TICK_STEP) * TICK_STEP; y < HOY - 0.5; y += TICK_STEP) {
+  ticks.push(y);
+}
+if (!ticks.includes(START_YEAR)) ticks.unshift(START_YEAR);
+const hoyTop = px(HOY);
+---
+
+<div class="kw-trayectoria">
+  <p class="kw-caption">
+    Cuando dos tramos coinciden en el tiempo, esos roles se llevaron en paralelo — no es una carrera en línea recta.
+  </p>
+
+  <div class="kw-shell">
+    <div class="kw-axis" id="kw-axis" style={`width:${AXIS_COL_W}px`} data-start-year={START_YEAR} data-hoy={HOY.toFixed(3)} data-pxy={PXY}>
+      {ticks.map((y) => (
+        <div class="kw-tick" style={`top:${px(y)}px`}>
+          <span>{y}</span>
+        </div>
+      ))}
+      <div class="kw-tick kw-tick--hoy" style={`top:${hoyTop}px`}>
+        <span>Hoy</span>
+      </div>
+
+      <div class="kw-spine" style={`left:${LABEL_W + 4}px;height:${AXIS_H}px`}></div>
+      <div class="kw-spine-fill" id="kw-spine-fill" style={`left:${LABEL_W + 4}px`}></div>
+
+      {opEntries.map((e) => (
+        <div
+          class={`kw-op-bar ${e.isOngoing ? "is-open" : "is-closed"}`}
+          title={`${e.name} — ${e.role ?? ""}`}
+          style={`top:${e.top}px;left:${e.left}px;width:${e.width}px;height:${e.height}px;color:${e.color}`}
+          data-top={e.top}
+          data-bottom={e.bottom}
+        >
+          <div class="kw-op-ghost"></div>
+          <div class="kw-op-fill"></div>
+        </div>
+      ))}
+
+      {advEntries.map((e) => (
+        <div
+          class="kw-adv-bar"
+          title={`${e.name} — ${e.role ?? ""}`}
+          style={`top:${e.top}px;left:${e.left}px;width:${e.width}px;height:${e.height}px;color:${e.color}`}
+          data-top={e.top}
+          data-bottom={e.bottom}
+        ></div>
+      ))}
+    </div>
+
+    <div class="kw-summary">
+      <p class="kw-summary-year" id="kw-summary-year">—</p>
+      <div id="kw-summary-rows">
+        {allEntries.map((e) => (
+          <div class="kw-summary-row" data-top={e.top} data-bottom={e.bottom}>
+            <span class="kw-summary-dot" style={`background:${e.color}`}></span>
+            <div class="kw-summary-text">
+              <strong>{e.name}</strong>
+              {e.role && <span>{e.role}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style define:vars={{ axisColW: `${AXIS_COL_W}px` }}>
+  .kw-caption {
+    color: var(--ink-soft);
+    font-size: 0.92rem;
+    line-height: 1.5;
+    max-width: 30rem;
+    margin: 0 0 var(--space-3);
+  }
+
+  .kw-shell {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .kw-axis {
+    position: relative;
+    flex: 0 0 var(--axisColW);
+  }
+
+  .kw-tick {
+    position: absolute;
+    left: 0;
+    width: 26px;
+    transform: translateY(-50%);
+  }
+  .kw-tick span {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .kw-tick--hoy span {
+    color: var(--rhino);
+    font-weight: 500;
+  }
+
+  .kw-spine {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    background: var(--line);
+  }
+  .kw-spine-fill {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 0;
+    background: var(--rhino);
+    transition: height 0.12s linear;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kw-spine-fill,
+    .kw-op-fill {
+      transition: none;
+    }
+  }
+
+  .kw-op-bar {
+    position: absolute;
+    border-radius: 1px;
+  }
+  .kw-op-ghost {
+    position: absolute;
+    inset: 0;
+    border: 1.5px solid currentColor;
+    opacity: 0.26;
+  }
+  .kw-op-bar.is-open .kw-op-ghost {
+    -webkit-mask-image: linear-gradient(to bottom, black 82%, transparent);
+    mask-image: linear-gradient(to bottom, black 82%, transparent);
+  }
+  .kw-op-bar.is-closed .kw-op-ghost {
+    border-bottom-width: 3px;
+  }
+  .kw-op-fill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 0;
+    background: currentColor;
+    transition: height 0.12s linear;
+  }
+
+  .kw-adv-bar {
+    position: absolute;
+    border: 1.5px dashed currentColor;
+    border-radius: 1px;
+    opacity: 0.28;
+    transition: opacity 0.2s ease;
+  }
+  .kw-adv-bar.is-revealed {
+    opacity: 1;
+  }
+
+  .kw-summary {
+    flex: 1 1 200px;
+    min-width: 0;
+    position: sticky;
+    top: 24px;
+    align-self: flex-start;
+    background: var(--mist);
+    border: 1px solid var(--line);
+    padding: 20px;
+    min-height: 92px;
+  }
+  .kw-summary-year {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    color: var(--ember);
+    margin: 0 0 14px;
+  }
+  .kw-summary-row {
+    display: none;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 9px 0;
+    border-top: 1px solid var(--line);
+  }
+  .kw-summary-row.is-active {
+    display: flex;
+  }
+  #kw-summary-rows .kw-summary-row.is-active:first-of-type {
+    border-top: none;
+    padding-top: 0;
+  }
+  .kw-summary-dot {
+    flex: 0 0 8px;
+    width: 8px;
+    height: 8px;
+    margin-top: 5px;
+    border-radius: 50%;
+  }
+  .kw-summary-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .kw-summary-text strong {
+    font-size: 0.94rem;
+    font-weight: 600;
+  }
+  .kw-summary-text span {
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+  }
+
+  @media (max-width: 460px) {
+    .kw-shell {
+      gap: 14px;
+    }
+    .kw-summary {
+      padding: 16px;
+    }
+  }
+</style>
+
+<script>
+  function initTrayectoria() {
+    const axis = document.getElementById("kw-axis");
+    if (!axis) return;
+
+    const axisH = axis.querySelector<HTMLElement>(".kw-spine")?.style.height;
+    const AXIS_H = axisH ? parseFloat(axisH) : axis.scrollHeight;
+
+    const opBars = Array.from(axis.querySelectorAll<HTMLElement>(".kw-op-bar"));
+    const advBars = Array.from(axis.querySelectorAll<HTMLElement>(".kw-adv-bar"));
+    const spineFill = document.getElementById("kw-spine-fill");
+    const summaryRows = Array.from(document.querySelectorAll<HTMLElement>(".kw-summary-row"));
+    const yearLabelEl = document.getElementById("kw-summary-year");
+
+    const startYear = parseFloat(axis.dataset.startYear ?? "0");
+    const pxy = parseFloat(axis.dataset.pxy ?? "42");
+    const hoy = parseFloat(axis.dataset.hoy ?? "0");
+
+    let raf: number | null = null;
+
+    function update() {
+      raf = null;
+      const rect = axis!.getBoundingClientRect();
+      const vh = window.innerHeight || 800;
+      const revealY = vh * 0.6;
+      const sweepPx = Math.max(0, Math.min(AXIS_H, revealY - rect.top));
+
+      if (spineFill) spineFill.style.height = `${sweepPx}px`;
+
+      for (const bar of opBars) {
+        const top = parseFloat(bar.dataset.top ?? "0");
+        const fill = bar.querySelector<HTMLElement>(".kw-op-fill");
+        if (fill) {
+          const height = parseFloat(bar.style.height);
+          const revealed = Math.max(0, Math.min(height, sweepPx - top));
+          fill.style.height = `${revealed}px`;
+        }
+      }
+
+      for (const bar of advBars) {
+        const top = parseFloat(bar.dataset.top ?? "0");
+        bar.classList.toggle("is-revealed", sweepPx >= top);
+      }
+
+      for (const row of summaryRows) {
+        const top = parseFloat(row.dataset.top ?? "0");
+        const bottom = parseFloat(row.dataset.bottom ?? "0");
+        row.classList.toggle("is-active", sweepPx >= top && sweepPx <= bottom);
+      }
+
+      if (yearLabelEl) {
+        const sweepYear = startYear + sweepPx / pxy;
+        yearLabelEl.textContent = sweepYear >= hoy - 0.5 ? "Hoy" : String(Math.floor(sweepYear));
+      }
+    }
+
+    function onScroll() {
+      if (raf != null) return;
+      raf = requestAnimationFrame(update);
+    }
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    update();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initTrayectoria);
+  } else {
+    initTrayectoria();
+  }
+</script>
