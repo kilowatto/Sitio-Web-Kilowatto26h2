@@ -96,7 +96,7 @@ const articleJsonLd = investigacion
 {
   investigacion ? (
     <Site
-      title={`${investigacion.title} — A fondo — Esteban Rey`}
+      title={`${investigacion.title} — A Fondo con Kilowatto — Esteban Rey`}
       description={investigacion.subtitle || excerptFrom(investigacion.summary, 300)}
       active="/a-fondo"
       ogType="article"
@@ -123,7 +123,7 @@ const articleJsonLd = investigacion
           <div class="ia-hero__text">
             <div class="container">
               <p class="eyebrow ia-hero__eyebrow">
-                <a href="/a-fondo">A fondo</a>
+                <a href="/a-fondo">A Fondo con Kilowatto</a>
               </p>
               <h1>{investigacion.title}</h1>
             </div>
@@ -133,7 +133,7 @@ const articleJsonLd = investigacion
         <section class="page-head">
           <div class="container">
             <p class="eyebrow">
-              <a href="/a-fondo">A fondo</a>
+              <a href="/a-fondo">A Fondo con Kilowatto</a>
             </p>
             <h1>{investigacion.title}</h1>
           </div>
@@ -223,10 +223,10 @@ const articleJsonLd = investigacion
       </section>
     </Site>
   ) : (
-    <Site title={`A fondo — página ${pageNum} — Esteban Rey`} active="/a-fondo">
+    <Site title={`A Fondo con Kilowatto — página ${pageNum} — Esteban Rey`} active="/a-fondo">
       <section class="page-head">
         <div class="container">
-          <p class="eyebrow">A fondo</p>
+          <p class="eyebrow">A Fondo con Kilowatto</p>
           <h1>Investigaciones</h1>
         </div>
       </section>
