@@ -73,6 +73,12 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
+    // The sign-off block (Esteban Rey / X / LinkedIn / Wikidata) marks the end of the
+    // narrative -- confirmed live 2026-08-21, an image placed on/after it landed with
+    // nothing left to wrap around and visually collided with the radar-comparativo chart,
+    // which has no placeholder in body_html at all and is instead appended by [param].astro
+    // at a fixed position right after the last segment. Stop considering insertions here.
+    if (block.includes("wikidata.org/wiki/Q140672978")) break;
     if (/^<h2/.test(block)) {
       currentSectionTitle = stripTags(block);
       continue;
