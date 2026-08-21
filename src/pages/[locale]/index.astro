@@ -7,7 +7,7 @@ import { env } from "cloudflare:workers";
 import { localeFromParam } from "../../lib/locales";
 import { loadTranslations, t } from "../../lib/i18n";
 import { projectsLabels } from "../../lib/nav-labels";
-import { BOT_SCAN_RE, LOCALE_GUESS_RE } from "../../lib/bot-scan";
+import { BOT_SCAN_RE, ENV_SCAN_RE, LOCALE_GUESS_RE } from "../../lib/bot-scan";
 
 const locale = localeFromParam(Astro.params.locale);
 // A single unmatched path segment (a broken link, a typo, anything) structurally matches
@@ -16,11 +16,15 @@ const locale = localeFromParam(Astro.params.locale);
 // including the custom src/pages/404.astro page, which never got a chance to render).
 // Only a recognized-but-canonical locale (e.g. someone typed /es-MX explicitly) should
 // redirect — anything else is a real 404. A single-segment WordPress/vuln-scanner probe
-// (/wp-login.php, /.env, ...) ALSO structurally matches this route (before it ever reaches
-// [...slug].astro, which only sees paths this route doesn't claim) — same bot-scan check
-// as there, see src/lib/bot-scan.ts. Same for a 2-letter locale GUESS this site doesn't
-// serve (/pl/, /th/, a bare /es/) — a different joke page than the WordPress one.
+// (/wp-login.php, ...) ALSO structurally matches this route (before it ever reaches
+// [...slug].astro, which only sees paths this route doesn't claim) — same bot-scan checks
+// as there, see src/lib/bot-scan.ts. /.env gets its own honeypot; a 2-letter locale GUESS
+// this site doesn't serve (/pl/, /th/, a bare /es/) gets a different joke page too.
 if (!locale) {
+  if (ENV_SCAN_RE.test(Astro.url.pathname)) {
+    Astro.response.status = 200;
+    return Astro.rewrite("/fake-env");
+  }
   if (BOT_SCAN_RE.test(Astro.url.pathname)) {
     Astro.response.status = 200;
     return Astro.rewrite("/no-wordpress");

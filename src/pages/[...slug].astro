@@ -6,8 +6,12 @@
 // genuinely-matched route is a normal render, so the status is fully ours to set here.
 // Anything that isn't a bot-scan path falls through to the real 404, exactly as before
 // this route existed.
-import { BOT_SCAN_RE } from "../lib/bot-scan";
+import { BOT_SCAN_RE, ENV_SCAN_RE } from "../lib/bot-scan";
 
+if (ENV_SCAN_RE.test(Astro.url.pathname)) {
+  Astro.response.status = 200;
+  return Astro.rewrite("/fake-env");
+}
 if (!BOT_SCAN_RE.test(Astro.url.pathname)) {
   return Astro.rewrite("/404");
 }
