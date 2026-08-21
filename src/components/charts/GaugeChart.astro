@@ -1,0 +1,90 @@
+---
+// Semicircle gauge for a single value within a range (e.g. an overall
+// trust score). Arc via stroke-dasharray on a half-circle path.
+interface Zone {
+  to: number;
+  color?: string;
+}
+interface Props {
+  data: { value: number; max?: number; label?: string; displayValue?: string; zones?: Zone[] };
+}
+const { data } = Astro.props;
+const max = data.max ?? 100;
+const value = Math.min(max, Math.max(0, data.value ?? 0));
+const R = 80;
+const CIRC_HALF = Math.PI * R;
+const pct = value / max;
+const needleAngle = -180 + pct * 180;
+---
+
+<div class="gauge">
+  <svg viewBox="0 0 200 110" role="img" aria-label={`${data.label ?? "valor"}: ${data.displayValue ?? value}`}>
+    <path d="M 20 100 A 80 80 0 0 1 180 100" class="gauge__track" />
+    <path
+      d="M 20 100 A 80 80 0 0 1 180 100"
+      class="gauge__fill"
+      style={`--len: ${CIRC_HALF}; --offset: ${CIRC_HALF * (1 - pct)}`}
+    />
+    <line x1="100" y1="100" x2="100" y2="35" class="gauge__needle" style={`--angle: ${needleAngle}deg`} />
+    <circle cx="100" cy="100" r="5" class="gauge__hub" />
+  </svg>
+  <p class="gauge__value">{data.displayValue ?? `${value}/${max}`}</p>
+  {data.label && <p class="gauge__label">{data.label}</p>}
+</div>
+
+<style>
+  .gauge {
+    text-align: center;
+    max-width: 16rem;
+    margin: 0 auto;
+  }
+  .gauge svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .gauge__track {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 14;
+    stroke-linecap: round;
+  }
+  .gauge__fill {
+    fill: none;
+    stroke: var(--rhino);
+    stroke-width: 14;
+    stroke-linecap: round;
+    stroke-dasharray: var(--len);
+    stroke-dashoffset: var(--len);
+    transition: stroke-dashoffset 1s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  :global(.chart-card.in-view) .gauge__fill {
+    stroke-dashoffset: var(--offset);
+  }
+  .gauge__needle {
+    stroke: var(--ink);
+    stroke-width: 3;
+    stroke-linecap: round;
+    transform-origin: 100px 100px;
+    transform: rotate(-180deg);
+    transition: transform 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  :global(.chart-card.in-view) .gauge__needle {
+    transform: rotate(var(--angle));
+  }
+  .gauge__hub {
+    fill: var(--ink);
+  }
+  .gauge__value {
+    font-family: var(--font-mono);
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0.3rem 0 0;
+  }
+  .gauge__label {
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    margin: 0.2rem 0 0;
+  }
+</style>

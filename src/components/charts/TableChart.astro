@@ -1,0 +1,57 @@
+---
+// Plain data table -- the "siempre debe haber una tabla" requirement.
+// Real <table> markup (not a div grid) for accessibility and so browser
+// find-in-page / screen readers treat it like actual tabular data.
+interface Props {
+  data: { headers: string[]; rows: string[][] };
+}
+const { data } = Astro.props;
+const headers = data.headers ?? [];
+const rows = data.rows ?? [];
+---
+
+<div class="ia-table-wrap">
+  <table class="ia-table">
+    <thead>
+      <tr>
+        {headers.map((h: string) => <th>{h}</th>)}
+      </tr>
+    </thead>
+    <tbody>
+      {rows.map((r: string[]) => (
+        <tr>
+          {r.map((c: string) => <td>{c}</td>)}
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .ia-table-wrap {
+    overflow-x: auto;
+  }
+  .ia-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+  .ia-table th,
+  .ia-table td {
+    border: 1px solid var(--line);
+    padding: 0.55rem 0.75rem;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .ia-table th {
+    background: var(--paper);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+  }
+  .ia-table tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--paper) 60%, transparent);
+  }
+</style>

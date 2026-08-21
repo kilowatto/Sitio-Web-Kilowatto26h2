@@ -7,13 +7,37 @@ import BarChart from "./BarChart.astro";
 import TimelineChart from "./TimelineChart.astro";
 import RadarChart from "./RadarChart.astro";
 import ComparisonCards from "./ComparisonCards.astro";
+import TableChart from "./TableChart.astro";
+import DonutChart from "./DonutChart.astro";
+import LineChart from "./LineChart.astro";
+import HeatmapChart from "./HeatmapChart.astro";
+import ScatterChart from "./ScatterChart.astro";
+import FunnelChart from "./FunnelChart.astro";
+import DumbbellChart from "./DumbbellChart.astro";
+import GaugeChart from "./GaugeChart.astro";
+import TreemapChart from "./TreemapChart.astro";
+
+export type ChartType =
+  | "bar"
+  | "timeline"
+  | "radar"
+  | "cards"
+  | "table"
+  | "donut"
+  | "line"
+  | "heatmap"
+  | "scatter"
+  | "funnel"
+  | "dumbbell"
+  | "gauge"
+  | "treemap";
 
 interface Props {
   chartKey: string;
   title: string;
   description?: string | null;
   sourceNote?: string | null;
-  chartType: "bar" | "timeline" | "radar" | "cards" | "table";
+  chartType: ChartType;
   data: any;
   imageR2Key?: string | null;
 }
@@ -39,6 +63,15 @@ const { chartKey, title, description, sourceNote, chartType, data, imageR2Key } 
     {chartType === "timeline" && <TimelineChart data={data} />}
     {chartType === "radar" && <RadarChart data={data} />}
     {chartType === "cards" && <ComparisonCards data={data} />}
+    {chartType === "table" && <TableChart data={data} />}
+    {chartType === "donut" && <DonutChart data={data} />}
+    {chartType === "line" && <LineChart data={data} />}
+    {chartType === "heatmap" && <HeatmapChart data={data} />}
+    {chartType === "scatter" && <ScatterChart data={data} />}
+    {chartType === "funnel" && <FunnelChart data={data} />}
+    {chartType === "dumbbell" && <DumbbellChart data={data} />}
+    {chartType === "gauge" && <GaugeChart data={data} />}
+    {chartType === "treemap" && <TreemapChart data={data} />}
   </div>
   {sourceNote && <figcaption class="chart-card__source">{sourceNote}</figcaption>}
 </figure>

@@ -1,0 +1,82 @@
+---
+// Heatmap: many entities x many criteria at once. Plain CSS grid, cell
+// background intensity mapped to value (0..max) via color-mix -- no canvas.
+interface Props {
+  data: { rows: string[]; cols: string[]; values: number[][]; max?: number };
+}
+const { data } = Astro.props;
+const rows = data.rows ?? [];
+const cols = data.cols ?? [];
+const values = data.values ?? [];
+const max = data.max ?? Math.max(1, ...values.flat());
+---
+
+<div class="heatmap-wrap">
+  <div class="heatmap" style={`--cols: ${cols.length}`}>
+    <div class="heatmap__corner"></div>
+    {cols.map((c: string) => (
+      <div class="heatmap__col-label">{c}</div>
+    ))}
+    {rows.map((r: string, ri: number) => (
+      <>
+        <div class="heatmap__row-label">{r}</div>
+        {cols.map((_c: string, ci: number) => {
+          const v = values[ri]?.[ci] ?? 0;
+          const pct = Math.min(1, Math.max(0, v / max));
+          return (
+            <div class="heatmap__cell" style={`--pct: ${pct}`} title={`${r} · ${cols[ci]}: ${v}`}>
+              {v}
+            </div>
+          );
+        })}
+      </>
+    ))}
+  </div>
+</div>
+
+<style>
+  .heatmap-wrap {
+    overflow-x: auto;
+  }
+  .heatmap {
+    display: grid;
+    grid-template-columns: 9rem repeat(var(--cols), minmax(3.4rem, 1fr));
+    gap: 3px;
+    min-width: max-content;
+  }
+  .heatmap__corner {
+    background: transparent;
+  }
+  .heatmap__col-label,
+  .heatmap__row-label {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    padding: 0.2rem 0.3rem;
+  }
+  .heatmap__col-label {
+    justify-content: center;
+    text-align: center;
+    align-items: end;
+  }
+  .heatmap__cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--ink);
+    border-radius: 0.2rem;
+    aspect-ratio: 1.4;
+    background: color-mix(in srgb, var(--rhino) calc(var(--pct) * 85%), var(--paper));
+    opacity: 0;
+    transform: scale(0.85);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  :global(.chart-card.in-view) .heatmap__cell {
+    opacity: 1;
+    transform: scale(1);
+  }
+</style>

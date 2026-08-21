@@ -1,0 +1,109 @@
+---
+// Continuous line chart for time series (e.g. price/adoption over years).
+// SVG polylines with a scroll-triggered draw-in (stroke-dashoffset).
+interface Point {
+  x: string;
+  y: number;
+}
+interface Series {
+  name: string;
+  points: Point[];
+  colorVar?: string;
+}
+interface Props {
+  data: { series: Series[]; yUnit?: string };
+}
+const { data } = Astro.props;
+const series: Series[] = data.series ?? [];
+const PALETTE = ["var(--rhino)", "var(--ember)", "#2f7ec9", "#1f8a4c", "#8e5fd6"];
+const W = 640;
+const H = 260;
+const PAD = 36;
+const allY = series.flatMap((s) => s.points.map((p) => p.y));
+const maxY = Math.max(1, ...allY);
+const minY = Math.min(0, ...allY);
+const labels = series[0]?.points.map((p) => p.x) ?? [];
+const n = Math.max(1, labels.length - 1);
+
+function xAt(i: number) {
+  return PAD + (i / n) * (W - PAD * 2);
+}
+function yAt(v: number) {
+  return H - PAD - ((v - minY) / (maxY - minY || 1)) * (H - PAD * 2);
+}
+
+const lines = series.map((s, si) => {
+  const pts = s.points.map((p, i) => `${xAt(i)},${yAt(p.y)}`).join(" ");
+  const len = s.points.length * 120;
+  return { name: s.name, points: pts, color: s.colorVar ?? PALETTE[si % PALETTE.length], len };
+});
+---
+
+<div class="line-chart">
+  <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={series.map((s) => s.name).join(", ")}>
+    <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} class="line-chart__axis" />
+    {lines.map((l) => (
+      <polyline
+        points={l.points}
+        class="line-chart__line"
+        style={`--line-color: ${l.color}; --len: ${l.len}`}
+      />
+    ))}
+    {labels.map((lab: string, i: number) => (
+      <text x={xAt(i)} y={H - PAD + 18} class="line-chart__label" text-anchor="middle">{lab}</text>
+    ))}
+  </svg>
+  <ul class="line-chart__legend">
+    {lines.map((l) => (
+      <li style={`--dot-color: ${l.color}`}><span class="line-chart__dot"></span>{l.name}</li>
+    ))}
+  </ul>
+</div>
+
+<style>
+  .line-chart svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .line-chart__axis {
+    stroke: var(--line);
+    stroke-width: 1;
+  }
+  .line-chart__line {
+    fill: none;
+    stroke: var(--line-color);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: var(--len);
+    stroke-dashoffset: var(--len);
+    transition: stroke-dashoffset 1.1s ease;
+  }
+  :global(.chart-card.in-view) .line-chart__line {
+    stroke-dashoffset: 0;
+  }
+  .line-chart__label {
+    font-size: 10px;
+    fill: var(--ink-soft);
+    font-family: var(--font-mono);
+  }
+  .line-chart__legend {
+    list-style: none;
+    margin: 0.8rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: var(--ink);
+  }
+  .line-chart__dot {
+    display: inline-block;
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: var(--dot-color);
+    margin-right: 0.4rem;
+  }
+</style>

@@ -1,0 +1,123 @@
+---
+// Donut chart via stroke-dasharray on concentric circles -- no libraries.
+interface Segment {
+  label: string;
+  value: number;
+  colorVar?: string;
+}
+interface Props {
+  data: { segments: Segment[]; unit?: string; centerLabel?: string };
+}
+const { data } = Astro.props;
+const segments: Segment[] = data.segments ?? [];
+const total = segments.reduce((s, seg) => s + seg.value, 0) || 1;
+const PALETTE = ["var(--rhino)", "var(--ember)", "var(--volt)", "#2f7ec9", "#1f8a4c", "#8e5fd6", "#c0392b"];
+const R = 70;
+const CIRC = 2 * Math.PI * R;
+let offset = 0;
+const arcs = segments.map((s, i) => {
+  const frac = s.value / total;
+  const len = frac * CIRC;
+  const arc = { ...s, color: s.colorVar ?? PALETTE[i % PALETTE.length], dasharray: `${len} ${CIRC - len}`, dashoffset: -offset, pct: Math.round(frac * 100) };
+  offset += len;
+  return arc;
+});
+---
+
+<div class="donut">
+  <div class="donut__plot">
+    <svg viewBox="0 0 180 180" role="img" aria-label={segments.map((s) => `${s.label}: ${s.value}${data.unit ?? ""}`).join(", ")}>
+      <circle cx="90" cy="90" r={R} class="donut__track" />
+      {arcs.map((a, i) => (
+        <circle
+          cx="90"
+          cy="90"
+          r={R}
+          class="donut__arc"
+          style={`--arc-color: ${a.color}; --dasharray: ${a.dasharray}; --dashoffset: ${a.dashoffset}; --d: ${i * 120}ms`}
+        />
+      ))}
+    </svg>
+    {data.centerLabel && <span class="donut__center">{data.centerLabel}</span>}
+  </div>
+  <ul class="donut__legend">
+    {arcs.map((a) => (
+      <li style={`--dot-color: ${a.color}`}>
+        <span class="donut__dot"></span>
+        {a.label} — <strong>{a.pct}%</strong>
+      </li>
+    ))}
+  </ul>
+</div>
+
+<style>
+  .donut {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    align-items: center;
+    justify-content: center;
+  }
+  .donut__plot {
+    position: relative;
+    flex: 0 0 auto;
+    width: 12rem;
+  }
+  .donut__plot svg {
+    width: 100%;
+    height: auto;
+    transform: rotate(-90deg);
+  }
+  .donut__track {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 22;
+  }
+  .donut__arc {
+    fill: none;
+    stroke: var(--arc-color);
+    stroke-width: 22;
+    stroke-dasharray: var(--dasharray);
+    stroke-dashoffset: var(--dashoffset);
+    transform-box: fill-box;
+    transform-origin: center;
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition-delay: var(--d, 0s);
+  }
+  :global(.chart-card.in-view) .donut__arc {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .donut__center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    text-align: center;
+    padding: 0 1.5rem;
+  }
+  .donut__legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--ink);
+  }
+  .donut__dot {
+    display: inline-block;
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    background: var(--dot-color);
+    margin-right: 0.5rem;
+  }
+</style>

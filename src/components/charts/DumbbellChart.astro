@@ -1,0 +1,134 @@
+---
+// Dumbbell/gap chart: two points per row connected by a line -- built for
+// exactly the "lo que prometen vs. lo que hacen" angle. Shared horizontal
+// scale across rows so the gap size is visually comparable.
+interface Item {
+  label: string;
+  from: number;
+  to: number;
+  fromLabel?: string;
+  toLabel?: string;
+}
+interface Props {
+  data: { items: Item[]; unit?: string; fromName?: string; toName?: string };
+}
+const { data } = Astro.props;
+const items: Item[] = data.items ?? [];
+// *1.08 headroom so the highest point's dot doesn't clip against the right edge.
+const max = Math.max(1, ...items.flatMap((i) => [i.from, i.to])) * 1.08;
+---
+
+<div class="dumbbell">
+  {(data.fromName || data.toName) && (
+    <div class="dumbbell__legend">
+      {data.fromName && <span><span class="dumbbell__dot dumbbell__dot--from"></span>{data.fromName}</span>}
+      {data.toName && <span><span class="dumbbell__dot dumbbell__dot--to"></span>{data.toName}</span>}
+    </div>
+  )}
+  {items.map((it, i) => {
+    const fromPct = (it.from / max) * 100;
+    const toPct = (it.to / max) * 100;
+    const left = Math.min(fromPct, toPct);
+    const width = Math.abs(toPct - fromPct);
+    return (
+      <div class="dumbbell__row" style={`--d: ${i * 100}ms`}>
+        <p class="dumbbell__label">{it.label}</p>
+        <div class="dumbbell__track">
+          <div class="dumbbell__connector" style={`--left: ${left}%; --width: ${width}%`}></div>
+          <div class="dumbbell__point dumbbell__point--from" style={`--pos: ${fromPct}%`} title={it.fromLabel ?? String(it.from)}></div>
+          <div class="dumbbell__point dumbbell__point--to" style={`--pos: ${toPct}%`} title={it.toLabel ?? String(it.to)}></div>
+        </div>
+        <p class="dumbbell__values">
+          <span class="dumbbell__dot dumbbell__dot--from"></span>{it.fromLabel ?? it.from}
+          <span class="dumbbell__arrow">→</span>
+          <span class="dumbbell__dot dumbbell__dot--to"></span>{it.toLabel ?? it.to}
+        </p>
+      </div>
+    );
+  })}
+</div>
+
+<style>
+  .dumbbell {
+    display: flex;
+    flex-direction: column;
+    gap: 1.3rem;
+  }
+  .dumbbell__legend {
+    display: flex;
+    gap: 1.2rem;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    font-family: var(--font-mono);
+  }
+  .dumbbell__row {
+    display: grid;
+    gap: 0.35rem;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    transition-delay: var(--d, 0s);
+  }
+  :global(.chart-card.in-view) .dumbbell__row {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .dumbbell__label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+  }
+  .dumbbell__track {
+    position: relative;
+    height: 1.6rem;
+  }
+  .dumbbell__connector {
+    position: absolute;
+    left: var(--left);
+    width: var(--width);
+    top: 50%;
+    height: 3px;
+    background: var(--line);
+    transform: translateY(-50%);
+  }
+  .dumbbell__point {
+    position: absolute;
+    left: var(--pos);
+    top: 50%;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .dumbbell__point--from {
+    background: var(--ink-soft);
+  }
+  .dumbbell__point--to {
+    background: var(--rhino);
+  }
+  .dumbbell__values {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .dumbbell__arrow {
+    color: var(--line);
+  }
+  .dumbbell__dot {
+    display: inline-block;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+  }
+  .dumbbell__dot--from {
+    background: var(--ink-soft);
+  }
+  .dumbbell__dot--to {
+    background: var(--rhino);
+  }
+</style>

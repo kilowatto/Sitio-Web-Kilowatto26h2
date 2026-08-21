@@ -1,0 +1,81 @@
+---
+// Scatter plot: correlate two variables (e.g. price vs. rating). Plain SVG,
+// axes labeled, points as circles with a label.
+interface Point {
+  label: string;
+  x: number;
+  y: number;
+}
+interface Props {
+  data: { points: Point[]; xLabel?: string; yLabel?: string };
+}
+const { data } = Astro.props;
+const points: Point[] = data.points ?? [];
+const W = 640;
+const H = 360;
+const PAD = 44;
+const xs = points.map((p) => p.x);
+const ys = points.map((p) => p.y);
+const xMax = Math.max(1, ...xs) * 1.1;
+const xMin = Math.min(0, ...xs);
+const yMax = Math.max(1, ...ys) * 1.1;
+const yMin = Math.min(0, ...ys);
+
+function xAt(x: number) {
+  return PAD + ((x - xMin) / (xMax - xMin || 1)) * (W - PAD * 1.5);
+}
+function yAt(y: number) {
+  return H - PAD - ((y - yMin) / (yMax - yMin || 1)) * (H - PAD * 1.5);
+}
+---
+
+<div class="scatter">
+  <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={points.map((p) => p.label).join(", ")}>
+    <line x1={PAD} y1={PAD / 2} x2={PAD} y2={H - PAD} class="scatter__axis" />
+    <line x1={PAD} y1={H - PAD} x2={W - PAD / 2} y2={H - PAD} class="scatter__axis" />
+    {data.yLabel && <text x={PAD} y={PAD / 2 - 8} class="scatter__axis-label" text-anchor="start">{data.yLabel}</text>}
+    {data.xLabel && <text x={W - PAD / 2} y={H - PAD + 24} class="scatter__axis-label" text-anchor="end">{data.xLabel}</text>}
+    {points.map((p, i) => (
+      <g class="scatter__point" style={`--d: ${i * 80}ms`}>
+        <circle cx={xAt(p.x)} cy={yAt(p.y)} r="7" />
+        <text x={xAt(p.x)} y={yAt(p.y) - 12} text-anchor="middle" class="scatter__label">{p.label}</text>
+      </g>
+    ))}
+  </svg>
+</div>
+
+<style>
+  .scatter svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .scatter__axis {
+    stroke: var(--line);
+    stroke-width: 1;
+  }
+  .scatter__axis-label {
+    font-size: 10px;
+    fill: var(--ink-soft);
+    font-family: var(--font-mono);
+  }
+  .scatter__point circle {
+    fill: var(--rhino);
+    fill-opacity: 0.85;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    transform: scale(0.3);
+    transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition-delay: var(--d, 0s);
+  }
+  :global(.chart-card.in-view) .scatter__point circle {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .scatter__label {
+    font-size: 10px;
+    fill: var(--ink);
+    font-family: var(--font-body);
+  }
+</style>

@@ -1,0 +1,75 @@
+---
+// Single-level treemap (e.g. market share within an industry). A flex row
+// with flex-grow proportional to value reads as a treemap without a real
+// recursive packing algorithm -- sufficient for one flat set of shares.
+interface Item {
+  label: string;
+  value: number;
+  displayValue?: string;
+  colorVar?: string;
+}
+interface Props {
+  data: { items: Item[] };
+}
+const { data } = Astro.props;
+const items: Item[] = data.items ?? [];
+const total = items.reduce((s, i) => s + i.value, 0) || 1;
+const PALETTE = ["var(--rhino)", "var(--ember)", "var(--volt)", "#2f7ec9", "#1f8a4c", "#8e5fd6", "#c0392b"];
+---
+
+<div class="treemap">
+  {items.map((it, i) => {
+    const pct = Math.round((it.value / total) * 100);
+    const color = it.colorVar ?? PALETTE[i % PALETTE.length];
+    return (
+      <div
+        class="treemap__cell"
+        style={`--grow: ${it.value}; --cell-color: ${color}; --d: ${i * 90}ms`}
+        title={`${it.label}: ${it.displayValue ?? it.value}`}
+      >
+        <span class="treemap__label">{it.label}</span>
+        <span class="treemap__pct">{pct}%</span>
+      </div>
+    );
+  })}
+</div>
+
+<style>
+  .treemap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    min-height: 12rem;
+  }
+  .treemap__cell {
+    flex-grow: var(--grow);
+    flex-basis: 6rem;
+    min-height: 6rem;
+    background: color-mix(in srgb, var(--cell-color) 22%, var(--paper));
+    border: 1px solid color-mix(in srgb, var(--cell-color) 45%, var(--line));
+    border-radius: 0.4rem;
+    padding: 0.7rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    opacity: 0;
+    transform: scale(0.92);
+    transition: opacity 0.45s ease, transform 0.45s ease;
+    transition-delay: var(--d, 0s);
+  }
+  :global(.chart-card.in-view) .treemap__cell {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .treemap__label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .treemap__pct {
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    color: var(--ink);
+    align-self: flex-end;
+  }
+</style>

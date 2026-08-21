@@ -34,7 +34,7 @@ export interface InvestigacionChartRow {
   id: number;
   investigacion_id: number;
   chart_key: string;
-  chart_type: "bar" | "timeline" | "radar" | "cards" | "table";
+  chart_type: "bar" | "timeline" | "radar" | "cards" | "table" | "donut" | "line" | "heatmap" | "scatter" | "funnel" | "dumbbell" | "gauge" | "treemap";
   title: string;
   description: string | null;
   data_json: string;
@@ -73,6 +73,15 @@ export async function getInvestigacionBySlug(env: any, slug: string): Promise<In
   const row = await env.DB.prepare("SELECT * FROM investigaciones WHERE slug = ? AND status = 'published'")
     .bind(slug)
     .first<InvestigacionRow>();
+  return row ?? null;
+}
+
+// For /admin previews only -- callers MUST have already verified the
+// request carries a valid ADMIN_TOKEN/SCRATCH_TOKEN before calling this,
+// since it bypasses the "published" filter (draft/pending_approval/rejected
+// pieces are otherwise never rendered to the public URL).
+export async function getInvestigacionBySlugAnyStatus(env: any, slug: string): Promise<InvestigacionRow | null> {
+  const row = await env.DB.prepare("SELECT * FROM investigaciones WHERE slug = ?").bind(slug).first<InvestigacionRow>();
   return row ?? null;
 }
 

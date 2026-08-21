@@ -1,0 +1,157 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import AdminLogin from "../../components/AdminLogin.astro";
+import { env } from "cloudflare:workers";
+import { checkAdminAuth } from "../../lib/admin-auth";
+import { displayViewCount } from "../../lib/investigaciones-query";
+
+const token = await checkAdminAuth(Astro, env);
+const authorized = !!token;
+
+let pending: any[] = [];
+let published: any[] = [];
+
+if (authorized && env?.DB) {
+  const [pendingRes, publishedRes] = await Promise.all([
+    env.DB.prepare(`SELECT * FROM investigaciones WHERE status IN ('pending_approval', 'draft') ORDER BY created_at DESC`).all(),
+    env.DB.prepare(
+      `SELECT id, slug, title, published_at, view_count, display_seed, read_minutes FROM investigaciones WHERE status = 'published' ORDER BY published_at DESC LIMIT 10`
+    ).all(),
+  ]);
+  pending = pendingRes.results ?? [];
+  published = publishedRes.results ?? [];
+}
+---
+
+{
+  !authorized ? (
+    <AdminLogin />
+  ) : (
+    <AdminLayout title="A Fondo con Kilowatto — Admin" active="/admin/a-fondo">
+      <section class="panel">
+        <h1>A Fondo con Kilowatto</h1>
+        <p class="hint">
+          Estas piezas no se generan desde aquí con un botón — Claude las produce en una conversación (8-10 agentes
+          de investigación + fact-check adversarial, con tu tema), y aterrizan aquí ya completas para tu revisión.
+          Abre la vista previa para verla exactamente como se vería publicada (gráficas, tablas, todo) antes de
+          decidir.
+        </p>
+
+        <h2>Pendientes de aprobar ({pending.length})</h2>
+        {pending.length === 0 ? (
+          <p class="empty">No hay investigaciones esperando revisión ahora mismo.</p>
+        ) : (
+          <div class="drafts">
+            {pending.map((r: any) => (
+              <div class="draft" data-id={r.id}>
+                {r.rejection_reason && <p class="flag">⚠️ Rechazada antes: {r.rejection_reason}</p>}
+                <p class="draft__meta">
+                  {r.read_minutes} min de lectura · estado: {r.status}
+                </p>
+                <input type="text" class="draft__title" value={r.title} />
+                <input type="text" class="draft__subtitle" placeholder="Subtítulo (opcional)" value={r.subtitle ?? ""} />
+                <textarea class="draft__summary" rows={3} placeholder="Resumen ejecutivo" set:text={r.summary} />
+                <p class="draft__note">
+                  El cuerpo completo (con gráficas y tablas) se edita revisando la vista previa — si necesita cambios
+                  de fondo, rechaza con el motivo y Claude lo ajusta.
+                </p>
+                <a class="btn btn--preview" href={`/a-fondo/${r.slug}?token=${token}`} target="_blank" rel="noopener">
+                  👁️ Ver vista previa completa
+                </a>
+                <div class="draft__actions">
+                  <button type="button" class="btn btn--approve" data-action="approve" data-id={r.id}>
+                    ✅ Aprobar y publicar
+                  </button>
+                  <button type="button" class="btn btn--reject" data-action="reject" data-id={r.id}>
+                    ✕ Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <h2>Publicadas recientemente</h2>
+        <ul class="recent">
+          {published.map((r: any) => (
+            <li>
+              <a href={`/a-fondo/${r.slug}`} target="_blank" rel="noopener">
+                {r.title}
+              </a>{" "}
+              — {r.published_at} · {displayViewCount(r).toLocaleString("es-MX")} lecturas ({r.view_count} reales,
+              semilla {r.display_seed}) · {r.read_minutes} min
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <script define:vars={{ token }}>
+        document.querySelectorAll('[data-action="approve"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const id = btn.dataset.id;
+            const draft = document.querySelector(`.draft[data-id="${id}"]`);
+            const title = draft.querySelector(".draft__title").value;
+            const subtitle = draft.querySelector(".draft__subtitle").value;
+            const summary = draft.querySelector(".draft__summary").value;
+            btn.disabled = true;
+            btn.textContent = "Publicando…";
+            try {
+              await fetch(`/api/investigaciones/${id}/approve?token=${encodeURIComponent(token)}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ title, subtitle, summary }),
+              });
+              location.reload();
+            } catch {
+              alert("Se perdió la conexión al aprobar. Intenta de nuevo.");
+              btn.disabled = false;
+              btn.textContent = "✅ Aprobar y publicar";
+            }
+          });
+        });
+
+        document.querySelectorAll('[data-action="reject"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const id = btn.dataset.id;
+            const reason = prompt("¿Por qué la rechazas? Este motivo ayuda a que la siguiente salga mejor.") ?? "";
+            btn.disabled = true;
+            btn.textContent = "Rechazando…";
+            try {
+              await fetch(`/api/investigaciones/${id}/reject?token=${encodeURIComponent(token)}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ reason }),
+              });
+              location.reload();
+            } catch {
+              alert("Se perdió la conexión al rechazar. Intenta de nuevo.");
+              btn.disabled = false;
+              btn.textContent = "✕ Rechazar";
+            }
+          });
+        });
+      </script>
+
+      <style>
+        .panel { max-width: 56rem; margin: 0 auto; padding: 1.5rem; }
+        .hint { color: var(--ink-soft, #666); font-size: 0.9rem; margin-top: 0.25rem; }
+        .empty { color: var(--ink-soft, #666); }
+        .btn { border: none; border-radius: 0.5rem; padding: 0.6rem 1rem; font-weight: 600; cursor: pointer; display: inline-block; text-decoration: none; }
+        .btn--preview { background: var(--mist, #f3efe8); color: var(--ink, #16130f); border: 1px solid var(--line, #ddd); }
+        .btn--approve { background: #1a7f37; color: #fff; }
+        .btn--reject { background: #b83b09; color: #fff; }
+        .btn:disabled { opacity: 0.6; cursor: default; }
+        .drafts { display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem; }
+        .draft { border: 1px solid var(--line, #ddd); border-radius: 0.75rem; padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+        .draft__meta { font-size: 0.8rem; color: var(--ink-soft, #666); margin: 0; font-family: var(--font-mono); }
+        .draft__title { font-size: 1.1rem; font-weight: 700; padding: 0.5rem; border: 1px solid var(--line, #ddd); border-radius: 0.4rem; }
+        .draft__subtitle { padding: 0.5rem; border: 1px solid var(--line, #ddd); border-radius: 0.4rem; }
+        .draft__summary { font-size: 0.9rem; padding: 0.5rem; border: 1px solid var(--line, #ddd); border-radius: 0.4rem; }
+        .draft__note { font-size: 0.82rem; color: var(--ink-soft, #666); margin: 0; }
+        .draft__actions { display: flex; gap: 0.6rem; }
+        .flag { background: #fff3cd; color: #664d03; padding: 0.4rem 0.6rem; border-radius: 0.4rem; font-size: 0.85rem; }
+        .recent { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+      </style>
+    </AdminLayout>
+  )
+}

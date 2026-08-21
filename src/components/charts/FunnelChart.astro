@@ -1,0 +1,85 @@
+---
+// Funnel: a process with drop-off at each stage. Centered bars of
+// decreasing width read as a funnel shape without SVG trapezoid math.
+interface Stage {
+  label: string;
+  value: number;
+  displayValue?: string;
+}
+interface Props {
+  data: { stages: Stage[] };
+}
+const { data } = Astro.props;
+const stages: Stage[] = data.stages ?? [];
+const max = Math.max(1, ...stages.map((s) => s.value));
+---
+
+<div class="funnel">
+  {stages.map((s, i) => {
+    const pct = Math.max(8, (s.value / max) * 100);
+    const dropFromPrev = i > 0 ? Math.round(((stages[i - 1].value - s.value) / (stages[i - 1].value || 1)) * 100) : null;
+    return (
+      <div class="funnel__stage" style={`--d: ${i * 120}ms`}>
+        <div class="funnel__bar-wrap">
+          <div class="funnel__bar" style={`--pct: ${pct}%`}>
+            <span class="funnel__label">{s.label}</span>
+            <span class="funnel__value">{s.displayValue ?? s.value}</span>
+          </div>
+        </div>
+        {dropFromPrev !== null && <p class="funnel__drop">−{dropFromPrev}%</p>}
+      </div>
+    );
+  })}
+</div>
+
+<style>
+  .funnel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .funnel__stage {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .funnel__bar-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  .funnel__bar {
+    width: var(--pct);
+    min-width: 8rem;
+    background: var(--rhino);
+    color: #fff;
+    border-radius: 0.3rem;
+    padding: 0.6rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.8rem;
+    font-size: 0.85rem;
+    opacity: 0;
+    transform: scaleY(0.6);
+    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--d, 0s);
+  }
+  :global(.chart-card.in-view) .funnel__bar {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  .funnel__label {
+    font-weight: 600;
+  }
+  .funnel__value {
+    font-family: var(--font-mono);
+  }
+  .funnel__drop {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ember);
+    margin: 0.25rem 0;
+  }
+</style>

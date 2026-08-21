@@ -10,6 +10,7 @@ import ChartCard from "../../components/charts/ChartCard.astro";
 import {
   getInvestigacionesPage,
   getInvestigacionBySlug,
+  getInvestigacionBySlugAnyStatus,
   getInvestigacionSources,
   getInvestigacionCharts,
   incrementInvestigacionView,
@@ -45,9 +46,15 @@ if (isNumeric) {
     return Astro.rewrite("/404");
   }
 } else {
+  // /admin preview: a valid token lets the reviewer see a pending_approval
+  // (or draft/rejected) piece fully rendered, exactly as it'll look live,
+  // before approving it. Never counts as a real view.
+  const previewToken = Astro.url.searchParams.get("token");
+  const isPreview = !!previewToken && env?.ADMIN_TOKEN && (previewToken === env.ADMIN_TOKEN || previewToken === env.SCRATCH_TOKEN);
+
   if (env?.DB) {
-    investigacion = await getInvestigacionBySlug(env, raw);
-    if (investigacion) await incrementInvestigacionView(env, investigacion.id);
+    investigacion = isPreview ? await getInvestigacionBySlugAnyStatus(env, raw) : await getInvestigacionBySlug(env, raw);
+    if (investigacion && !isPreview) await incrementInvestigacionView(env, investigacion.id);
   }
   if (!investigacion) {
     Astro.response.status = 404;
