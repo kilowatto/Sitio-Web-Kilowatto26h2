@@ -270,7 +270,7 @@ const he = HOME_EXTRA[locale.code] ?? SPANISH_HOME_EXTRA;
     <div class="container">
       <p class="eyebrow">{he.trayectoriaEyebrow}</p>
       <h2>{he.trayectoriaHeadline}</h2>
-      <Trayectoria companies={localizedCompanies} hoyLabel={he.trayectoriaHoy} caption={he.trayectoriaCaption} />
+      <Trayectoria companies={localizedCompanies} hoyLabel={he.trayectoriaHoy} caption={he.trayectoriaCaption} rtl={locale.rtl} />
       <p class="see-more"><a href={`/${locale.code}/trayectoria`}>{he.trayectoriaCta}</a></p>
     </div>
   </section>

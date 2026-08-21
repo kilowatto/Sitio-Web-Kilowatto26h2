@@ -3,12 +3,15 @@ interface Props {
   companies: any[];
   hoyLabel?: string;
   caption?: string;
+  rtl?: boolean;
 }
 const {
   companies,
   hoyLabel = "Hoy",
   caption = "Cuando dos tramos coinciden en el tiempo, esos roles se llevaron en paralelo — no es una carrera en línea recta.",
+  rtl = false,
 } = Astro.props;
+const posProp = rtl ? "right" : "left";
 
 const now = new Date();
 const HOY = now.getFullYear() + now.getMonth() / 12;
@@ -128,22 +131,22 @@ const hoyTop = px(HOY);
   <div class="kw-shell">
     <div class="kw-axis" id="kw-axis" style={`width:${AXIS_COL_W}px;height:${AXIS_H}px`} data-start-year={START_YEAR} data-hoy={HOY.toFixed(3)} data-pxy={PXY} data-hoy-label={hoyLabel}>
       {ticks.map((y) => (
-        <div class="kw-tick" style={`top:${px(y)}px`}>
+        <div class="kw-tick" style={`top:${px(y)}px;${posProp}:0;text-align:${rtl ? "right" : "left"}`}>
           <span>{y}</span>
         </div>
       ))}
-      <div class="kw-tick kw-tick--hoy" style={`top:${hoyTop}px`}>
+      <div class="kw-tick kw-tick--hoy" style={`top:${hoyTop}px;${posProp}:0;text-align:${rtl ? "right" : "left"}`}>
         <span>{hoyLabel}</span>
       </div>
 
-      <div class="kw-spine" style={`left:${LABEL_W + 4}px;height:${AXIS_H}px`}></div>
-      <div class="kw-spine-fill" id="kw-spine-fill" style={`left:${LABEL_W + 4}px`}></div>
+      <div class="kw-spine" style={`${posProp}:${LABEL_W + 4}px;height:${AXIS_H}px`}></div>
+      <div class="kw-spine-fill" id="kw-spine-fill" style={`${posProp}:${LABEL_W + 4}px`}></div>
 
       {opEntries.map((e) => (
         <div
           class={`kw-op-bar ${e.isOngoing ? "is-open" : "is-closed"}`}
           title={`${e.name} — ${e.role ?? ""}`}
-          style={`top:${e.top}px;left:${e.left}px;width:${e.width}px;height:${e.height}px;color:${e.color}`}
+          style={`top:${e.top}px;${posProp}:${e.left}px;width:${e.width}px;height:${e.height}px;color:${e.color}`}
           data-top={e.top}
           data-bottom={e.bottom}
         >
@@ -156,7 +159,7 @@ const hoyTop = px(HOY);
         <div
           class="kw-adv-bar"
           title={`${e.name} — ${e.role ?? ""}`}
-          style={`top:${e.top}px;left:${e.left}px;width:${e.width}px;height:${e.height}px;color:${e.color}`}
+          style={`top:${e.top}px;${posProp}:${e.left}px;width:${e.width}px;height:${e.height}px;color:${e.color}`}
           data-top={e.top}
           data-bottom={e.bottom}
         ></div>
@@ -202,7 +205,6 @@ const hoyTop = px(HOY);
 
   .kw-tick {
     position: absolute;
-    left: 0;
     width: 26px;
     transform: translateY(-50%);
   }
