@@ -147,6 +147,35 @@ export async function getDeviceBreakdown(days = 30): Promise<DeviceViews[] | nul
   }
 }
 
+export interface Last24h {
+  views: number;
+  topCountries: CountryViews[];
+}
+
+// GA4 has ~24-48h processing latency before a day's data is queryable, so it can't answer
+// "what's happening right now." Our own log writes synchronously on every request -- this is
+// the "en vivo" counterpart to the GA4-powered historical views on the Analítica page.
+export async function getLast24h(): Promise<Last24h | null> {
+  try {
+    const [totalRes, countryRes] = await Promise.all([
+      queryPageViews(
+        `SELECT count() AS views FROM kilowatto_page_views WHERE timestamp > NOW() - INTERVAL '24' HOUR`
+      ),
+      queryPageViews(
+        `SELECT blob2 AS country, count() AS views FROM kilowatto_page_views
+         WHERE timestamp > NOW() - INTERVAL '24' HOUR
+         GROUP BY country ORDER BY views DESC LIMIT 5`
+      ),
+    ]);
+    return {
+      views: Number(totalRes.data?.[0]?.views ?? 0),
+      topCountries: (countryRes.data ?? []).map((r: any) => ({ country: String(r.country || "??"), views: Number(r.views) })),
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Site-wide daily total (all paths combined) for the Inicio trend chart -- real, but bounded
 // by TRACKING_STARTED; days before that just come back as 0 since the log didn't exist yet.
 export async function getSiteDailyTotals(days = 7): Promise<DailyViews[] | null> {

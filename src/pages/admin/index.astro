@@ -3,7 +3,8 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
 import { checkAdminAuth } from "../../lib/admin-auth";
-import { getTopPages, getSiteDailyTotals } from "../../lib/telemetry-query";
+import { getTopPages } from "../../lib/telemetry-query";
+import { getDailyTrend, getEngagementSummary } from "../../lib/ga4";
 
 const token = await checkAdminAuth(Astro, env);
 const authorized = !!token;
@@ -41,7 +42,8 @@ let postsNext7Days = 0;
 let topColumn: any = null;
 let topInvestigacion: any = null;
 let topPages: Awaited<ReturnType<typeof getTopPages>> = null;
-let siteDailyTotals: Awaited<ReturnType<typeof getSiteDailyTotals>> = null;
+let siteDailyTotals: Awaited<ReturnType<typeof getDailyTrend>> = null;
+let ga4Summary: Awaited<ReturnType<typeof getEngagementSummary>> = null;
 
 if (authorized && env?.DB) {
   const [
@@ -151,7 +153,7 @@ if (authorized && env?.DB) {
   lastProjectsRefreshAt = lastProjectsRefreshKv;
   lastReindexAt = lastReindexKv;
 
-  const [colsAgg, invAgg, next7Res, topColRes, topInvRes, pages, dailyTotals] = await Promise.all([
+  const [colsAgg, invAgg, next7Res, topColRes, topInvRes, pages, dailyTrend, engagement] = await Promise.all([
     env.DB.prepare(`SELECT COUNT(*) AS n, SUM(view_count) AS views FROM columns WHERE status = 'published'`).first(),
     env.DB.prepare(`SELECT COUNT(*) AS n, SUM(view_count) AS views FROM investigaciones WHERE status = 'published'`).first(),
     env.DB.prepare(
@@ -160,7 +162,8 @@ if (authorized && env?.DB) {
     env.DB.prepare(`SELECT id, title, view_count FROM columns WHERE status = 'published' ORDER BY view_count DESC LIMIT 1`).first(),
     env.DB.prepare(`SELECT id, title, view_count FROM investigaciones WHERE status = 'published' ORDER BY view_count DESC LIMIT 1`).first(),
     getTopPages(30, 3),
-    getSiteDailyTotals(7),
+    getDailyTrend(7),
+    getEngagementSummary(7),
   ]);
 
   publishedColumnsCount = (colsAgg as any)?.n ?? 0;
@@ -170,7 +173,8 @@ if (authorized && env?.DB) {
   topColumn = topColRes ?? null;
   topInvestigacion = topInvRes ?? null;
   topPages = pages;
-  siteDailyTotals = dailyTotals;
+  siteDailyTotals = dailyTrend;
+  ga4Summary = engagement;
 }
 
 function timeAgo(iso: string | null): string {
@@ -227,15 +231,19 @@ const trackedSiteViews = siteDailyTotals ? siteDailyTotals.reduce((s, d) => s + 
               <div class="kpi-value">{postsNext7Days}</div>
               <div class="kpi-label">Posts en 7 días</div>
             </div>
+            <div class="kpi-card">
+              <div class="kpi-value">{ga4Summary ? Math.round(ga4Summary.engagementRate * 100) + "%" : "—"}</div>
+              <div class="kpi-label">Engagement (GA4, 7d)</div>
+            </div>
           </div>
 
           <div class="trend-card">
             <div class="section-head">
               <p class="section-title">Vistas del sitio · últimos 7 días</p>
-              <span class="real-tag">real</span>
+              <span class="real-tag tag-ga">google analytics</span>
             </div>
             {!siteDailyTotals || trackedSiteViews === 0 ? (
-              <p class="callout-inline">Aún acumulando datos reales — empezamos a registrarlos el 21 de agosto de 2026.</p>
+              <p class="callout-inline">No se pudo consultar Google Analytics ahora mismo.</p>
             ) : (
               <div class="chart-bars">
                 {siteDailyTotals.map((d) => (
@@ -276,6 +284,7 @@ const trackedSiteViews = siteDailyTotals ? siteDailyTotals.reduce((s, d) => s + 
             </div>
           </div>
 
+          <a href="/admin/analitica" class="see-more-link">Ver analítica completa (país, dispositivos, canales, tendencia) →</a>
           <a href="/admin/contenido" class="see-more-link">Ver todo el contenido y su telemetría →</a>
           <a href="/admin/calendario" class="see-more-link">Ver calendario de publicaciones →</a>
         </section>
@@ -497,6 +506,7 @@ const trackedSiteViews = siteDailyTotals ? siteDailyTotals.reduce((s, d) => s + 
     font-family: monospace; font-size: 0.6rem; background: color-mix(in srgb, var(--rhino) 15%, transparent);
     color: var(--rhino); padding: 0.15rem 0.5rem; border-radius: 999px; font-weight: 700;
   }
+  .real-tag.tag-ga { background: color-mix(in srgb, #e8710a 15%, transparent); color: #e8710a; }
   .trend-card { border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.9rem; background: var(--admin-surface); margin-bottom: 1rem; }
   .callout-inline { font-size: 0.8rem; color: var(--admin-text-soft); margin: 0; line-height: 1.5; }
   .chart-bars { display: flex; align-items: flex-end; gap: 0.4rem; height: 5rem; }

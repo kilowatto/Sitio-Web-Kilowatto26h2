@@ -115,6 +115,167 @@ export async function getChannelBreakdown(days = 30): Promise<ChannelViews[] | n
   }
 }
 
+export interface DailyTrend {
+  day: string; // YYYY-MM-DD
+  views: number;
+  sessions: number;
+}
+
+// Real daily trend from GA4 -- unlike our own first-party log (kilowatto_page_views, which
+// only started recording 2026-08-21), GA4 has weeks of real history already, so this is what
+// actually powers "tendencia" charts until our own log catches up.
+export async function getDailyTrend(days = 28): Promise<DailyTrend[] | null> {
+  try {
+    const data = await runReport({
+      dateRanges: [{ startDate: `${days}daysAgo`, endDate: "today" }],
+      dimensions: [{ name: "date" }],
+      metrics: [{ name: "screenPageViews" }, { name: "sessions" }],
+      orderBys: [{ dimension: { dimensionName: "date" } }],
+      limit: 400,
+    });
+    const rows = data.rows ?? [];
+    return rows.map((r: any) => {
+      const raw = String(r.dimensionValues?.[0]?.value ?? "");
+      const day = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+      return {
+        day,
+        views: Number(r.metricValues?.[0]?.value ?? 0),
+        sessions: Number(r.metricValues?.[1]?.value ?? 0),
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
+export interface EngagementSummary {
+  activeUsers: number;
+  sessions: number;
+  engagementRate: number; // 0-1
+  averageSessionDuration: number; // seconds
+  screenPageViewsPerSession: number;
+}
+
+export async function getEngagementSummary(days = 28): Promise<EngagementSummary | null> {
+  try {
+    const data = await runReport({
+      dateRanges: [{ startDate: `${days}daysAgo`, endDate: "today" }],
+      metrics: [
+        { name: "activeUsers" },
+        { name: "sessions" },
+        { name: "engagementRate" },
+        { name: "averageSessionDuration" },
+        { name: "screenPageViewsPerSession" },
+      ],
+    });
+    const v = data.rows?.[0]?.metricValues;
+    if (!v) return null;
+    return {
+      activeUsers: Number(v[0]?.value ?? 0),
+      sessions: Number(v[1]?.value ?? 0),
+      engagementRate: Number(v[2]?.value ?? 0),
+      averageSessionDuration: Number(v[3]?.value ?? 0),
+      screenPageViewsPerSession: Number(v[4]?.value ?? 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export interface NewVsReturning {
+  segment: "new" | "returning" | string;
+  activeUsers: number;
+}
+
+export async function getNewVsReturning(days = 28): Promise<NewVsReturning[] | null> {
+  try {
+    const data = await runReport({
+      dateRanges: [{ startDate: `${days}daysAgo`, endDate: "today" }],
+      dimensions: [{ name: "newVsReturning" }],
+      metrics: [{ name: "activeUsers" }],
+    });
+    const rows = data.rows ?? [];
+    return rows
+      .map((r: any) => ({
+        segment: String(r.dimensionValues?.[0]?.value ?? "(sin datos)"),
+        activeUsers: Number(r.metricValues?.[0]?.value ?? 0),
+      }))
+      .filter((r: NewVsReturning) => r.segment !== "(not set)");
+  } catch {
+    return null;
+  }
+}
+
+export interface HourlyPattern {
+  hour: number; // 0-23, local to the GA4 property's configured time zone
+  views: number;
+}
+
+// Real time-of-day pattern from GA4, aggregated across the full date range -- has far more
+// signal than our own log's single day of history.
+export async function getHourlyPattern(days = 28): Promise<HourlyPattern[] | null> {
+  try {
+    const data = await runReport({
+      dateRanges: [{ startDate: `${days}daysAgo`, endDate: "today" }],
+      dimensions: [{ name: "hour" }],
+      metrics: [{ name: "screenPageViews" }],
+    });
+    const map = new Map<number, number>(
+      (data.rows ?? []).map((r: any) => [Number(r.dimensionValues?.[0]?.value ?? 0), Number(r.metricValues?.[0]?.value ?? 0)])
+    );
+    const out: HourlyPattern[] = [];
+    for (let h = 0; h < 24; h++) out.push({ hour: h, views: map.get(h) ?? 0 });
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+export interface Ga4CountryViews {
+  country: string;
+  activeUsers: number;
+}
+
+export async function getGa4CountryBreakdown(days = 28, limit = 10): Promise<Ga4CountryViews[] | null> {
+  try {
+    const data = await runReport({
+      dateRanges: [{ startDate: `${days}daysAgo`, endDate: "today" }],
+      dimensions: [{ name: "country" }],
+      metrics: [{ name: "activeUsers" }],
+      orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+      limit,
+    });
+    return (data.rows ?? []).map((r: any) => ({
+      country: String(r.dimensionValues?.[0]?.value ?? "(sin datos)"),
+      activeUsers: Number(r.metricValues?.[0]?.value ?? 0),
+    }));
+  } catch {
+    return null;
+  }
+}
+
+export interface Ga4DeviceViews {
+  device: string;
+  activeUsers: number;
+}
+
+export async function getGa4DeviceBreakdown(days = 28): Promise<Ga4DeviceViews[] | null> {
+  try {
+    const data = await runReport({
+      dateRanges: [{ startDate: `${days}daysAgo`, endDate: "today" }],
+      dimensions: [{ name: "deviceCategory" }],
+      metrics: [{ name: "activeUsers" }],
+      orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+    });
+    return (data.rows ?? []).map((r: any) => ({
+      device: String(r.dimensionValues?.[0]?.value ?? "(sin datos)"),
+      activeUsers: Number(r.metricValues?.[0]?.value ?? 0),
+    }));
+  } catch {
+    return null;
+  }
+}
+
 export async function runReport(body: Record<string, unknown>): Promise<any> {
   const token = await getAccessToken();
   const res = await fetch(

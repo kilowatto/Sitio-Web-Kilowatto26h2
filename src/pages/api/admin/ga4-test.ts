@@ -1,6 +1,15 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { runReport, getChannelBreakdown } from "../../../lib/ga4";
+import {
+  runReport,
+  getChannelBreakdown,
+  getEngagementSummary,
+  getDailyTrend,
+  getNewVsReturning,
+  getHourlyPattern,
+  getGa4CountryBreakdown,
+  getGa4DeviceBreakdown,
+} from "../../../lib/ga4";
 
 export const prerender = false;
 
@@ -13,14 +22,41 @@ export const GET: APIRoute = async ({ url }) => {
   }
   try {
     const which = url.searchParams.get("which");
-    const data =
-      which === "channel"
-        ? await getChannelBreakdown(30)
-        : await runReport({
-            dateRanges: [{ startDate: "7daysAgo", endDate: "today" }],
-            dimensions: [{ name: "country" }],
-            metrics: [{ name: "activeUsers" }],
-          });
+    let data: any;
+    if (which === "channel") {
+      data = await getChannelBreakdown(30);
+    } else if (which === "summary") {
+      data = await getEngagementSummary(28);
+    } else if (which === "trend") {
+      data = await getDailyTrend(7);
+    } else if (which === "newret") {
+      data = await getNewVsReturning(28);
+    } else if (which === "hourly") {
+      data = await getHourlyPattern(28);
+    } else if (which === "country") {
+      data = await getGa4CountryBreakdown(28, 8);
+    } else if (which === "device") {
+      data = await getGa4DeviceBreakdown(28);
+    } else if (which === "probe") {
+      data = await runReport({
+        dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+        dimensions: [{ name: "date" }, { name: "hour" }, { name: "newVsReturning" }, { name: "deviceCategory" }],
+        metrics: [
+          { name: "screenPageViews" },
+          { name: "sessions" },
+          { name: "engagementRate" },
+          { name: "averageSessionDuration" },
+          { name: "activeUsers" },
+        ],
+        limit: 5,
+      });
+    } else {
+      data = await runReport({
+        dateRanges: [{ startDate: "7daysAgo", endDate: "today" }],
+        dimensions: [{ name: "country" }],
+        metrics: [{ name: "activeUsers" }],
+      });
+    }
     return new Response(JSON.stringify(data, null, 2), {
       headers: { "Content-Type": "application/json" },
     });

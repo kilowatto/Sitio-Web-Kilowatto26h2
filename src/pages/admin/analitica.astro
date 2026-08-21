@@ -1,0 +1,327 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import AdminLogin from "../../components/AdminLogin.astro";
+import { env } from "cloudflare:workers";
+import { checkAdminAuth } from "../../lib/admin-auth";
+import {
+  getDailyTrend,
+  getEngagementSummary,
+  getNewVsReturning,
+  getHourlyPattern,
+  getGa4CountryBreakdown,
+  getGa4DeviceBreakdown,
+  getChannelBreakdown,
+} from "../../lib/ga4";
+import { getLast24h } from "../../lib/telemetry-query";
+
+export const prerender = false;
+
+const RANGE_DAYS = 28;
+
+const COUNTRY_ES: Record<string, { name: string; flag: string }> = {
+  "Mexico": { name: "México", flag: "🇲🇽" },
+  "United States": { name: "Estados Unidos", flag: "🇺🇸" },
+  "Spain": { name: "España", flag: "🇪🇸" },
+  "Argentina": { name: "Argentina", flag: "🇦🇷" },
+  "Colombia": { name: "Colombia", flag: "🇨🇴" },
+  "Chile": { name: "Chile", flag: "🇨🇱" },
+  "Peru": { name: "Perú", flag: "🇵🇪" },
+  "Brazil": { name: "Brasil", flag: "🇧🇷" },
+  "Canada": { name: "Canadá", flag: "🇨🇦" },
+  "United Kingdom": { name: "Reino Unido", flag: "🇬🇧" },
+  "Germany": { name: "Alemania", flag: "🇩🇪" },
+  "France": { name: "Francia", flag: "🇫🇷" },
+  "India": { name: "India", flag: "🇮🇳" },
+  "Singapore": { name: "Singapur", flag: "🇸🇬" },
+  "Netherlands": { name: "Países Bajos", flag: "🇳🇱" },
+  "China": { name: "China", flag: "🇨🇳" },
+  "Romania": { name: "Rumania", flag: "🇷🇴" },
+  "Hong Kong": { name: "Hong Kong", flag: "🇭🇰" },
+  "Jordan": { name: "Jordania", flag: "🇯🇴" },
+  "Nepal": { name: "Nepal", flag: "🇳🇵" },
+  "Poland": { name: "Polonia", flag: "🇵🇱" },
+  "Venezuela": { name: "Venezuela", flag: "🇻🇪" },
+  "Vietnam": { name: "Vietnam", flag: "🇻🇳" },
+  "(not set)": { name: "Desconocido", flag: "🏳️" },
+};
+const DEVICE_ES: Record<string, string> = { mobile: "Móvil", desktop: "Escritorio", tablet: "Tablet", smart_tv: "Smart TV" };
+const CHANNEL_ES: Record<string, string> = {
+  "Direct": "Directo", "Organic Search": "Búsqueda orgánica", "Referral": "Referencia",
+  "Organic Social": "Redes sociales (orgánico)", "Paid Social": "Redes sociales (pago)",
+  "Email": "Email", "Unassigned": "Sin asignar", "(sin datos)": "Sin datos suficientes",
+  "Cross-network": "Multicanal", "Organic Video": "Video (orgánico)",
+};
+
+const token = await checkAdminAuth(Astro, env);
+const authorized = !!token;
+
+let trend: Awaited<ReturnType<typeof getDailyTrend>> = null;
+let summary: Awaited<ReturnType<typeof getEngagementSummary>> = null;
+let newVsReturning: Awaited<ReturnType<typeof getNewVsReturning>> = null;
+let hourly: Awaited<ReturnType<typeof getHourlyPattern>> = null;
+let countries: Awaited<ReturnType<typeof getGa4CountryBreakdown>> = null;
+let devices: Awaited<ReturnType<typeof getGa4DeviceBreakdown>> = null;
+let channels: Awaited<ReturnType<typeof getChannelBreakdown>> = null;
+let live: Awaited<ReturnType<typeof getLast24h>> = null;
+
+if (authorized) {
+  [trend, summary, newVsReturning, hourly, countries, devices, channels, live] = await Promise.all([
+    getDailyTrend(RANGE_DAYS),
+    getEngagementSummary(RANGE_DAYS),
+    getNewVsReturning(RANGE_DAYS),
+    getHourlyPattern(RANGE_DAYS),
+    getGa4CountryBreakdown(RANGE_DAYS, 8),
+    getGa4DeviceBreakdown(RANGE_DAYS),
+    getChannelBreakdown(RANGE_DAYS),
+    getLast24h(),
+  ]);
+}
+
+function fmtDuration(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function bars<T extends { views?: number; sessions?: number; activeUsers?: number }>(rows: T[] | null) {
+  if (!rows || rows.length === 0) return [];
+  const max = Math.max(...rows.map((r) => r.views ?? r.sessions ?? r.activeUsers ?? 0));
+  return rows.map((r) => ({ ...r, pct: max > 0 ? Math.round(((r.views ?? r.sessions ?? r.activeUsers ?? 0) / max) * 100) : 0 }));
+}
+const countryBars = bars(countries);
+const deviceBars = bars(devices);
+const channelBars = bars(channels);
+
+const newReturnTotal = newVsReturning ? newVsReturning.reduce((s, r) => s + r.activeUsers, 0) : 0;
+const newCount = newVsReturning?.find((r) => r.segment === "new")?.activeUsers ?? 0;
+const returningCount = newVsReturning?.find((r) => r.segment === "returning")?.activeUsers ?? 0;
+const newPct = newReturnTotal > 0 ? Math.round((newCount / newReturnTotal) * 100) : 0;
+
+// SVG trend chart: line + filled area, viewBox 0-100 x 0-40 so it scales freely.
+const trendMax = trend && trend.length > 0 ? Math.max(...trend.map((d) => d.views), 1) : 1;
+const trendLinePoints =
+  trend && trend.length > 1
+    ? trend
+        .map((d, i) => {
+          const x = (i / (trend!.length - 1)) * 100;
+          const y = 40 - (d.views / trendMax) * 38;
+          return `${x.toFixed(2)},${y.toFixed(2)}`;
+        })
+        .join(" ")
+    : "";
+const trendAreaPoints = trendLinePoints ? `0,40 ${trendLinePoints} 100,40` : "";
+const trendTotal = trend ? trend.reduce((s, d) => s + d.views, 0) : 0;
+
+const hourlyMax = hourly ? Math.max(...hourly.map((h) => h.views), 1) : 1;
+---
+
+{
+  !authorized ? (
+    <AdminLogin />
+  ) : (
+    <AdminLayout title="Analítica — Admin" active="/admin/analitica">
+      <div class="an-page">
+        <h1>Analítica</h1>
+        <p class="lead">Motor de engagement real: Google Analytics 4 para historia y tendencias, nuestro propio log de Cloudflare para lo que pasa ahora mismo.</p>
+
+        {!summary && !trend ? (
+          <p class="empty-big">No se pudo consultar Google Analytics ahora mismo. Intenta de nuevo en unos minutos.</p>
+        ) : (
+          <>
+            <section class="kpi-row">
+              <div class="kpi"><div class="kpi-v">{summary ? summary.activeUsers.toLocaleString("es-MX") : "—"}</div><div class="kpi-l">Usuarios activos</div></div>
+              <div class="kpi"><div class="kpi-v">{summary ? summary.sessions.toLocaleString("es-MX") : "—"}</div><div class="kpi-l">Sesiones</div></div>
+              <div class="kpi"><div class="kpi-v">{summary ? Math.round(summary.engagementRate * 100) + "%" : "—"}</div><div class="kpi-l">Tasa de engagement</div></div>
+              <div class="kpi"><div class="kpi-v">{summary ? fmtDuration(summary.averageSessionDuration) : "—"}</div><div class="kpi-l">Duración media</div></div>
+              <div class="kpi"><div class="kpi-v">{summary ? summary.screenPageViewsPerSession.toFixed(1) : "—"}</div><div class="kpi-l">Vistas / sesión</div></div>
+            </section>
+            <p class="range-note">Últimos {RANGE_DAYS} días · Google Analytics 4</p>
+
+            <section class="card">
+              <div class="card-head"><h2>Tendencia de vistas</h2><span class="tag tag-ga">google analytics</span></div>
+              {!trend || trend.length === 0 ? (
+                <p class="empty">Aún no hay suficientes datos.</p>
+              ) : (
+                <>
+                  <svg viewBox="0 0 100 40" preserveAspectRatio="none" class="trend-svg">
+                    <polygon points={trendAreaPoints} class="trend-area" />
+                    <polyline points={trendLinePoints} class="trend-line" fill="none" />
+                  </svg>
+                  <div class="trend-foot">
+                    <span>{trend[0]?.day.slice(5)}</span>
+                    <span class="trend-total">{trendTotal.toLocaleString("es-MX")} vistas en {RANGE_DAYS} días</span>
+                    <span>{trend[trend.length - 1]?.day.slice(5)}</span>
+                  </div>
+                </>
+              )}
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>En vivo · últimas 24 horas</h2><span class="tag tag-cf">cloudflare, en tiempo real</span></div>
+              {live === null ? (
+                <p class="empty">No se pudo consultar Cloudflare Analytics ahora mismo.</p>
+              ) : (
+                <>
+                  <p class="live-total">{live.views.toLocaleString("es-MX")} <span>vistas registradas</span></p>
+                  {live.topCountries.length > 0 && (
+                    <p class="live-sub">
+                      {live.topCountries.map((c) => `${COUNTRY_ES[c.country]?.flag ?? ""} ${c.country}`.trim()).join(" · ")}
+                    </p>
+                  )}
+                  <p class="live-note">Google Analytics tarda hasta 48h en procesar un día completo — esto es lo que ya registramos directamente, sin esperar a GA4.</p>
+                </>
+              )}
+            </section>
+
+            <div class="grid-2">
+              <section class="card">
+                <div class="card-head"><h2>Nuevos vs. recurrentes</h2><span class="tag tag-ga">google analytics</span></div>
+                {!newVsReturning || newReturnTotal === 0 ? (
+                  <p class="empty">Aún no hay suficientes datos.</p>
+                ) : (
+                  <>
+                    <div class="split-bar">
+                      <div class="split-new" style={`width:${newPct}%`} />
+                    </div>
+                    <div class="split-legend">
+                      <span><i class="dot dot-new" /> Nuevos {newPct}% ({newCount.toLocaleString("es-MX")})</span>
+                      <span><i class="dot dot-return" /> Recurrentes {100 - newPct}% ({returningCount.toLocaleString("es-MX")})</span>
+                    </div>
+                  </>
+                )}
+              </section>
+
+              <section class="card">
+                <div class="card-head"><h2>Dispositivos</h2><span class="tag tag-ga">google analytics</span></div>
+                {deviceBars.length === 0 ? (
+                  <p class="empty">Aún no hay suficientes datos.</p>
+                ) : (
+                  <ul class="bars">
+                    {deviceBars.map((d) => (
+                      <li class="bar-row">
+                        <span class="bar-label">{DEVICE_ES[d.device] ?? d.device}</span>
+                        <div class="bar-track"><div class="bar-fill" style={`width:${d.pct}%`} /></div>
+                        <span class="bar-value">{d.activeUsers}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+
+            <section class="card">
+              <div class="card-head"><h2>Audiencia por país</h2><span class="tag tag-ga">google analytics</span></div>
+              <p class="card-note">Sin mapa cartográfico por ahora — un mapa mundial real requiere empaquetar un dataset geográfico grande; esta lista con banderas da la misma información de forma más legible en móvil. Si de verdad quieres el mapa visual, lo agregamos.</p>
+              {countryBars.length === 0 ? (
+                <p class="empty">Aún no hay suficientes datos.</p>
+              ) : (
+                <ul class="bars">
+                  {countryBars.map((c) => (
+                    <li class="bar-row">
+                      <span class="bar-label">{COUNTRY_ES[c.country]?.flag ?? "🏳️"} {COUNTRY_ES[c.country]?.name ?? c.country}</span>
+                      <div class="bar-track"><div class="bar-fill" style={`width:${c.pct}%`} /></div>
+                      <span class="bar-value">{c.activeUsers}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>Canales de adquisición</h2><span class="tag tag-ga">google analytics</span></div>
+              {channelBars.length === 0 ? (
+                <p class="empty">Aún no hay suficientes datos.</p>
+              ) : (
+                <ul class="bars">
+                  {channelBars.map((c) => (
+                    <li class="bar-row">
+                      <span class="bar-label">{CHANNEL_ES[c.channel] ?? c.channel}</span>
+                      <div class="bar-track"><div class="bar-fill bar-fill-orange" style={`width:${c.pct}%`} /></div>
+                      <span class="bar-value">{c.sessions}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>Actividad por hora del día</h2><span class="tag tag-ga">google analytics</span></div>
+              {!hourly || hourly.every((h) => h.views === 0) ? (
+                <p class="empty">Aún no hay suficientes datos.</p>
+              ) : (
+                <div class="heatmap">
+                  {hourly.map((h) => (
+                    <div class="heat-col" title={`${h.hour}:00 — ${h.views} vistas`}>
+                      <div class="heat-bar" style={`height:${Math.max(4, Math.round((h.views / hourlyMax) * 100))}%`} />
+                      {h.hour % 3 === 0 && <span class="heat-label">{h.hour}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p class="card-note">Hora local de la propiedad de Google Analytics (America/Mexico_City).</p>
+            </section>
+          </>
+        )}
+      </div>
+    </AdminLayout>
+  )
+}
+
+<style>
+  .an-page { max-width: 40rem; }
+  .an-page h1 { font-size: 1.4rem; margin: 0 0 0.2rem; }
+  .lead { font-size: 0.82rem; color: var(--admin-text-soft); margin: 0 0 1.25rem; line-height: 1.4; }
+  .empty-big { color: var(--admin-text-soft); font-size: 0.9rem; padding: 2rem 0; text-align: center; }
+  .empty { color: var(--admin-text-soft); font-size: 0.85rem; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; margin-bottom: 0.4rem; }
+  @media (min-width: 640px) { .kpi-row { grid-template-columns: repeat(5, 1fr); } }
+  .kpi { border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.8rem 0.7rem; background: var(--admin-surface); }
+  .kpi-v { font-size: 1.3rem; font-weight: 800; color: var(--admin-text); }
+  .kpi-l { font-size: 0.66rem; color: var(--admin-text-soft); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 0.15rem; }
+  .range-note { font-size: 0.68rem; color: var(--admin-text-soft); margin: 0 0 1.25rem; font-family: monospace; }
+
+  .card { border: 1px solid var(--admin-border); border-radius: 0.8rem; padding: 1rem; background: var(--admin-surface); margin-bottom: 1rem; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.75rem; }
+  .card-head h2 { font-size: 0.85rem; margin: 0; }
+  .card-note { font-size: 0.68rem; color: var(--admin-text-soft); margin: 0.6rem 0 0; line-height: 1.4; }
+  .tag {
+    font-family: monospace; font-size: 0.58rem; padding: 0.15rem 0.5rem; border-radius: 999px; font-weight: 700; white-space: nowrap;
+  }
+  .tag-ga { background: color-mix(in srgb, #e8710a 15%, transparent); color: #e8710a; }
+  .tag-cf { background: color-mix(in srgb, var(--rhino) 15%, transparent); color: var(--rhino); }
+
+  .trend-svg { width: 100%; height: 7rem; display: block; }
+  .trend-area { fill: color-mix(in srgb, var(--rhino) 16%, transparent); }
+  .trend-line { stroke: var(--rhino); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .trend-foot { display: flex; justify-content: space-between; align-items: center; font-size: 0.66rem; color: var(--admin-text-soft); font-family: monospace; margin-top: 0.4rem; }
+  .trend-total { color: var(--admin-text); font-weight: 700; }
+
+  .live-total { font-size: 1.6rem; font-weight: 800; margin: 0; }
+  .live-total span { font-size: 0.7rem; font-weight: 500; color: var(--admin-text-soft); text-transform: uppercase; }
+  .live-sub { font-size: 0.78rem; margin: 0.4rem 0 0; }
+  .live-note { font-size: 0.68rem; color: var(--admin-text-soft); margin: 0.5rem 0 0; line-height: 1.4; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+  @media (min-width: 640px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+
+  .split-bar { height: 0.9rem; border-radius: 999px; background: color-mix(in srgb, var(--rhino) 25%, var(--admin-surface-2)); overflow: hidden; }
+  .split-new { height: 100%; background: var(--rhino); }
+  .split-legend { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.74rem; margin-top: 0.6rem; }
+  .dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 999px; margin-right: 0.35rem; }
+  .dot-new { background: var(--rhino); }
+  .dot-return { background: color-mix(in srgb, var(--rhino) 25%, var(--admin-surface-2)); }
+
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+  .bar-row { display: grid; grid-template-columns: 8.5rem 1fr 2.4rem; align-items: center; gap: 0.6rem; }
+  .bar-label { font-size: 0.76rem; color: var(--admin-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { height: 0.55rem; border-radius: 999px; background: var(--admin-surface-2); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; background: var(--rhino); min-width: 2px; }
+  .bar-fill-orange { background: #e8710a; }
+  .bar-value { font-family: monospace; font-size: 0.7rem; color: var(--admin-text-soft); text-align: right; }
+
+  .heatmap { display: flex; align-items: flex-end; gap: 2px; height: 5rem; }
+  .heat-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; position: relative; }
+  .heat-bar { width: 100%; background: var(--rhino); border-radius: 2px 2px 0 0; min-height: 2px; }
+  .heat-label { position: absolute; bottom: -1.1rem; font-size: 0.55rem; color: var(--admin-text-soft); font-family: monospace; }
+</style>
