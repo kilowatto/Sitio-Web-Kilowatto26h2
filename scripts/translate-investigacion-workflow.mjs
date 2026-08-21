@@ -13,13 +13,24 @@ import astroHandler from "./entry.mjs";
 
 const NON_CANONICAL_LOCALES = ["es-AR", "es-CO", "es-ES", "es-419", "en", "pt-BR", "fr", "de", "ar", "zh-Hans", "ja"];
 
+// Astro's Cloudflare adapter does `context.waitUntil.bind(context)` unconditionally on every
+// request (see dist/server/entry.mjs) -- a Workflow step has no real ExecutionContext, so this
+// stub just needs a callable `waitUntil`/`passThroughOnException` to exist. Nothing in this
+// translate route path actually defers work through it (middleware.ts's own waitUntil'd page-
+// view logging only fires for text/html responses, and this route returns JSON), so a no-op is
+// enough -- confirmed live 2026-08-21: passing a bare `{}` here threw
+// "Cannot read properties of undefined (reading 'bind')" on every single step.
+function fakeExecutionContext() {
+  return { waitUntil() {}, passThroughOnException() {} };
+}
+
 function callSelf(path, body, env) {
   const req = new Request("https://kilowatto.com" + path, {
     method: "POST",
     headers: { origin: "https://kilowatto.com", "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  return astroHandler.fetch(req, env, {}).then(async (r) => {
+  return astroHandler.fetch(req, env, fakeExecutionContext()).then(async (r) => {
     const text = await r.text();
     if (!r.ok) throw new Error(`translate call failed (${r.status}): ${text.slice(0, 300)}`);
     return text;
