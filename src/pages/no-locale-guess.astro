@@ -1,0 +1,69 @@
+---
+import Site from "../layouts/Site.astro";
+
+// Reached via a rewrite from [locale]/index.astro when the invalid "locale" segment looks
+// like a 2-letter ISO code (see LOCALE_GUESS_RE in src/lib/bot-scan.ts) -- bots enumerating
+// language codes this site doesn't serve (/pl/, /th/, a bare /es/), which used to flood
+// broken_links as fake dead links. Real 200, not a tracked 404.
+Astro.response.status = 200;
+
+const guess = (Astro.originPathname ?? Astro.url.pathname).replace(/\//g, "").toUpperCase();
+---
+
+<Site title={`Aquí no hay "${guess}" — Kilowatto`} active="">
+  <section class="page-head">
+    <div class="container not-found">
+      <img
+        src="/larry/larry-no.webp"
+        alt="Larry, un rinoceronte antropomórfico, levantando el dedo en señal de alto/no"
+        class="not-found-image"
+        width="300"
+        height="164"
+      />
+      <p class="eyebrow">Nada que ver aquí</p>
+      <h1>¿"{guess}"? Aquí no hay.</h1>
+      <p class="not-found-message">
+        Ese idioma no lo tenemos. Este sitio sí habla español, inglés, francés, alemán,
+        árabe, chino, japonés y portugués — pero "{guess}" no es ninguno de esos.
+      </p>
+      <nav class="not-found-links" aria-label="Secciones populares">
+        <a href="/">Ir al inicio</a>
+      </nav>
+    </div>
+  </section>
+</Site>
+
+<style>
+  .not-found {
+    text-align: center;
+    padding-block: var(--space-4) var(--space-5);
+    max-width: 34rem;
+  }
+  .not-found-image {
+    width: 14rem;
+    max-width: 70vw;
+    margin: 0 auto var(--space-3);
+    border-radius: 1rem;
+  }
+  .not-found h1 {
+    font-family: var(--font-display);
+    font-size: clamp(1.8rem, 6vw, 2.6rem);
+    margin: 0.2em 0;
+  }
+  .not-found-message {
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+    margin-bottom: var(--space-3);
+  }
+  .not-found-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1rem;
+  }
+  .not-found-links a {
+    color: var(--ember);
+    font-weight: 600;
+    text-decoration: none;
+  }
+</style>

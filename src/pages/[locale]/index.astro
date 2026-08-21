@@ -7,7 +7,7 @@ import { env } from "cloudflare:workers";
 import { localeFromParam } from "../../lib/locales";
 import { loadTranslations, t } from "../../lib/i18n";
 import { projectsLabels } from "../../lib/nav-labels";
-import { BOT_SCAN_RE } from "../../lib/bot-scan";
+import { BOT_SCAN_RE, LOCALE_GUESS_RE } from "../../lib/bot-scan";
 
 const locale = localeFromParam(Astro.params.locale);
 // A single unmatched path segment (a broken link, a typo, anything) structurally matches
@@ -18,11 +18,16 @@ const locale = localeFromParam(Astro.params.locale);
 // redirect — anything else is a real 404. A single-segment WordPress/vuln-scanner probe
 // (/wp-login.php, /.env, ...) ALSO structurally matches this route (before it ever reaches
 // [...slug].astro, which only sees paths this route doesn't claim) — same bot-scan check
-// as there, see src/lib/bot-scan.ts.
+// as there, see src/lib/bot-scan.ts. Same for a 2-letter locale GUESS this site doesn't
+// serve (/pl/, /th/, a bare /es/) — a different joke page than the WordPress one.
 if (!locale) {
   if (BOT_SCAN_RE.test(Astro.url.pathname)) {
     Astro.response.status = 200;
     return Astro.rewrite("/no-wordpress");
+  }
+  if (LOCALE_GUESS_RE.test(Astro.params.locale ?? "")) {
+    Astro.response.status = 200;
+    return Astro.rewrite("/no-locale-guess");
   }
   Astro.response.status = 404;
   return Astro.rewrite("/404");
