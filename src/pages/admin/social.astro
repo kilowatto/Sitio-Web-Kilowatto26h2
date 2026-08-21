@@ -560,6 +560,20 @@ function formatCountdown(expiresAt: string | null): string | null {
 
     document.querySelectorAll("[data-hashtag-editor]").forEach(initChipEditor);
 
+    // Auto-grow every content textarea to fit its full text on load and on edit --
+    // the fixed 7rem min-height was hiding the trailing "sigo leyendo -> URL" line
+    // below the fold on longer posts (confirmed live 2026-08-21 on investigacion_highlight
+    // posts: the link was always in the data, just invisible without manually dragging
+    // the resize handle, which read to Esteban as "there's no link at all").
+    function autoGrow(el) {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight + 2}px`;
+    }
+    document.querySelectorAll(".content-box").forEach((el) => {
+      autoGrow(el);
+      el.addEventListener("input", () => autoGrow(el));
+    });
+
     document.getElementById("idea-submit")?.addEventListener("click", async (e) => {
       const btn = e.currentTarget;
       const status = document.getElementById("idea-status");
