@@ -1,8 +1,32 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { buildVoiceContext, voicePromptBlock } from "../../../../lib/brand-voice";
+import { proposeImage, type ImageStyle } from "../../../../lib/brand-image";
 
 export const prerender = false;
+
+// Esteban (2026-08-21, after seeing the first test batch land with no images at
+// all -- it reused a cover_r2_key that didn't exist): every post needs its OWN
+// distinct image, and the batch must always mix infographic/illustration/photo
+// styles, never all one style. "real_photo" is deliberately excluded from the
+// default rotation -- it only matches Esteban's own approved photo gallery by
+// keyword, which real-world investigación topics (VPNs, arquitectura de
+// software, etc.) essentially never hit, and proposeImage() has no AI fallback
+// for that style, so including it here would silently produce null images.
+const DEFAULT_STYLE_ROTATION: ImageStyle[] = ["infographic", "illustration", "photorealistic"];
+
+async function withConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
 
 // Same model already used for every other brand_posts generation path (see
 // api/brand/generate.ts) -- keep it consistent rather than picking a second one.
@@ -64,7 +88,7 @@ Responde SOLO un JSON:
   return posts.filter((p) => !!p?.content);
 }
 
-export async function runGeneratePosts(investigacionId: number, count = 30) {
+export async function runGeneratePosts(investigacionId: number, count = 30, styleOverride?: ImageStyle[]) {
   const investigacion = await env.DB.prepare("SELECT * FROM investigaciones WHERE id = ? AND status = 'published'")
     .bind(investigacionId)
     .first<any>();
@@ -96,6 +120,17 @@ export async function runGeneratePosts(investigacionId: number, count = 30) {
   if (allPosts.length === 0) return { error: "generation failed, no posts produced" };
 
   const readMoreUrl = `https://kilowatto.com/a-fondo/${investigacion.slug}`;
+
+  // One distinct image per post -- never a shared cover -- always mixing styles
+  // per Esteban's 2026-08-21 call. A concurrency cap of 4 keeps a 30-post batch's
+  // wall time reasonable (sequential Gemini/SDXL calls would take several
+  // minutes) without hammering the image APIs harder than proposeImage's own
+  // single-topic usage elsewhere ever does.
+  const images = await withConcurrency(allPosts, 4, (p, i) => {
+    const style = styleOverride?.[i % styleOverride.length] ?? DEFAULT_STYLE_ROTATION[i % DEFAULT_STYLE_ROTATION.length];
+    return proposeImage(investigacion.title, p.content, undefined, style);
+  });
+
   // Spread across ~35 days starting 12h from now, one slot per post in generation
   // order (X and LinkedIn interleaved by index so the two networks don't cluster) --
   // real Date/Math usage is fine here, this runs in the Workers runtime, not inside
@@ -115,12 +150,12 @@ export async function runGeneratePosts(investigacionId: number, count = 30) {
       `INSERT INTO brand_posts (platform, kind, investigacion_id, language, content, status, hashtags, source_url, image_r2_key, scheduled_for)
        VALUES (?, 'investigacion_highlight', ?, 'es', ?, 'pending_approval', ?, ?, ?, ?)`
     )
-      .bind(p.platform, investigacionId, content, (p.hashtags ?? []).join(" ") || null, readMoreUrl, investigacion.cover_r2_key ?? null, scheduledFor)
+      .bind(p.platform, investigacionId, content, (p.hashtags ?? []).join(" ") || null, readMoreUrl, images[i] ?? null, scheduledFor)
       .run();
-    inserted.push({ id: res.meta.last_row_id, platform: p.platform, scheduledFor });
+    inserted.push({ id: res.meta.last_row_id, platform: p.platform, scheduledFor, hasImage: !!images[i] });
   }
 
-  return { ok: true, investigacion: investigacion.title, count: inserted.length, inserted };
+  return { ok: true, investigacion: investigacion.title, count: inserted.length, withImage: inserted.filter((x) => x.hasImage).length, inserted };
 }
 
 export const POST: APIRoute = async ({ params, request }) => {
@@ -131,8 +166,10 @@ export const POST: APIRoute = async ({ params, request }) => {
   }
 
   const id = Number(params.id);
-  const body = await request.json<{ count?: number }>().catch(() => ({}) as any);
-  const result = await runGeneratePosts(id, body?.count && body.count > 0 ? body.count : 30);
+  const body = await request.json<{ count?: number; styles?: ImageStyle[] }>().catch(() => ({}) as any);
+  const validStyles: ImageStyle[] = ["illustration", "infographic", "real_photo", "photorealistic"];
+  const styles = Array.isArray(body?.styles) && body.styles.every((s) => validStyles.includes(s)) ? body.styles : undefined;
+  const result = await runGeneratePosts(id, body?.count && body.count > 0 ? body.count : 30, styles);
   const status = "error" in result ? 400 : 200;
   return new Response(JSON.stringify(result), { status, headers: { "content-type": "application/json" } });
 };
