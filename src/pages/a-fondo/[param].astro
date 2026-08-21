@@ -350,6 +350,7 @@ const articleJsonLd = investigacion
     margin-top: var(--space-4);
     font-family: var(--font-display);
     scroll-margin-top: 5.5rem;
+    clear: both;
   }
   .ia-article :global(p) {
     margin-top: var(--space-2);
@@ -360,6 +361,35 @@ const articleJsonLd = investigacion
        a last resort costs nothing on normal prose (it only kicks in when a
        single unbreakable run is actually too wide). */
     overflow-wrap: anywhere;
+  }
+  /* Body-content images inserted roughly every 500 words (generate-body-images.ts) --
+     alternating float so the article reads like an edited magazine piece, not a wall of
+     text with a picture dropped in. Floats only make sense once there's real column width
+     to wrap around, so they collapse to full-width blocks below that. */
+  .ia-article :global(.ia-inline-img) {
+    margin: 0.3rem 0 1.2rem;
+    max-width: 45%;
+  }
+  .ia-article :global(.ia-inline-img--left) {
+    float: left;
+    margin-inline-end: 1.5rem;
+  }
+  .ia-article :global(.ia-inline-img--right) {
+    float: right;
+    margin-inline-start: 1.5rem;
+  }
+  .ia-article :global(.ia-inline-img img) {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+  }
+  @media (max-width: 640px) {
+    .ia-article :global(.ia-inline-img) {
+      float: none;
+      max-width: 100%;
+      margin-inline: 0;
+    }
   }
   .ia-article :global(a.cite) {
     text-decoration: none;
