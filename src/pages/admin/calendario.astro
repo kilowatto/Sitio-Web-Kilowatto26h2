@@ -9,13 +9,23 @@ export const prerender = false;
 const token = await checkAdminAuth(Astro, env);
 const authorized = !!token;
 
-let events: { date: string; time: string; platform: string; kind: string; content: string }[] = [];
+const STYLE_LABEL: Record<string, string> = {
+  infographic: "Infografía",
+  illustration: "Ilustración",
+  photorealistic: "Foto (IA)",
+  real_photo: "Foto",
+};
+
+let events: {
+  id: number; date: string; time: string; platform: string; kind: string; content: string;
+  imageKey: string | null; imageStyle: string | null;
+}[] = [];
 let unscheduledCount = 0;
 
 if (authorized && env?.DB) {
   const [res, backlogRes] = await Promise.all([
     env.DB.prepare(
-      `SELECT scheduled_for, platform, kind, content
+      `SELECT id, scheduled_for, platform, kind, content, image_r2_key, image_style
        FROM brand_posts
        WHERE status = 'approved' AND scheduled_for > datetime('now')
        ORDER BY scheduled_for ASC
@@ -27,7 +37,10 @@ if (authorized && env?.DB) {
   ]);
   events = (res.results ?? []).map((r: any) => {
     const [date, time] = String(r.scheduled_for).split(" ");
-    return { date, time: (time ?? "00:00:00").slice(0, 5), platform: r.platform, kind: r.kind, content: r.content ?? "" };
+    return {
+      id: r.id, date, time: (time ?? "00:00:00").slice(0, 5), platform: r.platform, kind: r.kind, content: r.content ?? "",
+      imageKey: r.image_r2_key ?? null, imageStyle: r.image_style ?? null,
+    };
   });
   unscheduledCount = backlogRes?.n ?? 0;
 }
@@ -71,6 +84,18 @@ for (const e of events) {
       <script>
         const DOW = ["L", "M", "X", "J", "V", "S", "D"];
         const eventsByDate = JSON.parse(document.getElementById("cal-events")?.textContent || "{}");
+        const KIND_LABEL: Record<string, string> = {
+          news_reshare: "Reacción a noticia",
+          idea: "Idea propia",
+          news_reaction: "Reacción a noticia",
+          investigacion_highlight: "Destacado de investigación",
+        };
+        const STYLE_LABEL: Record<string, string> = {
+          infographic: "Infografía",
+          illustration: "Ilustración",
+          photorealistic: "Foto (IA)",
+          real_photo: "Foto",
+        };
 
         function pad(n: number) {
           return n < 10 ? "0" + n : "" + n;
@@ -127,11 +152,20 @@ for (const e of events) {
             listHtml = '<div class="empty-day">Sin publicaciones programadas este día.</div>';
           } else {
             for (const e of dayEvents) {
+              const mediaBadge = e.imageKey
+                ? `<span class="media-badge has-media">🖼️ ${STYLE_LABEL[e.imageStyle] ?? "Imagen"}</span>`
+                : `<span class="media-badge no-media">Solo texto</span>`;
+              const thumb = e.imageKey ? `<img class="event-thumb" src="/media/${e.imageKey}?w=160" alt="" loading="lazy" />` : "";
               listHtml += `<div class="event-card">
-                <span class="event-time">${e.time}</span>
-                <div>
-                  <div class="event-title">${e.kind}</div>
-                  <div class="event-sub">${e.platform.toUpperCase()} · ${escapeHtml(e.content.slice(0, 70))}${e.content.length > 70 ? "…" : ""}</div>
+                ${thumb}
+                <div class="event-body">
+                  <div class="event-head">
+                    <span class="platform-badge platform-${e.platform}">${e.platform === "x" ? "𝕏" : "in"}</span>
+                    <span class="event-time">${e.time}</span>
+                    <span class="event-kind">${KIND_LABEL[e.kind] ?? e.kind}</span>
+                    ${mediaBadge}
+                  </div>
+                  <div class="event-content">${escapeHtml(e.content)}</div>
                 </div>
               </div>`;
             }
@@ -287,11 +321,26 @@ for (const e of events) {
     .day-pill .num { font-size: 1.3rem; }
   }
 
-  .event-card { border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.75rem 0.9rem; background: var(--admin-surface); margin-bottom: 0.5rem; display: flex; gap: 0.6rem; align-items: flex-start; }
-  @media (min-width: 640px) { .event-card { padding: 1rem 1.1rem; } .event-title { font-size: 0.95rem; } .event-sub { font-size: 0.72rem; } }
-  .event-time { font-family: monospace; font-size: 0.78rem; color: var(--rhino); flex: 0 0 3.2rem; }
-  .event-title { font-size: 0.85rem; font-weight: 600; }
-  .event-sub { font-family: monospace; font-size: 0.66rem; color: var(--admin-text-soft); margin-top: 0.15rem; }
+  .event-card { border: 1px solid var(--admin-border); border-radius: 0.8rem; padding: 0.9rem; background: var(--admin-surface); margin-bottom: 0.7rem; display: flex; gap: 0.8rem; align-items: flex-start; }
+  @media (min-width: 640px) { .event-card { padding: 1.1rem 1.2rem; } }
+  .event-thumb { width: 4.5rem; height: 4.5rem; border-radius: 0.6rem; object-fit: cover; flex-shrink: 0; background: var(--admin-surface-2); }
+  .event-body { min-width: 0; flex: 1; }
+  .event-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem; }
+  .platform-badge {
+    font-weight: 800; font-size: 0.72rem; width: 1.4rem; height: 1.4rem; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center; color: #fff;
+  }
+  .platform-x { background: #000; }
+  .platform-linkedin { background: #0a66c2; }
+  .event-time { font-family: monospace; font-size: 0.75rem; color: var(--rhino); font-weight: 700; }
+  .event-kind { font-size: 0.72rem; color: var(--admin-text-soft); }
+  .media-badge {
+    font-size: 0.62rem; font-family: monospace; padding: 0.1rem 0.45rem; border-radius: 999px; margin-left: auto;
+  }
+  .media-badge.has-media { background: color-mix(in srgb, var(--rhino) 15%, transparent); color: var(--rhino); }
+  .media-badge.no-media { background: var(--admin-surface-2); color: var(--admin-text-soft); }
+  .event-content { font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  @media (min-width: 640px) { .event-content { font-size: 0.92rem; } .event-thumb { width: 5.5rem; height: 5.5rem; } }
   .empty-day { border: 1px dashed var(--admin-border); border-radius: 0.7rem; padding: 1.1rem; text-align: center; color: var(--admin-text-soft); font-size: 0.85rem; }
 
   .month-title { font-family: monospace; font-size: 0.72rem; color: var(--admin-text-soft); margin: 0 0 0.6rem; text-transform: uppercase; letter-spacing: 0.04em; }

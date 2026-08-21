@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { recordFeedback } from "../../../../lib/brand-learning";
 import { recordCleanApproval, recordTrustReset } from "../../../../lib/news-reaction-trust";
+import { assignSmartSchedule } from "../../../../lib/post-scheduler";
 
 export const prerender = false;
 
@@ -14,22 +15,28 @@ export const POST: APIRoute = async ({ params, request }) => {
   const id = params.id;
   const body = await request.json<{ content?: string; hashtags?: string }>().catch(() => ({}) as any);
 
-  const current = await env.DB.prepare("SELECT content, original_content, topic_id, platform, kind FROM brand_posts WHERE id = ?")
+  const current = await env.DB.prepare("SELECT content, original_content, topic_id, platform, kind, scheduled_for FROM brand_posts WHERE id = ?")
     .bind(id)
     .first<any>();
   if (!current) return new Response("not found", { status: 404 });
 
   const wasEdited = !!body?.content && body.content !== current.content;
 
+  // Every approval gets a real scheduled_for, picked from whichever day-of-week/hour has
+  // historically performed best for this platform (falls back to sane defaults until
+  // there's enough posted history to trust) -- previously NULL meant "post whenever the
+  // next cron tick has room," a blind FIFO queue with no regard for timing.
+  const scheduledFor = current.scheduled_for ?? (await assignSmartSchedule(current.platform));
+
   if (wasEdited) {
     await env.DB.prepare(
-      `UPDATE brand_posts SET original_content = ?, content = ?, hashtags = ?, status = 'approved', approved_at = datetime('now') WHERE id = ?`
+      `UPDATE brand_posts SET original_content = ?, content = ?, hashtags = ?, status = 'approved', approved_at = datetime('now'), scheduled_for = ? WHERE id = ?`
     )
-      .bind(current.original_content ?? current.content, body.content, body.hashtags ?? null, id)
+      .bind(current.original_content ?? current.content, body.content, body.hashtags ?? null, scheduledFor, id)
       .run();
   } else {
-    await env.DB.prepare(`UPDATE brand_posts SET hashtags = ?, status = 'approved', approved_at = datetime('now') WHERE id = ?`)
-      .bind(body.hashtags ?? null, id)
+    await env.DB.prepare(`UPDATE brand_posts SET hashtags = ?, status = 'approved', approved_at = datetime('now'), scheduled_for = ? WHERE id = ?`)
+      .bind(body.hashtags ?? null, scheduledFor, id)
       .run();
   }
 

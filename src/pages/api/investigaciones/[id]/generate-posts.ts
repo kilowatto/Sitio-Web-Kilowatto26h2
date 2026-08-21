@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { buildVoiceContext, voicePromptBlock } from "../../../../lib/brand-voice";
 import { proposeImage, type ImageStyle } from "../../../../lib/brand-image";
+import { assignSmartSchedule } from "../../../../lib/post-scheduler";
 
 export const prerender = false;
 
@@ -126,31 +127,26 @@ export async function runGeneratePosts(investigacionId: number, count = 30, styl
   // wall time reasonable (sequential Gemini/SDXL calls would take several
   // minutes) without hammering the image APIs harder than proposeImage's own
   // single-topic usage elsewhere ever does.
-  const images = await withConcurrency(allPosts, 4, (p, i) => {
-    const style = styleOverride?.[i % styleOverride.length] ?? DEFAULT_STYLE_ROTATION[i % DEFAULT_STYLE_ROTATION.length];
-    return proposeImage(investigacion.title, p.content, undefined, style);
-  });
+  const stylesUsed = allPosts.map((_, i) => styleOverride?.[i % styleOverride.length] ?? DEFAULT_STYLE_ROTATION[i % DEFAULT_STYLE_ROTATION.length]);
+  const images = await withConcurrency(allPosts, 4, (p, i) => proposeImage(investigacion.title, p.content, undefined, stylesUsed[i]));
 
-  // Spread across ~35 days starting 12h from now, one slot per post in generation
-  // order (X and LinkedIn interleaved by index so the two networks don't cluster) --
-  // real Date/Math usage is fine here, this runs in the Workers runtime, not inside
-  // a Workflow script sandbox.
-  const startMs = Date.now() + 12 * 60 * 60 * 1000;
-  const spreadMs = 35 * 24 * 60 * 60 * 1000;
-  const stepMs = allPosts.length > 1 ? spreadMs / (allPosts.length - 1) : 0;
-
+  // One slot per post via the same learned scheduler used for manual approvals --
+  // this naturally spreads posts across future days (it never double-books past each
+  // platform's daily cap) and keeps every hour within real business hours, tuning
+  // itself the same way as the rest of the pipeline instead of a separate hand-rolled
+  // random-jitter spread.
+  const reserved = new Map<string, number>();
   const inserted: any[] = [];
   for (let i = 0; i < allPosts.length; i++) {
     const p = allPosts[i];
-    const jitterMs = (Math.random() - 0.5) * stepMs * 0.4; // avoid a perfectly robotic cadence
-    const scheduledFor = new Date(startMs + stepMs * i + jitterMs).toISOString().slice(0, 19).replace("T", " ");
+    const scheduledFor = await assignSmartSchedule(p.platform, reserved);
     const content = p.platform === "x" ? `${p.content}\n\nSigo leyendo → ${readMoreUrl}` : `${p.content}\n\nLa investigación completa, con fuentes y gráficas: ${readMoreUrl}`;
 
     const res = await env.DB.prepare(
-      `INSERT INTO brand_posts (platform, kind, investigacion_id, language, content, status, hashtags, source_url, image_r2_key, scheduled_for)
-       VALUES (?, 'investigacion_highlight', ?, 'es', ?, 'pending_approval', ?, ?, ?, ?)`
+      `INSERT INTO brand_posts (platform, kind, investigacion_id, language, content, status, hashtags, source_url, image_r2_key, image_style, scheduled_for)
+       VALUES (?, 'investigacion_highlight', ?, 'es', ?, 'pending_approval', ?, ?, ?, ?, ?)`
     )
-      .bind(p.platform, investigacionId, content, (p.hashtags ?? []).join(" ") || null, readMoreUrl, images[i] ?? null, scheduledFor)
+      .bind(p.platform, investigacionId, content, (p.hashtags ?? []).join(" ") || null, readMoreUrl, images[i] ?? null, images[i] ? stylesUsed[i] : null, scheduledFor)
       .run();
     inserted.push({ id: res.meta.last_row_id, platform: p.platform, scheduledFor, hasImage: !!images[i] });
   }
