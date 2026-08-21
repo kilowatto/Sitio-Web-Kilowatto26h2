@@ -646,96 +646,116 @@ const SALMON_CAPTION =
   <section class="chapter">
     <div class="container">
       <p class="eyebrow">Marquesitas tabasqueñas</p>
-      <img
-        src="/comida/marquesita.webp"
-        alt="Marquesitas recién hechas en un puesto callejero"
-        loading="eager"
-        width="900"
-        height="1600"
-        class="hero-photo"
-      />
-      {MARQUESITA_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
-      <ul class="facts-list">
-        {MARQUESITA_FACTS.map(([f]) => <li>{f}</li>)}
-      </ul>
+      <div class="chapter-grid">
+        <div class="chapter-media">
+          <img
+            src="/comida/marquesita.webp"
+            alt="Marquesitas recién hechas en un puesto callejero"
+            loading="eager"
+            width="900"
+            height="1600"
+          />
+        </div>
+        <div class="chapter-text">
+          {MARQUESITA_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <ul class="facts-list">
+            {MARQUESITA_FACTS.map(([f]) => <li>{f}</li>)}
+          </ul>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="chapter">
     <div class="container">
       <p class="eyebrow">Chile amashito</p>
-      <img
-        src="/comida/chile-amashito.webp"
-        alt="Chile amashito y cebolla morada picados finamente en un tazón"
-        loading="lazy"
-        width="900"
-        height="1200"
-        class="hero-photo"
-      />
-      {AMASHITO_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
-      <figure class="amashito-mata">
-        <img
-          src="/comida/chile-amashito-mata.webp"
-          alt="Chile amashito todavía verde, creciendo silvestre en su propia mata"
-          loading="lazy"
-          width="1400"
-          height="1867"
-        />
-        <figcaption>El amashito en su mata, todavía verde — así es como se ve antes de llegar a la mesa.</figcaption>
-      </figure>
-      <ul class="facts-list">
-        {AMASHITO_FACTS.map((f) => <li>{f}</li>)}
-      </ul>
-      <h3 class="recipe-heading">Cómo se prepara</h3>
-      <ol class="facts-list recipe-steps">
-        {AMASHITO_STEPS.map((s) => <li>{s}</li>)}
-      </ol>
+      <div class="chapter-grid">
+        <div class="chapter-media">
+          <img
+            src="/comida/chile-amashito.webp"
+            alt="Chile amashito y cebolla morada picados finamente en un tazón"
+            loading="lazy"
+            width="900"
+            height="1200"
+          />
+          <figure class="secondary-figure">
+            <img
+              src="/comida/chile-amashito-mata.webp"
+              alt="Chile amashito todavía verde, creciendo silvestre en su propia mata"
+              loading="lazy"
+              width="1400"
+              height="1867"
+            />
+            <figcaption>El amashito en su mata, todavía verde — así es como se ve antes de llegar a la mesa.</figcaption>
+          </figure>
+        </div>
+        <div class="chapter-text">
+          {AMASHITO_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <ul class="facts-list">
+            {AMASHITO_FACTS.map((f) => <li>{f}</li>)}
+          </ul>
+          <h3 class="recipe-heading">Cómo se prepara</h3>
+          <ol class="facts-list recipe-steps">
+            {AMASHITO_STEPS.map((s) => <li>{s}</li>)}
+          </ol>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="chapter">
     <div class="container">
       <p class="eyebrow">Tacos al pastor (o de trompo)</p>
-      <img
-        src="/comida/tacos-al-pastor.webp"
-        alt="Tacos al pastor recién servidos con una rodaja de limón, en un puesto de la Ciudad de México"
-        loading="lazy"
-        width="900"
-        height="1008"
-        class="hero-photo"
-      />
-      {PASTOR_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
-      <ul class="facts-list">
-        {PASTOR_FACTS.map((f) => <li>{f}</li>)}
-      </ul>
+      <div class="chapter-grid">
+        <div class="chapter-media">
+          <img
+            src="/comida/tacos-al-pastor.webp"
+            alt="Tacos al pastor recién servidos con una rodaja de limón, en un puesto de la Ciudad de México"
+            loading="lazy"
+            width="900"
+            height="1008"
+          />
+        </div>
+        <div class="chapter-text">
+          {PASTOR_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <ul class="facts-list">
+            {PASTOR_FACTS.map((f) => <li>{f}</li>)}
+          </ul>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="chapter">
     <div class="container">
       <p class="eyebrow">Arroz a la paella</p>
-      <img
-        src="/comida/paella-marinera.webp"
-        alt="Paella marinera recién sacada del papel aluminio, con camarón, mejillón, almeja y chorizo sobre arroz amarillo"
-        loading="lazy"
-        width="1600"
-        height="1200"
-        class="hero-photo"
-      />
-      {PAELLA_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
-      <figure class="paella-detalle">
-        <img
-          src="/comida/paella-marinera-detalle.webp"
-          alt="Sirviendo arroz a la paella marinera con una cuchara, con almejas, mejillones, camarón y chorizo alrededor"
-          loading="lazy"
-          width="1600"
-          height="1200"
-        />
-        <figcaption>Serviéndose directo del sartén — así se come, sin ceremonia.</figcaption>
-      </figure>
-      <ul class="facts-list">
-        {PAELLA_FACTS.map((f) => <li>{f}</li>)}
-      </ul>
+      <div class="chapter-grid">
+        <div class="chapter-media">
+          <img
+            src="/comida/paella-marinera.webp"
+            alt="Paella marinera recién sacada del papel aluminio, con camarón, mejillón, almeja y chorizo sobre arroz amarillo"
+            loading="lazy"
+            width="1600"
+            height="1200"
+          />
+          <figure class="secondary-figure">
+            <img
+              src="/comida/paella-marinera-detalle.webp"
+              alt="Sirviendo arroz a la paella marinera con una cuchara, con almejas, mejillones, camarón y chorizo alrededor"
+              loading="lazy"
+              width="1600"
+              height="1271"
+            />
+            <figcaption>Serviéndose directo del sartén — así se come, sin ceremonia.</figcaption>
+          </figure>
+        </div>
+        <div class="chapter-text">
+          {PAELLA_INTRO.map((p) => <p class="hero__sub">{p}</p>)}
+          <ul class="facts-list">
+            {PAELLA_FACTS.map((f) => <li>{f}</li>)}
+          </ul>
+        </div>
+      </div>
       <h3 class="recipe-heading">Once tipos de arroz a la paella</h3>
       <div class="paella-grid">
         {PAELLA_TYPES.map((t) => (
@@ -774,16 +794,21 @@ const SALMON_CAPTION =
     <div class="container">
       <p class="eyebrow">Mi favorito de todos</p>
       <h2>Nigiri de salmón con wasabi</h2>
-      {CLOSING.map((p) => <p class="hero__sub">{p}</p>)}
-      <img
-        src="/comida/salmon-favorito.webp"
-        alt="Dos platos de salmón: uno con caviar negro, otro estilo aguachile con jalapeño relleno"
-        loading="lazy"
-        width="720"
-        height="1600"
-        class="salmon-photo"
-      />
-      <p class="hero__sub salmon-caption">{SALMON_CAPTION}</p>
+      <div class="chapter-grid">
+        <div class="chapter-media">
+          <img
+            src="/comida/salmon-favorito.webp"
+            alt="Dos platos de salmón: uno con caviar negro, otro estilo aguachile con jalapeño relleno"
+            loading="lazy"
+            width="720"
+            height="1600"
+          />
+          <p class="salmon-caption">{SALMON_CAPTION}</p>
+        </div>
+        <div class="chapter-text">
+          {CLOSING.map((p) => <p class="hero__sub">{p}</p>)}
+        </div>
+      </div>
     </div>
   </section>
 
@@ -827,11 +852,29 @@ const SALMON_CAPTION =
 </Site>
 
 <style>
-  /* Contain floated photos within their own chapter so they never bleed into
-     the next section's heading below (a bare block doesn't clear floats on
-     its own). */
-  .chapter .container {
-    display: flow-root;
+  /* Photo(s) + text side by side on wider screens instead of a full-width
+     photo block followed by a separate full-width text block -- the old
+     layout left most of the screen empty next to a narrow column of text. */
+  .chapter-grid {
+    display: grid;
+    gap: var(--space-3);
+  }
+  .chapter-media {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .chapter-media img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 0.5rem;
+  }
+  @media (min-width: 700px) {
+    .chapter-grid {
+      grid-template-columns: 20rem 1fr;
+      align-items: start;
+    }
   }
   .faq-list {
     display: flex;
@@ -858,77 +901,24 @@ const SALMON_CAPTION =
     color: var(--ink-soft);
     margin: 0.9em 0 0;
   }
-  .hero-photo {
-    width: 100%;
-    height: auto;
-    display: block;
-    margin: var(--space-3) 0;
-    border-radius: 0.5rem;
-  }
-  .salmon-photo {
-    width: 100%;
-    max-width: 20rem;
-    height: auto;
-    display: block;
-    margin: var(--space-3) 0 0;
-    border-radius: 0.5rem;
-  }
   .salmon-caption {
     font-size: 0.9rem;
+    color: var(--ink-soft);
+    margin: 0;
   }
-  .amashito-mata {
-    max-width: 20rem;
-    margin: var(--space-3) 0 0;
+  .secondary-figure {
+    margin: 0;
   }
-  .amashito-mata img {
-    width: 100%;
-    height: auto;
-    display: block;
-    border-radius: 0.5rem;
-  }
-  .amashito-mata figcaption {
+  .secondary-figure figcaption {
     margin-top: 0.4rem;
     font-size: 0.85rem;
     color: var(--ink-soft);
-  }
-  .paella-detalle {
-    max-width: 28rem;
-    margin: var(--space-3) 0 0;
-  }
-  .paella-detalle img {
-    width: 100%;
-    height: auto;
-    display: block;
-    border-radius: 0.5rem;
-  }
-  .paella-detalle figcaption {
-    margin-top: 0.4rem;
-    font-size: 0.85rem;
-    color: var(--ink-soft);
-  }
-  /* On viewports wide enough to spare room beside a floated image, let the
-     opening paragraphs/caption wrap around the photo instead of sitting in
-     their own separate full-width block. Bullet/step lists and the recipe
-     grid still clear below, since wrapped text next to a list looks broken. */
-  @media (min-width: 700px) {
-    .hero-photo {
-      float: left;
-      width: 20rem;
-      max-height: 24rem;
-      object-fit: cover;
-      margin: 0.2em var(--space-3) var(--space-3) 0;
-    }
-    .salmon-photo {
-      float: left;
-      margin: var(--space-3) var(--space-3) var(--space-3) 0;
-    }
   }
   .paella-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1.5rem;
     margin-top: var(--space-3);
-    clear: both;
   }
   .paella-card {
     border: 1px solid var(--line);
@@ -961,14 +951,21 @@ const SALMON_CAPTION =
     display: grid;
     gap: 0.55rem;
     color: var(--ink-soft);
-    max-width: var(--measure);
-    clear: both;
+  }
+  /* Trivia bullet lists have room to run two columns on wide screens instead
+     of a single narrow one with empty space to the right. Numbered recipe
+     steps (ol.recipe-steps) stay single-column -- they're read in order, and
+     the paella cards are too narrow for a second column anyway. */
+  @media (min-width: 1000px) {
+    ul.facts-list {
+      grid-template-columns: repeat(2, 1fr);
+      column-gap: 2rem;
+    }
   }
   .recipe-heading {
     font-family: var(--font-display);
     font-size: 1.1rem;
     margin: var(--space-3) 0 0;
-    clear: both;
   }
   .recipe-steps {
     color: var(--ink);

@@ -490,86 +490,106 @@ if (env?.KILOWATTO_KV) {
   <section class="chapter">
     <div class="container">
       <p class="eyebrow">{content.marquesitaEyebrow}</p>
-      <img
-        src="/comida/marquesita.webp"
-        alt={content.marquesitaAlt}
-        loading="eager"
-        width="900"
-        height="1600"
-        class="hero-photo"
-      />
-      {content.marquesitaIntro.map((p) => <p class="hero__sub">{p}</p>)}
-      <ul class="facts-list">
-        {content.marquesitaFacts.map((f) => <li>{f}</li>)}
-      </ul>
+      <div class="chapter-grid">
+        <div class="chapter-media">
+          <img
+            src="/comida/marquesita.webp"
+            alt={content.marquesitaAlt}
+            loading="eager"
+            width="900"
+            height="1600"
+          />
+        </div>
+        <div class="chapter-text">
+          {content.marquesitaIntro.map((p) => <p class="hero__sub">{p}</p>)}
+          <ul class="facts-list">
+            {content.marquesitaFacts.map((f) => <li>{f}</li>)}
+          </ul>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="chapter">
     <div class="container">
       <p class="eyebrow">{content.amashitoEyebrow}</p>
-      <img
-        src="/comida/chile-amashito.webp"
-        alt={content.amashitoAlt}
-        loading="lazy"
-        width="900"
-        height="1200"
-        class="hero-photo"
-      />
-      {content.amashitoIntro.map((p) => <p class="hero__sub">{p}</p>)}
-      <ul class="facts-list">
-        {content.amashitoFacts.map((f) => <li>{f}</li>)}
-      </ul>
-      <h3 class="recipe-heading">{content.amashitoRecipeHeading}</h3>
-      <ol class="facts-list recipe-steps">
-        {content.amashitoSteps.map((s) => <li>{s}</li>)}
-      </ol>
+      <div class="chapter-grid">
+        <div class="chapter-media">
+          <img
+            src="/comida/chile-amashito.webp"
+            alt={content.amashitoAlt}
+            loading="lazy"
+            width="900"
+            height="1200"
+          />
+        </div>
+        <div class="chapter-text">
+          {content.amashitoIntro.map((p) => <p class="hero__sub">{p}</p>)}
+          <ul class="facts-list">
+            {content.amashitoFacts.map((f) => <li>{f}</li>)}
+          </ul>
+          <h3 class="recipe-heading">{content.amashitoRecipeHeading}</h3>
+          <ol class="facts-list recipe-steps">
+            {content.amashitoSteps.map((s) => <li>{s}</li>)}
+          </ol>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="chapter">
     <div class="container">
       <p class="eyebrow">{content.pastorEyebrow}</p>
-      <img
-        src="/comida/tacos-al-pastor.webp"
-        alt={content.pastorAlt}
-        loading="lazy"
-        width="900"
-        height="1008"
-        class="hero-photo"
-      />
-      {content.pastorIntro.map((p) => <p class="hero__sub">{p}</p>)}
-      <ul class="facts-list">
-        {content.pastorFacts.map((f) => <li>{f}</li>)}
-      </ul>
+      <div class="chapter-grid">
+        <div class="chapter-media">
+          <img
+            src="/comida/tacos-al-pastor.webp"
+            alt={content.pastorAlt}
+            loading="lazy"
+            width="900"
+            height="1008"
+          />
+        </div>
+        <div class="chapter-text">
+          {content.pastorIntro.map((p) => <p class="hero__sub">{p}</p>)}
+          <ul class="facts-list">
+            {content.pastorFacts.map((f) => <li>{f}</li>)}
+          </ul>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="chapter">
     <div class="container">
       <p class="eyebrow">{content.paellaEyebrow}</p>
-      <img
-        src="/comida/paella-marinera.webp"
-        alt={content.paellaAlt1}
-        loading="lazy"
-        width="1600"
-        height="1200"
-        class="hero-photo"
-      />
-      {content.paellaIntro.map((p) => <p class="hero__sub">{p}</p>)}
-      <figure class="paella-detalle">
-        <img
-          src="/comida/paella-marinera-detalle.webp"
-          alt={content.paellaAlt2}
-          loading="lazy"
-          width="1600"
-          height="1200"
-        />
-        <figcaption>{content.paellaDetalleCaption}</figcaption>
-      </figure>
-      <ul class="facts-list">
-        {content.paellaFacts.map((f) => <li>{f}</li>)}
-      </ul>
+      <div class="chapter-grid">
+        <div class="chapter-media">
+          <img
+            src="/comida/paella-marinera.webp"
+            alt={content.paellaAlt1}
+            loading="lazy"
+            width="1600"
+            height="1200"
+          />
+          <figure class="secondary-figure">
+            <img
+              src="/comida/paella-marinera-detalle.webp"
+              alt={content.paellaAlt2}
+              loading="lazy"
+              width="1600"
+              height="1271"
+            />
+            <figcaption>{content.paellaDetalleCaption}</figcaption>
+          </figure>
+        </div>
+        <div class="chapter-text">
+          {content.paellaIntro.map((p) => <p class="hero__sub">{p}</p>)}
+          <ul class="facts-list">
+            {content.paellaFacts.map((f) => <li>{f}</li>)}
+          </ul>
+        </div>
+      </div>
       <h3 class="recipe-heading">{content.paellaRecipeHeading}</h3>
       <div class="paella-grid">
         {content.paellaTypes.map((t) => (
@@ -608,65 +628,66 @@ if (env?.KILOWATTO_KV) {
     <div class="container">
       <p class="eyebrow">{content.closingEyebrow}</p>
       <h2>{content.closingHeading}</h2>
-      {content.closing.map((p) => <p class="hero__sub">{p}</p>)}
-      <img
-        src="/comida/salmon-favorito.webp"
-        alt={content.salmonAlt}
-        loading="lazy"
-        width="720"
-        height="1600"
-        class="salmon-photo"
-      />
-      <p class="hero__sub salmon-caption">{content.salmonCaption}</p>
+      <div class="chapter-grid">
+        <div class="chapter-media">
+          <img
+            src="/comida/salmon-favorito.webp"
+            alt={content.salmonAlt}
+            loading="lazy"
+            width="720"
+            height="1600"
+          />
+          <p class="salmon-caption">{content.salmonCaption}</p>
+        </div>
+        <div class="chapter-text">
+          {content.closing.map((p) => <p class="hero__sub">{p}</p>)}
+        </div>
+      </div>
     </div>
   </section>
 </Site>
 
 <style>
-  /* Contain floated photos within their own chapter so they never bleed into
-     the next section's heading below (a bare block doesn't clear floats on
-     its own). */
-  .chapter .container {
-    display: flow-root;
+  /* Photo(s) + text side by side on wider screens instead of a full-width
+     photo block followed by a separate full-width text block -- the old
+     layout left most of the screen empty next to a narrow column of text. */
+  .chapter-grid {
+    display: grid;
+    gap: var(--space-3);
+  }
+  .chapter-media {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .chapter-media img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 0.5rem;
+  }
+  @media (min-width: 700px) {
+    .chapter-grid {
+      grid-template-columns: 20rem 1fr;
+      align-items: start;
+    }
   }
   .hero__sub {
     color: var(--ink-soft);
     margin: 0.9em 0 0;
   }
-  .hero-photo {
-    width: 100%;
-    height: auto;
-    display: block;
-    margin: var(--space-3) 0;
-    border-radius: 0.5rem;
-  }
-  .salmon-photo {
-    width: 100%;
-    max-width: 20rem;
-    height: auto;
-    display: block;
-    margin: var(--space-3) 0 0;
-    border-radius: 0.5rem;
-  }
   .salmon-caption {
     font-size: 0.9rem;
+    color: var(--ink-soft);
+    margin: 0;
   }
-  /* On viewports wide enough to spare room beside a floated image, let the
-     opening paragraphs/caption wrap around the photo instead of sitting in
-     their own separate full-width block. Bullet/step lists and the recipe
-     grid still clear below, since wrapped text next to a list looks broken. */
-  @media (min-width: 700px) {
-    .hero-photo {
-      float: left;
-      width: 20rem;
-      max-height: 24rem;
-      object-fit: cover;
-      margin: 0.2em var(--space-3) var(--space-3) 0;
-    }
-    .salmon-photo {
-      float: left;
-      margin: var(--space-3) var(--space-3) var(--space-3) 0;
-    }
+  .secondary-figure {
+    margin: 0;
+  }
+  .secondary-figure figcaption {
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
   }
   .facts-list {
     margin: var(--space-3) 0 0;
@@ -674,14 +695,21 @@ if (env?.KILOWATTO_KV) {
     display: grid;
     gap: 0.55rem;
     color: var(--ink-soft);
-    max-width: var(--measure);
-    clear: both;
+  }
+  /* Trivia bullet lists have room to run two columns on wide screens instead
+     of a single narrow one with empty space to the right. Numbered recipe
+     steps (ol.recipe-steps) stay single-column -- they're read in order, and
+     the paella cards are too narrow for a second column anyway. */
+  @media (min-width: 1000px) {
+    ul.facts-list {
+      grid-template-columns: repeat(2, 1fr);
+      column-gap: 2rem;
+    }
   }
   .recipe-heading {
     font-family: var(--font-display);
     font-size: 1.1rem;
     margin: var(--space-3) 0 0;
-    clear: both;
   }
   .recipe-steps {
     color: var(--ink);
@@ -694,27 +722,11 @@ if (env?.KILOWATTO_KV) {
     font-weight: 600;
     text-decoration: none;
   }
-  .paella-detalle {
-    max-width: 28rem;
-    margin: var(--space-3) 0 0;
-  }
-  .paella-detalle img {
-    width: 100%;
-    height: auto;
-    display: block;
-    border-radius: 0.5rem;
-  }
-  .paella-detalle figcaption {
-    margin-top: 0.4rem;
-    font-size: 0.85rem;
-    color: var(--ink-soft);
-  }
   .paella-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1.5rem;
     margin-top: var(--space-3);
-    clear: both;
   }
   .paella-card {
     border: 1px solid var(--line);
