@@ -95,6 +95,58 @@ export async function getTopPages(days = 30, limit = 5): Promise<TopPage[] | nul
   }
 }
 
+export interface CountryViews {
+  country: string; // ISO 3166-1 alpha-2, or "??" for unknown (bot/pre-cf.country rows)
+  views: number;
+}
+
+// "De dónde vienen" -- real geographic breakdown from request.cf.country (see
+// src/middleware.ts), site-wide. Free, no external API -- Cloudflare already resolves this
+// per-request.
+export async function getCountryBreakdown(days = 30, limit = 12): Promise<CountryViews[] | null> {
+  try {
+    const res = await queryPageViews(
+      `SELECT blob2 AS country, count() AS views
+       FROM kilowatto_page_views
+       WHERE timestamp > NOW() - INTERVAL '${days}' DAY
+       GROUP BY country
+       ORDER BY views DESC
+       LIMIT ${limit}`
+    );
+    return (res.data ?? []).map((r: any) => ({
+      country: String(r.country || "??"),
+      views: Number(r.views),
+    }));
+  } catch {
+    return null;
+  }
+}
+
+export interface DeviceViews {
+  device: string; // "mobile" | "tablet" | "desktop" | "" (older rows, before device logging)
+  views: number;
+}
+
+// Device-type breakdown from the middleware's hand-rolled UA parse (blob6). Rows logged
+// before that field existed come back as device="" -- callers should label those "otros".
+export async function getDeviceBreakdown(days = 30): Promise<DeviceViews[] | null> {
+  try {
+    const res = await queryPageViews(
+      `SELECT blob6 AS device, count() AS views
+       FROM kilowatto_page_views
+       WHERE timestamp > NOW() - INTERVAL '${days}' DAY
+       GROUP BY device
+       ORDER BY views DESC`
+    );
+    return (res.data ?? []).map((r: any) => ({
+      device: String(r.device || "otros"),
+      views: Number(r.views),
+    }));
+  } catch {
+    return null;
+  }
+}
+
 // Site-wide daily total (all paths combined) for the Inicio trend chart -- real, but bounded
 // by TRACKING_STARTED; days before that just come back as 0 since the log didn't exist yet.
 export async function getSiteDailyTotals(days = 7): Promise<DailyViews[] | null> {

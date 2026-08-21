@@ -10,19 +10,26 @@ const token = await checkAdminAuth(Astro, env);
 const authorized = !!token;
 
 let events: { date: string; time: string; platform: string; kind: string; content: string }[] = [];
+let unscheduledCount = 0;
 
 if (authorized && env?.DB) {
-  const res = await env.DB.prepare(
-    `SELECT scheduled_for, platform, kind, content
-     FROM brand_posts
-     WHERE status = 'approved' AND scheduled_for > datetime('now')
-     ORDER BY scheduled_for ASC
-     LIMIT 200`
-  ).all();
+  const [res, backlogRes] = await Promise.all([
+    env.DB.prepare(
+      `SELECT scheduled_for, platform, kind, content
+       FROM brand_posts
+       WHERE status = 'approved' AND scheduled_for > datetime('now')
+       ORDER BY scheduled_for ASC
+       LIMIT 200`
+    ).all(),
+    env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM brand_posts WHERE status = 'approved' AND scheduled_for IS NULL`
+    ).first<{ n: number }>(),
+  ]);
   events = (res.results ?? []).map((r: any) => {
     const [date, time] = String(r.scheduled_for).split(" ");
     return { date, time: (time ?? "00:00:00").slice(0, 5), platform: r.platform, kind: r.kind, content: r.content ?? "" };
   });
+  unscheduledCount = backlogRes?.n ?? 0;
 }
 
 const eventsByDate: Record<string, typeof events> = {};
@@ -39,11 +46,18 @@ for (const e of events) {
       <div class="cal-page">
         <h1>Calendario de publicaciones</h1>
 
+        {unscheduledCount > 0 && (
+          <a href="/admin/contenido" class="backlog-banner">
+            <strong>{unscheduledCount}</strong> posts aprobados sin fecha asignada — no aparecen aquí hasta que se les programe un día.
+          </a>
+        )}
+
         <div class="segmented">
           <button class="seg-btn is-active" data-view="day">Día</button>
           <button class="seg-btn" data-view="week">Semana</button>
           <button class="seg-btn" data-view="month">Mes</button>
           <button class="seg-btn" data-view="quarter">Trimestre</button>
+          <button id="today-btn" class="seg-btn today-btn" title="Ir a hoy">Hoy</button>
         </div>
 
         <div id="cal-day" class="cal-view"></div>
@@ -221,8 +235,15 @@ for (const e of events) {
           if (view === "quarter") renderQuarter();
         }
 
-        document.querySelectorAll<HTMLButtonElement>(".seg-btn").forEach((btn) => {
+        document.querySelectorAll<HTMLButtonElement>(".seg-btn[data-view]").forEach((btn) => {
           btn.addEventListener("click", () => showView(btn.dataset.view!));
+        });
+
+        document.getElementById("today-btn")?.addEventListener("click", () => {
+          selected = new Date();
+          selected.setHours(0, 0, 0, 0);
+          const activeView = document.querySelector<HTMLButtonElement>(".seg-btn.is-active[data-view]")?.dataset.view || "day";
+          showView(activeView);
         });
 
         renderDay();
@@ -234,12 +255,19 @@ for (const e of events) {
 <style>
   .cal-page { max-width: 30rem; }
   .cal-page h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+  .backlog-banner {
+    display: block; font-size: 0.78rem; line-height: 1.4; color: var(--admin-text);
+    background: color-mix(in srgb, var(--rhino) 10%, transparent); border: 1px solid color-mix(in srgb, var(--rhino) 35%, transparent);
+    border-radius: 0.7rem; padding: 0.7rem 0.9rem; margin-bottom: 1rem; text-decoration: none;
+  }
+  .backlog-banner strong { color: var(--rhino); }
   .segmented { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; }
   .seg-btn {
     flex: 1; border: 1px solid var(--admin-border); background: transparent; color: var(--admin-text-soft);
     font-family: monospace; font-size: 0.72rem; padding: 0.5rem 0; border-radius: 999px; cursor: pointer;
   }
   .seg-btn.is-active { background: var(--rhino); border-color: var(--rhino); color: #fff; font-weight: 600; }
+  .today-btn { flex: 0 0 3.2rem; }
 
   .day-strip { display: flex; gap: 0.4rem; margin-bottom: 1rem; }
   .day-pill {

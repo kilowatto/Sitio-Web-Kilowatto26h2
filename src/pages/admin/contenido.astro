@@ -3,9 +3,22 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
 import { checkAdminAuth } from "../../lib/admin-auth";
-import { getTopPages } from "../../lib/telemetry-query";
+import { getTopPages, getCountryBreakdown, getDeviceBreakdown } from "../../lib/telemetry-query";
+import { getChannelBreakdown } from "../../lib/ga4";
 
 export const prerender = false;
+
+const COUNTRY_NAMES: Record<string, string> = {
+  MX: "México", US: "Estados Unidos", ES: "España", AR: "Argentina", CO: "Colombia",
+  CL: "Chile", PE: "Perú", BR: "Brasil", CA: "Canadá", GB: "Reino Unido", DE: "Alemania",
+  FR: "Francia", IN: "India", SG: "Singapur", NL: "Países Bajos", "??": "Desconocido",
+};
+const DEVICE_NAMES: Record<string, string> = { mobile: "Móvil", tablet: "Tablet", desktop: "Escritorio", otros: "Otros / sin datos" };
+const CHANNEL_NAMES: Record<string, string> = {
+  "Direct": "Directo", "Organic Search": "Búsqueda orgánica", "Referral": "Referencia",
+  "Organic Social": "Redes sociales (orgánico)", "Paid Social": "Redes sociales (pago)",
+  "Email": "Email", "Unassigned": "Sin asignar", "(sin datos)": "Sin datos suficientes",
+};
 
 const token = await checkAdminAuth(Astro, env);
 const authorized = !!token;
@@ -13,9 +26,12 @@ const authorized = !!token;
 let columns: any[] = [];
 let investigaciones: any[] = [];
 let topPages: Awaited<ReturnType<typeof getTopPages>> = null;
+let countries: Awaited<ReturnType<typeof getCountryBreakdown>> = null;
+let devices: Awaited<ReturnType<typeof getDeviceBreakdown>> = null;
+let channels: Awaited<ReturnType<typeof getChannelBreakdown>> = null;
 
 if (authorized && env?.DB) {
-  const [colsRes, invRes, pages] = await Promise.all([
+  const [colsRes, invRes, pages, countryData, deviceData, channelData] = await Promise.all([
     env.DB.prepare(
       `SELECT id, slug, title, view_count, published_at FROM columns WHERE status = 'published' ORDER BY view_count DESC`
     ).all(),
@@ -23,11 +39,26 @@ if (authorized && env?.DB) {
       `SELECT id, slug, title, view_count, published_at FROM investigaciones WHERE status = 'published' ORDER BY view_count DESC`
     ).all(),
     getTopPages(30, 5),
+    getCountryBreakdown(30, 8),
+    getDeviceBreakdown(30),
+    getChannelBreakdown(30),
   ]);
   columns = colsRes.results ?? [];
   investigaciones = invRes.results ?? [];
   topPages = pages;
+  countries = countryData;
+  devices = deviceData;
+  channels = channelData;
 }
+
+function bars<T extends { views?: number; sessions?: number }>(rows: T[] | null) {
+  if (!rows || rows.length === 0) return [];
+  const max = Math.max(...rows.map((r) => r.views ?? r.sessions ?? 0));
+  return rows.map((r) => ({ ...r, pct: max > 0 ? Math.round(((r.views ?? r.sessions ?? 0) / max) * 100) : 0 }));
+}
+const countryBars = bars(countries);
+const deviceBars = bars(devices);
+const channelBars = bars(channels);
 ---
 
 {
@@ -101,6 +132,72 @@ if (authorized && env?.DB) {
             </ul>
           )}
         </section>
+
+        <section class="group">
+          <div class="section-head">
+            <h2>De dónde vienen — país (30 días)</h2>
+            <span class="real-tag">cloudflare</span>
+          </div>
+          {countries === null ? (
+            <p class="empty">No se pudo consultar Cloudflare Analytics ahora mismo.</p>
+          ) : countryBars.length === 0 ? (
+            <p class="empty">Aún acumulando datos — vuelve en unos días.</p>
+          ) : (
+            <ul class="bars">
+              {countryBars.map((c) => (
+                <li class="bar-row">
+                  <span class="bar-label">{COUNTRY_NAMES[c.country] ?? c.country}</span>
+                  <div class="bar-track"><div class="bar-fill" style={`width:${c.pct}%`} /></div>
+                  <span class="bar-value">{c.views}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section class="group">
+          <div class="section-head">
+            <h2>Dispositivos (30 días)</h2>
+            <span class="real-tag">cloudflare</span>
+          </div>
+          {devices === null ? (
+            <p class="empty">No se pudo consultar Cloudflare Analytics ahora mismo.</p>
+          ) : deviceBars.length === 0 ? (
+            <p class="empty">Aún acumulando datos — vuelve en unos días.</p>
+          ) : (
+            <ul class="bars">
+              {deviceBars.map((d) => (
+                <li class="bar-row">
+                  <span class="bar-label">{DEVICE_NAMES[d.device] ?? d.device}</span>
+                  <div class="bar-track"><div class="bar-fill" style={`width:${d.pct}%`} /></div>
+                  <span class="bar-value">{d.views}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section class="group">
+          <div class="section-head">
+            <h2>Canales de tráfico (30 días)</h2>
+            <span class="real-tag">google analytics</span>
+          </div>
+          {channels === null ? (
+            <p class="empty">No se pudo consultar Google Analytics ahora mismo.</p>
+          ) : channelBars.length === 0 ? (
+            <p class="empty">Aún acumulando datos — vuelve en unos días.</p>
+          ) : (
+            <ul class="bars">
+              {channelBars.map((c) => (
+                <li class="bar-row">
+                  <span class="bar-label">{CHANNEL_NAMES[c.channel] ?? c.channel}</span>
+                  <div class="bar-track"><div class="bar-fill bar-fill-ga" style={`width:${c.pct}%`} /></div>
+                  <span class="bar-value">{c.sessions}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </AdminLayout>
   )
@@ -127,4 +224,11 @@ if (authorized && env?.DB) {
   .row-sub { font-size: 0.72rem; color: var(--admin-text-soft); margin: 0.15rem 0 0; }
   .row-views { font-weight: 700; color: var(--rhino); flex-shrink: 0; }
   .empty { color: var(--admin-text-soft); font-size: 0.85rem; }
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+  .bar-row { display: grid; grid-template-columns: 6.5rem 1fr 2.2rem; align-items: center; gap: 0.6rem; }
+  .bar-label { font-size: 0.76rem; color: var(--admin-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { height: 0.55rem; border-radius: 999px; background: var(--admin-surface-2); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; background: var(--rhino); min-width: 2px; }
+  .bar-fill-ga { background: #e8710a; }
+  .bar-value { font-family: monospace; font-size: 0.7rem; color: var(--admin-text-soft); text-align: right; }
 </style>

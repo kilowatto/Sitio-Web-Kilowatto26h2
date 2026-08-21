@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { runReport } from "../../../lib/ga4";
+import { runReport, getChannelBreakdown } from "../../../lib/ga4";
 
 export const prerender = false;
 
@@ -12,11 +12,15 @@ export const GET: APIRoute = async ({ url }) => {
     return new Response("unauthorized", { status: 401 });
   }
   try {
-    const data = await runReport({
-      dateRanges: [{ startDate: "7daysAgo", endDate: "today" }],
-      dimensions: [{ name: "country" }],
-      metrics: [{ name: "activeUsers" }],
-    });
+    const which = url.searchParams.get("which");
+    const data =
+      which === "channel"
+        ? await getChannelBreakdown(30)
+        : await runReport({
+            dateRanges: [{ startDate: "7daysAgo", endDate: "today" }],
+            dimensions: [{ name: "country" }],
+            metrics: [{ name: "activeUsers" }],
+          });
     return new Response(JSON.stringify(data, null, 2), {
       headers: { "Content-Type": "application/json" },
     });

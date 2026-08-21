@@ -88,6 +88,33 @@ async function getAccessToken(): Promise<string> {
   return cachedToken.value;
 }
 
+export interface ChannelViews {
+  channel: string;
+  sessions: number;
+}
+
+// "De dónde vienen" -- real GA4 traffic-source breakdown (Direct, Organic Search, Referral,
+// Social, etc.) for the admin Contenido page. Returns null on any failure so the page can
+// fall back to an honest "no data" state instead of crashing.
+export async function getChannelBreakdown(days = 30): Promise<ChannelViews[] | null> {
+  try {
+    const data = await runReport({
+      dateRanges: [{ startDate: `${days}daysAgo`, endDate: "today" }],
+      dimensions: [{ name: "sessionDefaultChannelGroup" }],
+      metrics: [{ name: "sessions" }],
+      orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+      limit: 10,
+    });
+    const rows = data.rows ?? [];
+    return rows.map((r: any) => ({
+      channel: String(r.dimensionValues?.[0]?.value ?? "(sin datos)"),
+      sessions: Number(r.metricValues?.[0]?.value ?? 0),
+    }));
+  } catch {
+    return null;
+  }
+}
+
 export async function runReport(body: Record<string, unknown>): Promise<any> {
   const token = await getAccessToken();
   const res = await fetch(
