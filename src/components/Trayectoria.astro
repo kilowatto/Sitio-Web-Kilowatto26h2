@@ -1,8 +1,14 @@
 ---
 interface Props {
   companies: any[];
+  hoyLabel?: string;
+  caption?: string;
 }
-const { companies } = Astro.props;
+const {
+  companies,
+  hoyLabel = "Hoy",
+  caption = "Cuando dos tramos coinciden en el tiempo, esos roles se llevaron en paralelo — no es una carrera en línea recta.",
+} = Astro.props;
 
 const now = new Date();
 const HOY = now.getFullYear() + now.getMonth() / 12;
@@ -117,19 +123,17 @@ const hoyTop = px(HOY);
 ---
 
 <div class="kw-trayectoria">
-  <p class="kw-caption">
-    Cuando dos tramos coinciden en el tiempo, esos roles se llevaron en paralelo — no es una carrera en línea recta.
-  </p>
+  <p class="kw-caption">{caption}</p>
 
   <div class="kw-shell">
-    <div class="kw-axis" id="kw-axis" style={`width:${AXIS_COL_W}px;height:${AXIS_H}px`} data-start-year={START_YEAR} data-hoy={HOY.toFixed(3)} data-pxy={PXY}>
+    <div class="kw-axis" id="kw-axis" style={`width:${AXIS_COL_W}px;height:${AXIS_H}px`} data-start-year={START_YEAR} data-hoy={HOY.toFixed(3)} data-pxy={PXY} data-hoy-label={hoyLabel}>
       {ticks.map((y) => (
         <div class="kw-tick" style={`top:${px(y)}px`}>
           <span>{y}</span>
         </div>
       ))}
       <div class="kw-tick kw-tick--hoy" style={`top:${hoyTop}px`}>
-        <span>Hoy</span>
+        <span>{hoyLabel}</span>
       </div>
 
       <div class="kw-spine" style={`left:${LABEL_W + 4}px;height:${AXIS_H}px`}></div>
@@ -354,6 +358,7 @@ const hoyTop = px(HOY);
     const startYear = parseFloat(axis.dataset.startYear ?? "0");
     const pxy = parseFloat(axis.dataset.pxy ?? "42");
     const hoy = parseFloat(axis.dataset.hoy ?? "0");
+    const hoyLabel = axis.dataset.hoyLabel ?? "Hoy";
 
     let raf: number | null = null;
 
@@ -389,7 +394,7 @@ const hoyTop = px(HOY);
 
       if (yearLabelEl) {
         const sweepYear = startYear + sweepPx / pxy;
-        yearLabelEl.textContent = sweepYear >= hoy - 0.5 ? "Hoy" : String(Math.floor(sweepYear));
+        yearLabelEl.textContent = sweepYear >= hoy - 0.5 ? hoyLabel : String(Math.floor(sweepYear));
       }
     }
 

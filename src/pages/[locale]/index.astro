@@ -2,6 +2,7 @@
 import Site from "../../layouts/Site.astro";
 import Spark from "../../components/Spark.astro";
 import PullQuote from "../../components/PullQuote.astro";
+import Trayectoria from "../../components/Trayectoria.astro";
 import { env } from "cloudflare:workers";
 import { localeFromParam } from "../../lib/locales";
 import { loadTranslations, t } from "../../lib/i18n";
@@ -50,15 +51,24 @@ if (env?.DB) {
   ]);
 }
 
-const latestCompanies = companies.slice(-3).reverse();
 const bio = t(profileTr, 1, "bio_short", profile?.bio_short) ?? "25+ years building technology, companies, and teams across Latin America.";
 const pl = projectsLabels(locale.code);
+const localizedCompanies = companies.map((c: any) => ({
+  ...c,
+  role: t(companiesTr, c.id, "role", c.role),
+}));
 
 // Static parity content for the FAQ / Larry / Yucatech sections that exist on the canonical
 // root index.astro but were never ported here — translated once ahead of time rather than via
 // live AI-translate-on-request, to avoid the exact "silent fallback to Spanish" failure mode
 // this content already suffered from before this fix.
 const SPANISH_HOME_EXTRA = {
+  trayectoriaEyebrow: "Trayectoria",
+  trayectoriaHeadline: "De configurar firewalls a los 16, a fundar la nube naranja.",
+  trayectoriaCaption:
+    "Cuando dos tramos coinciden en el tiempo, esos roles se llevaron en paralelo — no es una carrera en línea recta.",
+  trayectoriaHoy: "Hoy",
+  trayectoriaCta: "Ver toda la trayectoria →",
   yucatechEyebrow: "Mérida, Yucatán",
   yucatechHeading: "Yucatech Festival",
   yucatechBody: "El evento que apuesta a que el sur-sureste de México sea el próximo hub tecnológico de América Latina.",
@@ -77,6 +87,12 @@ const SPANISH_HOME_EXTRA = {
 
 const HOME_EXTRA: Record<string, typeof SPANISH_HOME_EXTRA> = {
   en: {
+    trayectoriaEyebrow: "Timeline",
+    trayectoriaHeadline: "From configuring firewalls at 16, to founding the orange cloud.",
+    trayectoriaCaption:
+      "When two spans overlap in time, those roles were held in parallel — this isn't a straight-line career.",
+    trayectoriaHoy: "Today",
+    trayectoriaCta: "See the full timeline →",
     yucatechEyebrow: "Mérida, Yucatán",
     yucatechHeading: "Yucatech Festival",
     yucatechBody: "The event betting that southeastern Mexico becomes Latin America's next tech hub.",
@@ -93,6 +109,12 @@ const HOME_EXTRA: Record<string, typeof SPANISH_HOME_EXTRA> = {
     ],
   },
   "pt-BR": {
+    trayectoriaEyebrow: "Trajetória",
+    trayectoriaHeadline: "De configurar firewalls aos 16, a fundar a nuvem laranja.",
+    trayectoriaCaption:
+      "Quando dois trechos coincidem no tempo, esses papéis foram exercidos em paralelo — não é uma carreira em linha reta.",
+    trayectoriaHoy: "Hoje",
+    trayectoriaCta: "Ver toda a trajetória →",
     yucatechEyebrow: "Mérida, Yucatán",
     yucatechHeading: "Yucatech Festival",
     yucatechBody: "O evento que aposta que o sudeste do México será o próximo polo tecnológico da América Latina.",
@@ -109,6 +131,12 @@ const HOME_EXTRA: Record<string, typeof SPANISH_HOME_EXTRA> = {
     ],
   },
   fr: {
+    trayectoriaEyebrow: "Parcours",
+    trayectoriaHeadline: "De la configuration de pare-feux à 16 ans, à la fondation du cloud orange.",
+    trayectoriaCaption:
+      "Quand deux périodes coïncident dans le temps, ces rôles ont été menés en parallèle — ce n'est pas une carrière en ligne droite.",
+    trayectoriaHoy: "Aujourd'hui",
+    trayectoriaCta: "Voir tout le parcours →",
     yucatechEyebrow: "Mérida, Yucatán",
     yucatechHeading: "Yucatech Festival",
     yucatechBody: "L'événement qui parie que le sud-est du Mexique deviendra le prochain pôle technologique d'Amérique latine.",
@@ -125,6 +153,12 @@ const HOME_EXTRA: Record<string, typeof SPANISH_HOME_EXTRA> = {
     ],
   },
   de: {
+    trayectoriaEyebrow: "Werdegang",
+    trayectoriaHeadline: "Vom Konfigurieren von Firewalls mit 16 bis zur Gründung der orangenen Cloud.",
+    trayectoriaCaption:
+      "Wenn sich zwei Zeiträume überschneiden, wurden diese Rollen parallel ausgeübt — das ist keine geradlinige Karriere.",
+    trayectoriaHoy: "Heute",
+    trayectoriaCta: "Den ganzen Werdegang ansehen →",
     yucatechEyebrow: "Mérida, Yucatán",
     yucatechHeading: "Yucatech Festival",
     yucatechBody: "Die Veranstaltung, die darauf setzt, dass der Südosten Mexikos zum nächsten Tech-Hub Lateinamerikas wird.",
@@ -141,6 +175,12 @@ const HOME_EXTRA: Record<string, typeof SPANISH_HOME_EXTRA> = {
     ],
   },
   ar: {
+    trayectoriaEyebrow: "المسيرة",
+    trayectoriaHeadline: "من إعداد جدران الحماية في السادسة عشرة، إلى تأسيس السحابة البرتقالية.",
+    trayectoriaCaption:
+      "عندما تتداخل فترتان زمنيًا، فهذا يعني أن هذين الدورين كانا يُمارَسان في آن واحد — فهذه ليست مسيرة مهنية في خط مستقيم.",
+    trayectoriaHoy: "اليوم",
+    trayectoriaCta: "عرض المسيرة كاملة ←",
     yucatechEyebrow: "ميريدا، يوكاتان",
     yucatechHeading: "Yucatech Festival",
     yucatechBody: "الحدث الذي يراهن على أن يصبح جنوب شرق المكسيك المركز التقني القادم في أمريكا اللاتينية.",
@@ -157,6 +197,11 @@ const HOME_EXTRA: Record<string, typeof SPANISH_HOME_EXTRA> = {
     ],
   },
   "zh-Hans": {
+    trayectoriaEyebrow: "历程",
+    trayectoriaHeadline: "从16岁配置防火墙，到创办这朵橙色的云。",
+    trayectoriaCaption: "当两段时间线重叠时，说明这些角色是同时进行的——这不是一条直线式的职业道路。",
+    trayectoriaHoy: "今天",
+    trayectoriaCta: "查看完整历程 →",
     yucatechEyebrow: "梅里达，尤卡坦",
     yucatechHeading: "Yucatech Festival",
     yucatechBody: "这场活动押注墨西哥东南部将成为拉丁美洲下一个科技中心。",
@@ -173,6 +218,12 @@ const HOME_EXTRA: Record<string, typeof SPANISH_HOME_EXTRA> = {
     ],
   },
   ja: {
+    trayectoriaEyebrow: "経歴",
+    trayectoriaHeadline: "16歳でファイアウォールを設定していた頃から、オレンジ色のクラウドを創業するまで。",
+    trayectoriaCaption:
+      "二つの期間が重なっているときは、それらの役割を同時にこなしていたということ — 一直線のキャリアではない。",
+    trayectoriaHoy: "現在",
+    trayectoriaCta: "経歴をすべて見る →",
     yucatechEyebrow: "メリダ、ユカタン",
     yucatechHeading: "Yucatech Festival",
     yucatechBody: "メキシコ南東部をラテンアメリカ次のテックハブにするという賭けに出たイベント。",
@@ -217,25 +268,10 @@ const he = HOME_EXTRA[locale.code] ?? SPANISH_HOME_EXTRA;
 
   <section class="chapter">
     <div class="container">
-      <p class="eyebrow">Kilowatto</p>
-      <h2>{t(companiesTr, latestCompanies[0]?.id, "role", latestCompanies[0]?.role)}</h2>
-      <ol class="rows">
-        {
-          latestCompanies.map((c: any) => (
-            <li class="row">
-              <span class="row__range">
-                {c.start_date ?? ""}
-                {c.end_date ? `–${c.end_date}` : c.is_current ? "–now" : ""}
-              </span>
-              <div>
-                <h3>{c.name}</h3>
-                {c.role && <p class="row__role">{t(companiesTr, c.id, "role", c.role)}</p>}
-              </div>
-            </li>
-          ))
-        }
-      </ol>
-      <p class="see-more"><a href={`/${locale.code}/trayectoria`}>→</a></p>
+      <p class="eyebrow">{he.trayectoriaEyebrow}</p>
+      <h2>{he.trayectoriaHeadline}</h2>
+      <Trayectoria companies={localizedCompanies} hoyLabel={he.trayectoriaHoy} caption={he.trayectoriaCaption} />
+      <p class="see-more"><a href={`/${locale.code}/trayectoria`}>{he.trayectoriaCta}</a></p>
     </div>
   </section>
 
