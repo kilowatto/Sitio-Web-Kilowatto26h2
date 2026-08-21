@@ -45,6 +45,29 @@ const VARIANTS: Record<string, string> = {
     "visible lips centered on the face, large expressive human-placed eyes, defined forehead, cheeks and jawline. " +
     "The rhino character comes from skin texture, ears and a small horn, not from a long animal snout. " +
     "Friendly warm expression, mouth slightly open mid-speech. Head and shoulders fill the frame.",
+
+  // Round 2. frontal_wide_mouth passed detection but lost what makes Larry likeable: it
+  // dropped the glasses, turned the top green, cropped the ears, and read uncanny. These keep
+  // the geometry that passed (short broad muzzle, human-proportioned mouth at the front of the
+  // face, forward-facing eyes) and put the canonical character back on top of it.
+  larry_v2: `${BASE_LARRY} Tight frontal head-and-shoulders portrait, facing camera directly, ` +
+    "warm friendly expression with a gentle closed-mouth smile turning into speech. " +
+    "GEOMETRY: short broad muzzle, NOT a long animal snout; wide human-proportioned mouth with " +
+    "visible upper and lower lips at the FRONT of the face; large warm forward-facing eyes with " +
+    "visible whites and eyelids at human placement and spacing. " +
+    "CHARACTER: he wears thin wire-rimmed eyeglasses, and a solid BRIGHT ORANGE hoodie. " +
+    "One modest horn positioned low on the muzzle so it never crosses or occludes the eyes. " +
+    "FRAMING: the ENTIRE head is inside the frame with clear headroom above it — both ears fully " +
+    "visible and not cropped. Approachable and charming, like a friendly professor, not menacing.",
+
+  larry_v3_softer: `${BASE_LARRY} Tight frontal head-and-shoulders portrait facing camera. ` +
+    "Slightly stylized, appealing character design in the spirit of a high-end animated feature, " +
+    "but rendered with photorealistic skin texture and studio lighting. " +
+    "Softer rounder facial forms to avoid an uncanny look: short broad muzzle, wide expressive " +
+    "human-proportioned mouth with clear lips slightly parted, big warm friendly eyes with " +
+    "visible whites, thin wire-rimmed eyeglasses, solid bright orange hoodie. " +
+    "Small horn low on the muzzle, clear of the eyes. Whole head within frame with headroom, " +
+    "both ears visible. Genuinely likeable and warm.",
 };
 
 // Gemini returns PNG; HeyGen's URL intake insists on JPEG. Re-encode and store with a .jpg
