@@ -134,10 +134,53 @@ Dado lo largas que son estas piezas (~22 min de lectura la de VPN):
   base — el flujo de "A fondo" es más parecido a "importar texto ya escrito →
   Claude genera gráficas/imágenes/SEO/traducciones → Esteban aprueba imágenes."
 
-## Pendiente antes de construir
+## Estado: v1 construido y en producción (2026-08-21)
 
+Lo siguiente ya está desplegado y verificado en vivo en kilowatto.com:
+
+- Esquema D1 (`investigaciones`, `investigacion_sources`, `investigacion_charts`,
+  `comments` con `investigacion_id` además de `column_id`, `short_links` con
+  `investigacion_id`) — migración `0056_investigaciones.sql`.
+- Importador reutilizable `scripts/import-investigacion.mjs`: convierte un
+  Markdown como el de `docs/investigaciones/` en filas estructuradas — gráficas
+  detectadas por tipo de tabla, citas convertidas a `kilowatto.com/r/xxxx` con
+  su flag de confianza, bibliografía de fuentes.
+- 4 componentes de gráfica reutilizables (`src/components/charts/`): barra
+  (simple y agrupada), cronología, radar con leyenda interactiva, tarjetas de
+  comparación — todo SVG/CSS a mano, nada generado por IA.
+- Índice lateral con scroll-spy real (por posición de scroll, no solo
+  IntersectionObserver — ver nota de bug abajo), barra de chips en móvil,
+  progreso de lectura.
+- Página de metodología fija (`/a-fondo/metodologia`) enlazada desde cada pieza.
+- Comentarios y compartir (WhatsApp/LinkedIn/Facebook + UTM por plataforma)
+  reusando y generalizando la infraestructura de columnas.
+- Portada generada con Gemini vía `/api/investigaciones/[id]/generate-cover`
+  (token-gated, mismo patrón que el resto del admin).
+- Larry: `buildVoiceContext()` ahora trae un extracto de 4000 caracteres (no
+  500) de las últimas 2 investigaciones publicadas, etiquetado para que pueda
+  citar cifras reales al escribir posts.
+- Primera pieza (VPN) publicada como el lanzamiento real de la sección.
+
+**Dos bugs reales atrapados antes de mostrarlo** (con Playwright en
+390/800/1900px, siguiendo la lección de la página de comida): un track de grid
+sin `minmax(0, ...)` dejaba que la barra de chips del índice (que no rompe
+línea) estirara toda la página a ~5500px de ancho en móvil; y
+`white-space: nowrap` en las citas largas hacía lo mismo en pantallas angostas.
+Ambos corregidos.
+
+## Pendiente (fast-follows, explícitamente no construidos en este v1)
+
+- **Imagen de portada con texto superpuesto para compartir** — se explora con
+  `satori`/`resvg` (renderizado de SVG+texto a PNG en el Worker, ya que los
+  modelos de imagen no dibujan texto de forma confiable). Por ahora, compartir
+  usa links con UTM + la portada normal como preview.
+- **Indexar en Vectorize/RAG** para que el chatbot pueda citar investigaciones.
+- **Traducción completa a los 12 idiomas** — el link del menú está limitado a
+  es-MX por ahora (mismo patrón que `/biblioteca`). Cuerpo muy largo para el
+  patrón de traducción-al-vuelo de páginas estáticas; necesita traducción por
+  bloque/sección guardada en la tabla `translations`, como columnas.
+- **Imágenes por sección** (Gemini) — hoy solo se generó la portada.
 - Confirmar el display name exacto: "A fondo" vs "A Fondo con Kilowatto".
-- Diseñar el esquema D1 (tabla propia + cómo se relacionan gráficas/citas/fuentes
-  con tracking de clics por cita).
-- Decidir el flujo concreto de ingesta: ¿Esteban pega el Markdown en un campo de
-  `/admin`, o sube el archivo, y de ahí Claude/el sistema genera todo lo demás?
+- Flujo de ingesta en `/admin` (hoy el importador se corre manualmente desde
+  la terminal) — falta una UI para que futuras piezas no dependan de Claude
+  corriendo el script a mano.
