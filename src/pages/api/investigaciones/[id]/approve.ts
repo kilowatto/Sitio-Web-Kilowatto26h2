@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { runGeneratePosts } from "./generate-posts";
 
 export const prerender = false;
 
@@ -35,5 +36,19 @@ export const POST: APIRoute = async ({ params, request }) => {
     .bind(newTitle, newSubtitle, newSummary, newBody, id)
     .run();
 
-  return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });
+  // Best-effort: a batch of 24-48 scheduled social posts always accompanies a
+  // publish per the 2026-08-21 decision, but a generation hiccup must never
+  // undo/block the publish itself -- Esteban can always re-trigger this
+  // endpoint by hand from /admin/a-fondo if it fails or comes up short.
+  let postsGenerated: number | null = null;
+  let postsError: string | null = null;
+  try {
+    const postsResult = await runGeneratePosts(Number(id));
+    if ("error" in postsResult) postsError = postsResult.error;
+    else postsGenerated = postsResult.count;
+  } catch (err: any) {
+    postsError = err?.message ?? "unknown error generating posts";
+  }
+
+  return new Response(JSON.stringify({ ok: true, postsGenerated, postsError }), { headers: { "content-type": "application/json" } });
 };

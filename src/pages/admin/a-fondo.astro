@@ -34,7 +34,8 @@ if (authorized && env?.DB) {
           Estas piezas no se generan desde aquí con un botón — Claude las produce en una conversación (8-10 agentes
           de investigación + fact-check adversarial, con tu tema), y aterrizan aquí ya completas para tu revisión.
           Abre la vista previa para verla exactamente como se vería publicada (gráficas, tablas, todo) antes de
-          decidir.
+          decidir. Al aprobar, se genera automáticamente un lote de 24-48 posts programados (repartidos en más de un
+          mes) que quedan pendientes de tu aprobación en <a href="/admin/social">/admin/social</a>.
         </p>
 
         <h2>Pendientes de aprobar ({pending.length})</h2>
@@ -96,11 +97,17 @@ if (authorized && env?.DB) {
             btn.disabled = true;
             btn.textContent = "Publicando…";
             try {
-              await fetch(`/api/investigaciones/${id}/approve?token=${encodeURIComponent(token)}`, {
+              const res = await fetch(`/api/investigaciones/${id}/approve?token=${encodeURIComponent(token)}`, {
                 method: "POST",
                 headers: { "content-type": "application/json" },
                 body: JSON.stringify({ title, subtitle, summary }),
               });
+              const data = await res.json().catch(() => ({}));
+              if (data.postsError) {
+                alert(`Se publicó, pero el lote de posts no se generó: ${data.postsError}\n\nPuedes reintentarlo llamando a /api/investigaciones/${id}/generate-posts desde el admin de posting.`);
+              } else if (typeof data.postsGenerated === "number") {
+                alert(`Publicado. Se generaron ${data.postsGenerated} posts programados, pendientes de tu aprobación en /admin/social.`);
+              }
               location.reload();
             } catch {
               alert("Se perdió la conexión al aprobar. Intenta de nuevo.");

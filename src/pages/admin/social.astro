@@ -221,13 +221,20 @@ function formatCountdown(expiresAt: string | null): string | null {
                       <span class="platform-badge">{p.platform.toUpperCase()}</span>
                       <span class="variant-badge">{p.variant_style ?? "único"}</span>
                       {p.kind === "news_reaction" && <span class="news-badge">📰 Noticia</span>}
+                      {p.kind === "investigacion_highlight" && <span class="news-badge">🔎 A Fondo</span>}
                       {p.kind === "news_reaction" && p.expires_at && (
                         <span class="expiry-badge">⏱️ {formatCountdown(p.expires_at)}</span>
                       )}
+                      {p.scheduled_for && <span class="expiry-badge">📅 {p.scheduled_for}</span>}
                     </p>
                     {p.kind === "news_reaction" && p.source_url && (
                       <p class="hint">
                         <a href={p.source_url} target="_blank" rel="noopener">Ver noticia original →</a>
+                      </p>
+                    )}
+                    {p.kind === "investigacion_highlight" && p.source_url && (
+                      <p class="hint">
+                        <a href={p.source_url} target="_blank" rel="noopener">Ver la investigación →</a>
                       </p>
                     )}
                     {p.rejection_reason && <p class="warn">⚠️ {p.rejection_reason}</p>}
