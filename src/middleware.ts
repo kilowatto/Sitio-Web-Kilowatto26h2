@@ -137,6 +137,7 @@ function logPageView(context: any) {
     const isUnservedLocaleGuess = LOCALE_GUESS_RE.test(singleSegment) && !localeFromParam(singleSegment);
     if (
       pathname.startsWith("/admin") ||
+      pathname.startsWith("/api/") ||
       BOT_SCAN_RE.test(pathname) ||
       ENV_SCAN_RE.test(pathname) ||
       isUnservedLocaleGuess
