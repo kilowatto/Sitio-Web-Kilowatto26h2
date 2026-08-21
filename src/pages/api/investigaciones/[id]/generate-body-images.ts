@@ -34,21 +34,14 @@ async function withConcurrency<T, R>(items: T[], limit: number, fn: (item: T, in
   return results;
 }
 
-export const POST: APIRoute = async ({ params, request }) => {
-  const url = new URL(request.url);
-  const token = url.searchParams.get("token");
-  if (token !== env.ADMIN_TOKEN && token !== env.SCRATCH_TOKEN) {
-    return new Response("unauthorized", { status: 401 });
-  }
-
-  const id = Number(params.id);
+// Exported so approve.ts can run this automatically (idempotent -- checks MARKER_CLASS itself,
+// safe to call on every approve regardless of whether a piece already has body images).
+export async function runGenerateBodyImages(id: number): Promise<{ ok: boolean; inserted: number; note?: string; error?: string }> {
   const row = await env.DB.prepare("SELECT id, title, body_html FROM investigaciones WHERE id = ?").bind(id).first<any>();
-  if (!row) return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+  if (!row) return { ok: false, inserted: 0, error: "not found" };
 
   if (row.body_html.includes(MARKER_CLASS)) {
-    return new Response(JSON.stringify({ ok: true, inserted: 0, note: "ya tiene imágenes de cuerpo, no se duplican" }), {
-      headers: { "content-type": "application/json" },
-    });
+    return { ok: true, inserted: 0, note: "ya tiene imágenes de cuerpo, no se duplican" };
   }
 
   // Split on paragraph/heading/chart-placeholder boundaries so an image only ever lands
@@ -99,9 +92,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   }
 
   if (insertions.length === 0) {
-    return new Response(JSON.stringify({ ok: true, inserted: 0, note: "pieza demasiado corta o sin puntos de párrafo válidos" }), {
-      headers: { "content-type": "application/json" },
-    });
+    return { ok: true, inserted: 0, note: "pieza demasiado corta o sin puntos de párrafo válidos" };
   }
 
   // Concurrency-limited (not sequential) -- a long piece can need 15+ images, and
@@ -125,7 +116,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const generated = results.filter((r): r is { afterBlockIndex: number; r2Key: string; float: "left" | "right" } => r !== null);
 
   if (generated.length === 0) {
-    return new Response(JSON.stringify({ error: "image generation failed for all insertion points" }), { status: 502 });
+    return { ok: false, inserted: 0, error: "image generation failed for all insertion points" };
   }
 
   let newBodyHtml = "";
@@ -139,7 +130,17 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   await env.DB.prepare("UPDATE investigaciones SET body_html = ? WHERE id = ?").bind(newBodyHtml, id).run();
 
-  return new Response(JSON.stringify({ ok: true, inserted: generated.length, targetCount: insertions.length }), {
-    headers: { "content-type": "application/json" },
-  });
+  return { ok: true, inserted: generated.length };
+}
+
+export const POST: APIRoute = async ({ params, request }) => {
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token");
+  if (token !== env.ADMIN_TOKEN && token !== env.SCRATCH_TOKEN) {
+    return new Response("unauthorized", { status: 401 });
+  }
+
+  const result = await runGenerateBodyImages(Number(params.id));
+  const status = result.error === "not found" ? 404 : result.ok ? 200 : 502;
+  return new Response(JSON.stringify(result), { status, headers: { "content-type": "application/json" } });
 };

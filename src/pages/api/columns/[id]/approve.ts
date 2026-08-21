@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { recordFeedback } from "../../../../lib/brand-learning";
 import { postColumnCarouselToLinkedIn } from "../../../../lib/linkedin-carousel";
+import { runReindex } from "../../reindex";
 
 export const prerender = false;
 
@@ -56,5 +57,20 @@ export const POST: APIRoute = async ({ params, request }) => {
     .bind(carousel.ok ? (carousel.externalUrl ?? null) : null, carousel.ok ? null : (carousel.error ?? null), id)
     .run();
 
-  return new Response(JSON.stringify({ ok: true, linkedin: carousel }), { headers: { "content-type": "application/json" } });
+  // Best-effort: Larry (the site's chatbot) never learned about newly-published content
+  // automatically anywhere on the site until 2026-08-21 -- someone had to remember to hit
+  // /api/reindex by hand. Fixed sitewide (this also covers investigaciones, see their
+  // approve.ts).
+  let reindexed = 0;
+  let reindexError: string | null = null;
+  try {
+    const reindexResult = await runReindex();
+    reindexed = reindexResult.indexed;
+  } catch (err: any) {
+    reindexError = err?.message ?? "unknown error reindexing";
+  }
+
+  return new Response(JSON.stringify({ ok: true, linkedin: carousel, reindexed, reindexError }), {
+    headers: { "content-type": "application/json" },
+  });
 };

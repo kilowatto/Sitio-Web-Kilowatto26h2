@@ -1,7 +1,9 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { runGeneratePosts } from "./generate-posts";
+import { runGenerateBodyImages } from "./generate-body-images";
 import { ensureInvestigacionImages } from "../../../../lib/investigacion-image";
+import { runReindex } from "../../reindex";
 
 export const prerender = false;
 
@@ -54,6 +56,22 @@ export const POST: APIRoute = async ({ params, request }) => {
     imagesError = err?.message ?? "unknown error generating images";
   }
 
+  // Best-effort: editorial images spread through the body itself (~every 500 words, text
+  // wrapping around them) -- 2026-08-21 decision, applies going forward only. Idempotent
+  // (checks its own marker class), so safe on every approve regardless of how the piece was
+  // produced. Runs BEFORE translation below so every locale's stored copy already includes
+  // the same inline-image figures (they're opaque to the translator either way, but a locale
+  // translated before this ran would need a second pass to pick them up).
+  let bodyImagesInserted = 0;
+  let bodyImagesError: string | null = null;
+  try {
+    const bodyImagesResult = await runGenerateBodyImages(Number(id));
+    if (bodyImagesResult.error) bodyImagesError = bodyImagesResult.error;
+    else bodyImagesInserted = bodyImagesResult.inserted;
+  } catch (err: any) {
+    bodyImagesError = err?.message ?? "unknown error generating body images";
+  }
+
   // Best-effort: a batch of 24-48 scheduled social posts always accompanies a
   // publish per the 2026-08-21 decision, but a generation hiccup must never
   // undo/block the publish itself -- Esteban can always re-trigger this
@@ -68,8 +86,49 @@ export const POST: APIRoute = async ({ params, request }) => {
     postsError = err?.message ?? "unknown error generating posts";
   }
 
+  // Best-effort: Larry (the site's chatbot) never learned about newly-published content
+  // automatically anywhere on the site until 2026-08-21 -- someone had to remember to hit
+  // /api/reindex by hand. Fixed sitewide (this also covers columns, see their approve.ts).
+  let reindexed = 0;
+  let reindexError: string | null = null;
+  try {
+    const reindexResult = await runReindex();
+    reindexed = reindexResult.indexed;
+  } catch (err: any) {
+    reindexError = err?.message ?? "unknown error reindexing";
+  }
+
+  // Fire-and-forget: translating a 6000-12000 word piece (plus its charts) into all 11
+  // non-canonical locales takes too long to run inline here -- a Cloudflare Workflow does it
+  // in the background, one durably-retryable step per locale (see
+  // scripts/translate-investigacion-workflow.mjs). Binding is only present in the real
+  // deployed Worker (not local `astro dev`), hence the guard.
+  let translationStarted = false;
+  let translationError: string | null = null;
+  try {
+    if (env.TRANSLATE_INVESTIGACION_WORKFLOW) {
+      await env.TRANSLATE_INVESTIGACION_WORKFLOW.create({ params: { investigacionId: Number(id) } });
+      translationStarted = true;
+    }
+  } catch (err: any) {
+    translationError = err?.message ?? "unknown error starting translation workflow";
+  }
+
   return new Response(
-    JSON.stringify({ ok: true, coverGenerated, chartsImaged, imagesError, postsGenerated, postsError }),
+    JSON.stringify({
+      ok: true,
+      coverGenerated,
+      chartsImaged,
+      imagesError,
+      bodyImagesInserted,
+      bodyImagesError,
+      postsGenerated,
+      postsError,
+      reindexed,
+      reindexError,
+      translationStarted,
+      translationError,
+    }),
     { headers: { "content-type": "application/json" } }
   );
 };

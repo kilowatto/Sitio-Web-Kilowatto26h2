@@ -67,4 +67,10 @@
       "dataset": "kilowatto_page_views"
     }
   ]
+  // TRANSLATE_INVESTIGACION_WORKFLOW is intentionally NOT declared here -- its class only
+  // exists in dist/server/translate-investigacion-workflow.mjs, written post-build by
+  // scripts/make-scheduled-entry.mjs (same reasoning as that file's `scheduled` export).
+  // Declaring the binding here with no matching class would break `astro dev`/miniflare, which
+  // reads this file directly. The real deploy config is dist/server/wrangler.json, see
+  // package.json's "deploy" script.
 }

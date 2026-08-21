@@ -9,9 +9,15 @@ const serverDir = path.resolve("dist/server");
 const wrapperPath = path.join(serverDir, "scheduled-entry.mjs");
 const configPath = path.join(serverDir, "wrangler.json");
 
+// Copy the hand-written Workflow class alongside the generated entry so the wrapper below can
+// import it as a plain relative module -- it can't be authored as a .ts file under src/ since
+// nothing in the Astro/Vite build would ever compile or bundle it into dist/server on its own.
+fs.copyFileSync(path.resolve("scripts/translate-investigacion-workflow.mjs"), path.join(serverDir, "translate-investigacion-workflow.mjs"));
+
 fs.writeFileSync(
   wrapperPath,
   `import astroHandler from "./entry.mjs";
+export { TranslateInvestigacionWorkflow } from "./translate-investigacion-workflow.mjs";
 
 // Calls the Worker's OWN exported fetch handler directly (a plain in-isolate function call),
 // NOT a real network fetch() to the public hostname. The old version did
@@ -88,6 +94,9 @@ export default {
 
 const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 config.main = "scheduled-entry.mjs";
+config.workflows = [
+  { name: "translate-investigacion", binding: "TRANSLATE_INVESTIGACION_WORKFLOW", class_name: "TranslateInvestigacionWorkflow" },
+];
 // Weekly (Monday 08:00 UTC): re-fetch each of Esteban's live projects, refresh their
 // summary from the real page content, and auto-hide/show them based on reachability.
 // Weekly (Monday 09:00 UTC, offset an hour from the projects refresh so they don't overlap):

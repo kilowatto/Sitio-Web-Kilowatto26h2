@@ -86,6 +86,26 @@ async function buildChunks(): Promise<Chunk[]> {
     });
   }
 
+  // Same per-H2-section chunking as columns, plus the executive summary as its own chunk --
+  // an investigación is long enough (often 6000-9000+ words) that a reader question is much
+  // more likely to land on one specific section than the piece as a whole.
+  const { results: investigaciones } = await env.DB.prepare("SELECT * FROM investigaciones WHERE status = 'published' ORDER BY published_at DESC").all<any>();
+  for (const inv of investigaciones ?? []) {
+    chunks.push({
+      id: `investigacion:${inv.id}:summary`,
+      text: `Investigación de A Fondo con Kilowatto, "${inv.title}"${inv.subtitle ? ` — ${inv.subtitle}` : ""} (${inv.published_at}). Resumen ejecutivo: ${stripHtml(inv.summary)}`,
+      metadata: { entity_type: "investigacion", entity_id: inv.id, slug: inv.slug, section: "Resumen ejecutivo" },
+    });
+    const sections = splitColumnIntoSections(inv.body_html.replace(/<!--chart:[a-z0-9-]+-->/g, "").replace(/<figure class="ia-inline-img[\s\S]*?<\/figure>/g, ""));
+    sections.forEach((s, i) => {
+      chunks.push({
+        id: `investigacion:${inv.id}:${i}`,
+        text: `Investigación de A Fondo con Kilowatto, "${inv.title}" (${inv.published_at}). Sección "${s.heading}": ${s.text}`,
+        metadata: { entity_type: "investigacion", entity_id: inv.id, slug: inv.slug, section: s.heading },
+      });
+    });
+  }
+
   // Pets, from /avestruces — not in D1 (it's a hardcoded static page), so mirrored here by hand
   // so Larry actually knows and loves them, not just the humans/companies.
   chunks.push({
@@ -122,12 +142,12 @@ async function buildChunks(): Promise<Chunk[]> {
   return chunks;
 }
 
-export const POST: APIRoute = async ({ request }) => {
-  const url = new URL(request.url);
-  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
-    return new Response("unauthorized", { status: 401 });
-  }
-
+// Exported so approve.ts (columns and investigaciones) can trigger a reindex in-process right
+// after publishing -- until 2026-08-21 NOTHING on the site did this automatically anywhere;
+// Larry only ever learned about new content when someone remembered to hit this endpoint by
+// hand. Full rebuild every time (not incremental) is intentional, matching how this endpoint
+// already worked -- simpler and still fast enough at this content volume.
+export async function runReindex(): Promise<{ indexed: number }> {
   const chunks = await buildChunks();
   const vectors = [];
 
@@ -145,7 +165,17 @@ export const POST: APIRoute = async ({ request }) => {
     await env.KILOWATTO_KV.put("last_reindex_at", new Date().toISOString());
   }
 
-  return new Response(JSON.stringify({ indexed: vectors.length }), {
+  return { indexed: vectors.length };
+}
+
+export const POST: APIRoute = async ({ request }) => {
+  const url = new URL(request.url);
+  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
+    return new Response("unauthorized", { status: 401 });
+  }
+
+  const result = await runReindex();
+  return new Response(JSON.stringify({ indexed: result.indexed }), {
     headers: { "content-type": "application/json" },
   });
 };
