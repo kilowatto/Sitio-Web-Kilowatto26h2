@@ -208,7 +208,8 @@ BODY:
 
 export const POST: APIRoute = async ({ request }) => {
   const url = new URL(request.url);
-  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
+  const token = url.searchParams.get("token");
+  if (token !== env.ADMIN_TOKEN && token !== env.SCRATCH_TOKEN) {
     return new Response("unauthorized", { status: 401 });
   }
   const topicId = url.searchParams.get("topicId");

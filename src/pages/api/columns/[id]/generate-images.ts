@@ -244,7 +244,8 @@ const BRIEFS: Record<string, Brief> = {
 
 export const POST: APIRoute = async ({ request, params }) => {
   const url = new URL(request.url);
-  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
+  const token = url.searchParams.get("token");
+  if (token !== env.ADMIN_TOKEN && token !== env.SCRATCH_TOKEN) {
     return new Response("unauthorized", { status: 401 });
   }
 
