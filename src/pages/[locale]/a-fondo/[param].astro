@@ -1,0 +1,505 @@
+---
+// Locale-prefixed mirror of src/pages/a-fondo/[param].astro -- see that file for the canonical
+// structure/CSS this duplicates. Translated fields come from the `translations` table
+// (entity_type "investigaciones", plus a "chart:{chartKey}:{field}" convention for charts);
+// untranslated locales/fields fall back to the original Spanish via t()'s fallback argument,
+// same pattern as columnas' own locale route.
+import Site from "../../../layouts/Site.astro";
+import InvestigacionList from "../../../components/InvestigacionList.astro";
+import InvestigacionToc from "../../../components/InvestigacionToc.astro";
+import InvestigacionShare from "../../../components/InvestigacionShare.astro";
+import CommentSection from "../../../components/CommentSection.astro";
+import ChartCard from "../../../components/charts/ChartCard.astro";
+import {
+  getInvestigacionesPage,
+  getInvestigacionBySlug,
+  getInvestigacionBySlugAnyStatus,
+  getInvestigacionSources,
+  getInvestigacionCharts,
+  incrementInvestigacionView,
+  displayViewCount,
+  excerptFrom,
+  type InvestigacionRow,
+} from "../../../lib/investigaciones-query";
+import { splitInvestigacionBody, extractSections, stampSectionIds } from "../../../lib/investigacion-layout";
+import { localeFromParam } from "../../../lib/locales";
+import { loadTranslations, t } from "../../../lib/i18n";
+import { env } from "cloudflare:workers";
+
+const locale = localeFromParam(Astro.params.locale);
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+
+const raw = Astro.params.param ?? "";
+const isNumeric = /^\d+$/.test(raw);
+
+let pageNum = 1;
+let rows: InvestigacionRow[] = [];
+let totalPages = 1;
+let investigacion: InvestigacionRow | null = null;
+let tr = new Map<string, string>();
+
+if (isNumeric) {
+  pageNum = Number(raw);
+  if (pageNum < 2) {
+    if (pageNum === 1) return Astro.redirect(`/${locale.code}/a-fondo`, 301);
+    Astro.response.status = 404;
+    return Astro.rewrite("/404");
+  }
+  if (env?.DB) {
+    const page = await getInvestigacionesPage(env, pageNum);
+    rows = page.rows;
+    totalPages = page.totalPages;
+  }
+  if (pageNum > totalPages || rows.length === 0) {
+    Astro.response.status = 404;
+    return Astro.rewrite("/404");
+  }
+} else {
+  const previewToken = Astro.url.searchParams.get("token");
+  const isPreview = !!previewToken && env?.ADMIN_TOKEN && (previewToken === env.ADMIN_TOKEN || previewToken === env.SCRATCH_TOKEN);
+
+  if (env?.DB) {
+    const row = isPreview ? await getInvestigacionBySlugAnyStatus(env, raw) : await getInvestigacionBySlug(env, raw);
+    if (row) {
+      if (!isPreview) await incrementInvestigacionView(env, row.id);
+      tr = await loadTranslations(env.DB, "investigaciones", locale.code);
+      investigacion = {
+        ...row,
+        title: t(tr, row.id, "title", row.title) as string,
+        subtitle: t(tr, row.id, "subtitle", row.subtitle),
+        hook: t(tr, row.id, "hook", row.hook),
+        summary: t(tr, row.id, "summary", row.summary) as string,
+        body_html: t(tr, row.id, "body_html", row.body_html) as string,
+        methodology_html: t(tr, row.id, "methodology_html", row.methodology_html),
+      };
+    }
+  }
+  if (!investigacion) {
+    Astro.response.status = 404;
+    return Astro.rewrite("/404");
+  }
+}
+
+let sources: Awaited<ReturnType<typeof getInvestigacionSources>> = [];
+let charts: Awaited<ReturnType<typeof getInvestigacionCharts>> = [];
+let sourceLinkSlugs = new Map<number, string>();
+if (investigacion && env?.DB) {
+  [sources, charts] = await Promise.all([
+    getInvestigacionSources(env, investigacion.id),
+    getInvestigacionCharts(env, investigacion.id),
+  ]);
+  // Chart title/description/source_note/data_json translations use a "chart:{key}:{field}"
+  // field_key (see src/lib/investigacion-translate.ts) -- applied here the same way t() does
+  // for the row's own fields, just with a namespaced key instead of a plain one.
+  charts = charts.map((c) => ({
+    ...c,
+    title: (t(tr, investigacion!.id, `chart:${c.chart_key}:title`, c.title) as string) ?? c.title,
+    description: t(tr, investigacion!.id, `chart:${c.chart_key}:description`, c.description),
+    source_note: t(tr, investigacion!.id, `chart:${c.chart_key}:source_note`, c.source_note),
+    data_json: (t(tr, investigacion!.id, `chart:${c.chart_key}:data_json`, c.data_json) as string) ?? c.data_json,
+  }));
+  const shortLinkIds = sources.map((s) => s.short_link_id).filter((id): id is number => id != null);
+  if (shortLinkIds.length > 0) {
+    const placeholders = shortLinkIds.map(() => "?").join(",");
+    const res = await env.DB.prepare(`SELECT id, slug FROM short_links WHERE id IN (${placeholders})`)
+      .bind(...shortLinkIds)
+      .all<any>();
+    for (const row of res.results ?? []) sourceLinkSlugs.set(row.id, row.slug);
+  }
+}
+
+const chartByKey = new Map(charts.map((c) => [c.chart_key, c]));
+const stampedBodyHtml = investigacion ? stampSectionIds(investigacion.body_html) : "";
+const segments = investigacion ? splitInvestigacionBody(stampedBodyHtml) : [];
+const sections = investigacion ? extractSections(stampedBodyHtml) : [];
+
+const BYLINE: Record<string, string> = {
+  en: "By Esteban Rey (",
+  "pt-BR": "Por Esteban Rey (",
+  fr: "Par Esteban Rey (",
+  de: "Von Esteban Rey (",
+  ar: "بقلم إستيبان راي (",
+  "zh-Hans": "作者：Esteban Rey（",
+  ja: "著者：Esteban Rey（",
+};
+const byline = BYLINE[locale.code] ?? "Por Esteban Rey (";
+
+const articleJsonLd = investigacion
+  ? {
+      "@context": "https://schema.org",
+      "@type": "Report",
+      headline: investigacion.title,
+      description: investigacion.subtitle || excerptFrom(investigacion.summary, 300),
+      datePublished: investigacion.published_at,
+      inLanguage: locale.code,
+      author: { "@type": "Person", name: "Esteban Rey", alternateName: "Kilowatto", url: "https://kilowatto.com" },
+      publisher: { "@type": "Organization", name: "Kilowatto" },
+      mainEntityOfPage: `https://kilowatto.com/${locale.code}/a-fondo/${investigacion.slug}`,
+      image: investigacion.cover_r2_key ? `https://kilowatto.com/media/${investigacion.cover_r2_key}` : undefined,
+      citation: sources.slice(0, 30).map((s) => ({ "@type": "CreativeWork", name: s.label, url: s.url })),
+    }
+  : null;
+---
+
+{
+  investigacion ? (
+    <Site
+      title={`${investigacion.title} — A Fondo con Kilowatto — Esteban Rey`}
+      description={investigacion.subtitle || excerptFrom(investigacion.summary, 300)}
+      active="/a-fondo"
+      ogType="article"
+      image={
+        investigacion.og_r2_key
+          ? `/media/${investigacion.og_r2_key}`
+          : investigacion.cover_r2_key
+            ? `/media/${investigacion.cover_r2_key}`
+            : undefined
+      }
+    >
+      <script type="application/ld+json" set:html={JSON.stringify(articleJsonLd)} />
+
+      {investigacion.cover_r2_key ? (
+        <div class="ia-hero">
+          <img
+            src={`/media/${investigacion.cover_r2_key}?w=1200`}
+            srcset={`/media/${investigacion.cover_r2_key}?w=800 800w, /media/${investigacion.cover_r2_key}?w=1400 1400w, /media/${investigacion.cover_r2_key}?w=2000 2000w`}
+            sizes="100vw"
+            alt=""
+            class="ia-hero__img"
+          />
+          <div class="ia-hero__gradient" />
+          <div class="ia-hero__text">
+            <div class="container">
+              <p class="eyebrow ia-hero__eyebrow">
+                <a href={`/${locale.code}/a-fondo`}>A Fondo con Kilowatto</a>
+              </p>
+              <h1>{investigacion.title}</h1>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <section class="page-head">
+          <div class="container">
+            <p class="eyebrow">
+              <a href={`/${locale.code}/a-fondo`}>A Fondo con Kilowatto</a>
+            </p>
+            <h1>{investigacion.title}</h1>
+          </div>
+        </section>
+      )}
+
+      <section class="chapter">
+        <div class="container">
+          {investigacion.hook && <p class="ia-hook">{investigacion.hook}</p>}
+          <p class="row__range">
+            {investigacion.published_at?.slice(0, 10)} · {byline}
+            <a href="https://x.com/kilowatto" target="_blank" rel="noopener me">@Kilowatto</a>
+            ) · {investigacion.read_minutes} min · {displayViewCount(investigacion).toLocaleString(locale.code)}
+          </p>
+
+          <div class="ia-summary">
+            <p class="ia-summary__label">Resumen ejecutivo</p>
+            <p>{investigacion.summary}</p>
+          </div>
+
+          <div class="ia-layout">
+            <InvestigacionToc sections={sections} readMinutes={investigacion.read_minutes ?? 10} />
+
+            <article class="ia-article" data-investigacion-article data-investigacion-body>
+              {segments.map((seg) => (
+                <>
+                  <Fragment set:html={seg.html} />
+                  {seg.chartKeyAfter && chartByKey.has(seg.chartKeyAfter) && (
+                    <ChartCard
+                      chartKey={seg.chartKeyAfter}
+                      title={chartByKey.get(seg.chartKeyAfter)!.title}
+                      description={chartByKey.get(seg.chartKeyAfter)!.description}
+                      sourceNote={chartByKey.get(seg.chartKeyAfter)!.source_note}
+                      chartType={chartByKey.get(seg.chartKeyAfter)!.chart_type}
+                      data={JSON.parse(chartByKey.get(seg.chartKeyAfter)!.data_json)}
+                      imageR2Key={chartByKey.get(seg.chartKeyAfter)!.image_r2_key}
+                    />
+                  )}
+                </>
+              ))}
+
+              {chartByKey.has("radar-comparativo") && (
+                <ChartCard
+                  chartKey="radar-comparativo"
+                  title={chartByKey.get("radar-comparativo")!.title}
+                  description={chartByKey.get("radar-comparativo")!.description}
+                  sourceNote={chartByKey.get("radar-comparativo")!.source_note}
+                  chartType="radar"
+                  data={JSON.parse(chartByKey.get("radar-comparativo")!.data_json)}
+                />
+              )}
+
+              {investigacion.methodology_html && (
+                <details class="ia-methodology">
+                  <summary>Metodología de esta investigación</summary>
+                  <Fragment set:html={investigacion.methodology_html} />
+                  <p class="ia-methodology__link">
+                    <a href={`/${locale.code}/a-fondo/metodologia`}>Cómo investigo, en general →</a>
+                  </p>
+                </details>
+              )}
+
+              {sources.length > 0 && (
+                <section class="ia-sources">
+                  <h2>Fuentes</h2>
+                  <ol>
+                    {sources.map((s) => (
+                      <li>
+                        <span class={`flag-dot flag-dot--${s.confidence}`} aria-hidden="true"></span>{" "}
+                        <a
+                          href={s.short_link_id && sourceLinkSlugs.get(s.short_link_id) ? `https://kilowatto.com/r/${sourceLinkSlugs.get(s.short_link_id)}` : s.url}
+                          target="_blank"
+                          rel="noopener"
+                        >
+                          {s.label}
+                        </a>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              )}
+
+              <InvestigacionShare url={`https://kilowatto.com/${locale.code}/a-fondo/${investigacion.slug}`} title={investigacion.title} />
+              <CommentSection investigacionId={investigacion.id} />
+            </article>
+          </div>
+        </div>
+      </section>
+    </Site>
+  ) : (
+    <Site title={`A Fondo con Kilowatto — página ${pageNum} — Esteban Rey`} active="/a-fondo">
+      <section class="page-head">
+        <div class="container">
+          <p class="eyebrow">A Fondo con Kilowatto</p>
+          <h1>Investigaciones</h1>
+        </div>
+      </section>
+      <section class="chapter">
+        <div class="container">
+          <InvestigacionList rows={rows} currentPage={pageNum} totalPages={totalPages} basePath={`/${locale.code}/a-fondo`} />
+        </div>
+      </section>
+    </Site>
+  )
+}
+
+<style>
+  .ia-hero {
+    position: relative;
+    width: 100vw;
+    left: 50%;
+    margin-left: -50vw;
+    height: clamp(13rem, 30vw, 22rem);
+    overflow: hidden;
+    margin-bottom: var(--space-3);
+  }
+  .ia-hero__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .ia-hero__gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.45) 40%, rgba(0, 0, 0, 0) 75%);
+  }
+  .ia-hero__text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding-bottom: var(--space-2);
+  }
+  .ia-hero__eyebrow {
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .ia-hero__eyebrow a {
+    color: inherit;
+  }
+  .ia-hero__text h1 {
+    color: #fff;
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 4vw, 2.75rem);
+    line-height: 1.08;
+    max-width: 48rem;
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
+  }
+  .ia-hook {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.15rem;
+    color: var(--ink-soft);
+    max-width: 44rem;
+    margin: 0 0 var(--space-2);
+  }
+  .ia-summary {
+    background: var(--mist);
+    border-left: 3px solid var(--rhino);
+    border-radius: 0.4rem;
+    padding: 1.1rem 1.3rem;
+    margin: var(--space-3) 0;
+    max-width: 44rem;
+  }
+  .ia-summary__label {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.72rem;
+    color: var(--ember);
+    margin: 0 0 0.5rem;
+  }
+  .ia-summary p:last-child {
+    margin: 0;
+    color: var(--ink);
+  }
+
+  .ia-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  @media (min-width: 900px) {
+    .ia-layout {
+      grid-template-columns: 14rem minmax(0, 1fr);
+      align-items: start;
+    }
+  }
+
+  .ia-article {
+    max-width: 46rem;
+    font-size: 1.05rem;
+    line-height: 1.7;
+  }
+  .ia-article :global(h2) {
+    margin-top: var(--space-4);
+    font-family: var(--font-display);
+    scroll-margin-top: 5.5rem;
+    clear: both;
+  }
+  .ia-article :global(p) {
+    margin-top: var(--space-2);
+    overflow-wrap: anywhere;
+  }
+  .ia-article :global(.ia-inline-img) {
+    margin: 0.3rem 0 1.2rem;
+    width: 45%;
+    aspect-ratio: 4 / 3;
+  }
+  .ia-article :global(.ia-inline-img--left) {
+    float: left;
+    margin-inline-end: 1.5rem;
+  }
+  .ia-article :global(.ia-inline-img--right) {
+    float: right;
+    margin-inline-start: 1.5rem;
+  }
+  .ia-article :global(.ia-inline-img img) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0.5rem;
+  }
+  @media (max-width: 640px) {
+    .ia-article :global(.ia-inline-img) {
+      float: none;
+      width: 100%;
+      margin-inline: 0;
+    }
+  }
+  .ia-article :global(a.cite) {
+    text-decoration: none;
+    border-bottom: 1px dotted var(--ember);
+    color: inherit;
+  }
+  .ia-article :global(a.cite .cite__flag)::before {
+    content: "";
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    margin-inline-start: 0.3rem;
+  }
+  .ia-article :global(a.cite--green .cite__flag)::before {
+    background: #1f8a4c;
+  }
+  .ia-article :global(a.cite--yellow .cite__flag)::before {
+    background: #b8860b;
+  }
+  .ia-article :global(a.cite--red .cite__flag)::before {
+    background: #c0392b;
+  }
+
+  .ia-methodology {
+    margin: var(--space-4) 0;
+    background: var(--mist);
+    border-radius: 0.5rem;
+    padding: 0.2rem 1.3rem;
+  }
+  .ia-methodology summary {
+    cursor: pointer;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.78rem;
+    color: var(--ember);
+    padding: 1rem 0;
+  }
+  .ia-methodology[open] summary {
+    border-bottom: 1px solid var(--line);
+  }
+  .ia-methodology :global(p) {
+    font-size: 0.92rem;
+  }
+  .ia-methodology__link {
+    margin-top: 0.5rem !important;
+  }
+  .ia-methodology__link a {
+    color: var(--ember);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .ia-sources {
+    margin-top: var(--space-4);
+  }
+  .ia-sources h2 {
+    font-family: var(--font-display);
+  }
+  .ia-sources ol {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    padding-left: 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .ia-sources a {
+    color: inherit;
+  }
+  .flag-dot {
+    display: inline-block;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+  }
+  .flag-dot--green {
+    background: #1f8a4c;
+  }
+  .flag-dot--yellow {
+    background: #b8860b;
+  }
+  .flag-dot--red {
+    background: #c0392b;
+  }
+</style>

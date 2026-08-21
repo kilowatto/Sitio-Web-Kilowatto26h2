@@ -1,0 +1,70 @@
+---
+// Locale-prefixed mirror of src/pages/a-fondo.astro -- see that file for the canonical
+// version. List items themselves (title/subtitle) come translated via InvestigacionList
+// reading from the same translated `rows` passed in, same approach as columnas.astro's
+// locale mirror.
+import Site from "../../layouts/Site.astro";
+import InvestigacionList from "../../components/InvestigacionList.astro";
+import { getInvestigacionesPage } from "../../lib/investigaciones-query";
+import { localeFromParam } from "../../lib/locales";
+import { loadTranslations, t } from "../../lib/i18n";
+import { env } from "cloudflare:workers";
+
+const locale = localeFromParam(Astro.params.locale);
+if (!locale) {
+  Astro.response.status = 404;
+  return Astro.rewrite("/404");
+}
+if (locale.canonical) return Astro.redirect("/a-fondo", 302);
+
+let rows: Awaited<ReturnType<typeof getInvestigacionesPage>>["rows"] = [];
+let totalPages = 1;
+if (env?.DB) {
+  const page = await getInvestigacionesPage(env, 1);
+  const tr = await loadTranslations(env.DB, "investigaciones", locale.code);
+  rows = page.rows.map((r) => ({
+    ...r,
+    title: t(tr, r.id, "title", r.title) as string,
+    subtitle: t(tr, r.id, "subtitle", r.subtitle),
+    summary: t(tr, r.id, "summary", r.summary) as string,
+  }));
+  totalPages = page.totalPages;
+}
+
+const EMPTY_STATE: Record<string, string> = {
+  en: "No investigations published yet.",
+  "pt-BR": "Ainda não há investigações publicadas.",
+  fr: "Aucune enquête publiée pour le moment.",
+  de: "Noch keine Untersuchungen veröffentlicht.",
+  ar: "لا توجد تحقيقات منشورة بعد.",
+  "zh-Hans": "尚未发布任何调查报道。",
+  ja: "まだ公開された調査記事はありません。",
+};
+const emptyState = EMPTY_STATE[locale.code] ?? "Todavía no hay investigaciones publicadas.";
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  name: "A Fondo con Kilowatto — Esteban Rey",
+  inLanguage: locale.code,
+  url: `https://kilowatto.com/${locale.code}/a-fondo`,
+};
+---
+
+<Site title="A Fondo con Kilowatto — Esteban Rey" active="/a-fondo">
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  <section class="page-head">
+    <div class="container">
+      <h1>A Fondo con Kilowatto</h1>
+    </div>
+  </section>
+  <section class="chapter">
+    <div class="container">
+      {rows.length === 0 ? (
+        <p class="hero__sub">{emptyState}</p>
+      ) : (
+        <InvestigacionList rows={rows} currentPage={1} totalPages={totalPages} basePath={`/${locale.code}/a-fondo`} />
+      )}
+    </div>
+  </section>
+</Site>
