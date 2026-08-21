@@ -61,6 +61,10 @@
     {
       "binding": "BRAND_ANALYTICS",
       "dataset": "kilowatto_brand_posts"
+    },
+    {
+      "binding": "PAGE_ANALYTICS",
+      "dataset": "kilowatto_page_views"
     }
   ]
 }
