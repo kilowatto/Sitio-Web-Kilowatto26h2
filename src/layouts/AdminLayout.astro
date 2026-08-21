@@ -249,11 +249,14 @@ const MORE_ITEMS = [
   .admin-shell button,
   .admin-shell select,
   .admin-shell textarea {
+    /* System font first so the admin reads as a native macOS/iOS app (SF Pro), which is
+       where it's actually used -- Inter stays as the cross-platform fallback. */
     font-family:
-      "Inter",
       -apple-system,
+      BlinkMacSystemFont,
       "SF Pro Text",
       system-ui,
+      "Inter",
       sans-serif;
   }
   .admin-shell {
