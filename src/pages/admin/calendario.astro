@@ -1,0 +1,287 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import AdminLogin from "../../components/AdminLogin.astro";
+import { env } from "cloudflare:workers";
+import { checkAdminAuth } from "../../lib/admin-auth";
+
+export const prerender = false;
+
+const token = await checkAdminAuth(Astro, env);
+const authorized = !!token;
+
+let events: { date: string; time: string; platform: string; kind: string; content: string }[] = [];
+
+if (authorized && env?.DB) {
+  const res = await env.DB.prepare(
+    `SELECT scheduled_for, platform, kind, content
+     FROM brand_posts
+     WHERE status = 'approved' AND scheduled_for > datetime('now')
+     ORDER BY scheduled_for ASC
+     LIMIT 200`
+  ).all();
+  events = (res.results ?? []).map((r: any) => {
+    const [date, time] = String(r.scheduled_for).split(" ");
+    return { date, time: (time ?? "00:00:00").slice(0, 5), platform: r.platform, kind: r.kind, content: r.content ?? "" };
+  });
+}
+
+const eventsByDate: Record<string, typeof events> = {};
+for (const e of events) {
+  (eventsByDate[e.date] ??= []).push(e);
+}
+---
+
+{
+  !authorized ? (
+    <AdminLogin />
+  ) : (
+    <AdminLayout title="Calendario — Admin" active="/admin/calendario">
+      <div class="cal-page">
+        <h1>Calendario de publicaciones</h1>
+
+        <div class="segmented">
+          <button class="seg-btn is-active" data-view="day">Día</button>
+          <button class="seg-btn" data-view="week">Semana</button>
+          <button class="seg-btn" data-view="month">Mes</button>
+          <button class="seg-btn" data-view="quarter">Trimestre</button>
+        </div>
+
+        <div id="cal-day" class="cal-view"></div>
+        <div id="cal-week" class="cal-view" hidden></div>
+        <div id="cal-month" class="cal-view" hidden></div>
+        <div id="cal-quarter" class="cal-view" hidden></div>
+      </div>
+
+      <script type="application/json" id="cal-events" set:html={JSON.stringify(eventsByDate).replace(/</g, "\\u003c")} />
+
+      <script>
+        const DOW = ["L", "M", "X", "J", "V", "S", "D"];
+        const eventsByDate = JSON.parse(document.getElementById("cal-events")?.textContent || "{}");
+
+        function pad(n: number) {
+          return n < 10 ? "0" + n : "" + n;
+        }
+        function keyOf(d: Date) {
+          return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+        }
+        function addDays(d: Date, n: number) {
+          const r = new Date(d);
+          r.setDate(r.getDate() + n);
+          return r;
+        }
+        function startOfWeek(d: Date) {
+          const dow = (d.getDay() + 6) % 7;
+          return addDays(d, -dow);
+        }
+        function monthName(y: number, m: number) {
+          const names = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+          return names[m] + " " + y;
+        }
+        function buildMonthCells(y: number, m: number) {
+          const first = new Date(y, m, 1);
+          const startWeekday = (first.getDay() + 6) % 7;
+          const daysInMonth = new Date(y, m + 1, 0).getDate();
+          const cells: (Date | null)[] = [];
+          for (let i = 0; i < startWeekday; i++) cells.push(null);
+          for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(y, m, d));
+          while (cells.length % 7 !== 0) cells.push(null);
+          return cells;
+        }
+
+        let selected = new Date();
+        selected.setHours(0, 0, 0, 0);
+
+        function renderDay() {
+          const root = document.getElementById("cal-day")!;
+          let stripHtml = '<div class="day-strip">';
+          for (let i = -3; i <= 3; i++) {
+            const d = addDays(selected, i);
+            const k = keyOf(d);
+            const isSel = k === keyOf(selected);
+            const has = !!eventsByDate[k]?.length;
+            stripHtml += `<button class="day-pill${isSel ? " is-selected" : ""}" data-date="${k}">
+              <span class="dow">${DOW[(d.getDay() + 6) % 7]}</span>
+              <span class="num">${d.getDate()}</span>
+              <span class="dot${has ? " has-event" : ""}"></span>
+            </button>`;
+          }
+          stripHtml += "</div>";
+
+          const dayEvents = eventsByDate[keyOf(selected)] || [];
+          let listHtml = "";
+          if (dayEvents.length === 0) {
+            listHtml = '<div class="empty-day">Sin publicaciones programadas este día.</div>';
+          } else {
+            for (const e of dayEvents) {
+              listHtml += `<div class="event-card">
+                <span class="event-time">${e.time}</span>
+                <div>
+                  <div class="event-title">${e.kind}</div>
+                  <div class="event-sub">${e.platform.toUpperCase()} · ${escapeHtml(e.content.slice(0, 70))}${e.content.length > 70 ? "…" : ""}</div>
+                </div>
+              </div>`;
+            }
+          }
+          root.innerHTML = stripHtml + listHtml;
+          root.querySelectorAll<HTMLButtonElement>("[data-date]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const [y, m, d] = btn.dataset.date!.split("-").map(Number);
+              selected = new Date(y, m - 1, d);
+              renderDay();
+            });
+          });
+        }
+
+        function renderWeek() {
+          const root = document.getElementById("cal-week")!;
+          const weekStart = startOfWeek(selected);
+          let html = "";
+          const weekEnd = addDays(weekStart, 6);
+          html += `<p class="month-title">${weekStart.getDate()} – ${weekEnd.getDate()} de ${monthName(weekEnd.getFullYear(), weekEnd.getMonth()).toLowerCase()}</p>`;
+          html += '<div class="week-grid">';
+          for (let w = 0; w < 7; w++) {
+            const wd = addDays(weekStart, w);
+            const k = keyOf(wd);
+            const count = (eventsByDate[k] || []).length;
+            html += `<button class="week-cell${count ? " has-event" : ""}" data-date="${k}">
+              <div class="dow">${DOW[w]}</div>
+              <div class="num">${wd.getDate()}</div>
+              <div class="count">${count ? count + (count > 1 ? " posts" : " post") : ""}</div>
+            </button>`;
+          }
+          html += "</div>";
+          root.innerHTML = html;
+          root.querySelectorAll<HTMLButtonElement>("[data-date]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const [y, m, d] = btn.dataset.date!.split("-").map(Number);
+              selected = new Date(y, m - 1, d);
+              showView("day");
+            });
+          });
+        }
+
+        function renderMonth() {
+          const root = document.getElementById("cal-month")!;
+          const y = selected.getFullYear(), m = selected.getMonth();
+          let html = `<p class="month-title">${monthName(y, m)}</p><div class="month-grid">`;
+          for (const dow of DOW) html += `<div class="month-dow">${dow}</div>`;
+          for (const d of buildMonthCells(y, m)) {
+            if (!d) {
+              html += '<div class="month-cell is-blank"></div>';
+              continue;
+            }
+            const k = keyOf(d);
+            const has = !!eventsByDate[k]?.length;
+            html += `<button class="month-cell${has ? " has-event" : ""}" data-date="${k}">${d.getDate()}<span class="month-dot${has ? " has-event" : ""}"></span></button>`;
+          }
+          html += "</div>";
+          root.innerHTML = html;
+          root.querySelectorAll<HTMLButtonElement>("[data-date]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const [yy, mm, dd] = btn.dataset.date!.split("-").map(Number);
+              selected = new Date(yy, mm - 1, dd);
+              showView("day");
+            });
+          });
+        }
+
+        function renderQuarter() {
+          const root = document.getElementById("cal-quarter")!;
+          const y0 = selected.getFullYear(), m0 = selected.getMonth();
+          let html = "";
+          for (let offset = 0; offset < 3; offset++) {
+            let y = y0, m = m0 + offset;
+            if (m > 11) { m -= 12; y += 1; }
+            html += `<div class="quarter-month"><p class="month-title">${monthName(y, m)}</p><div class="quarter-grid">`;
+            for (const d of buildMonthCells(y, m)) {
+              if (!d) {
+                html += '<div class="quarter-cell is-blank"></div>';
+                continue;
+              }
+              const n = (eventsByDate[keyOf(d)] || []).length;
+              const heat = n === 0 ? "" : n === 1 ? " heat-2" : " heat-3";
+              html += `<div class="quarter-cell${heat}"></div>`;
+            }
+            html += "</div></div>";
+          }
+          root.innerHTML = html;
+        }
+
+        function escapeHtml(s: string) {
+          return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function showView(view: string) {
+          document.querySelectorAll<HTMLElement>(".cal-view").forEach((el) => (el.hidden = true));
+          document.querySelectorAll<HTMLButtonElement>(".seg-btn").forEach((b) => b.classList.toggle("is-active", b.dataset.view === view));
+          document.getElementById(`cal-${view}`)!.hidden = false;
+          if (view === "day") renderDay();
+          if (view === "week") renderWeek();
+          if (view === "month") renderMonth();
+          if (view === "quarter") renderQuarter();
+        }
+
+        document.querySelectorAll<HTMLButtonElement>(".seg-btn").forEach((btn) => {
+          btn.addEventListener("click", () => showView(btn.dataset.view!));
+        });
+
+        renderDay();
+      </script>
+    </AdminLayout>
+  )
+}
+
+<style>
+  .cal-page { max-width: 30rem; }
+  .cal-page h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+  .segmented { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; }
+  .seg-btn {
+    flex: 1; border: 1px solid var(--admin-border); background: transparent; color: var(--admin-text-soft);
+    font-family: monospace; font-size: 0.72rem; padding: 0.5rem 0; border-radius: 999px; cursor: pointer;
+  }
+  .seg-btn.is-active { background: var(--rhino); border-color: var(--rhino); color: #fff; font-weight: 600; }
+
+  .day-strip { display: flex; gap: 0.4rem; margin-bottom: 1rem; }
+  .day-pill {
+    flex: 1; border: 1px solid var(--admin-border); border-radius: 0.6rem; padding: 0.5rem 0.1rem;
+    text-align: center; background: var(--admin-surface); color: var(--admin-text); cursor: pointer;
+  }
+  .day-pill.is-selected { background: var(--rhino); border-color: var(--rhino); color: #fff; }
+  .day-pill .dow { display: block; font-family: monospace; font-size: 0.58rem; opacity: 0.8; }
+  .day-pill .num { display: block; font-weight: 700; font-size: 1.05rem; margin-top: 0.15rem; }
+  .day-pill .dot { display: block; width: 4px; height: 4px; border-radius: 999px; background: currentColor; margin: 0.25rem auto 0; opacity: 0; }
+  .day-pill .dot.has-event { opacity: 1; }
+
+  .event-card { border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.75rem 0.9rem; background: var(--admin-surface); margin-bottom: 0.5rem; display: flex; gap: 0.6rem; align-items: flex-start; }
+  .event-time { font-family: monospace; font-size: 0.78rem; color: var(--rhino); flex: 0 0 3.2rem; }
+  .event-title { font-size: 0.85rem; font-weight: 600; }
+  .event-sub { font-family: monospace; font-size: 0.66rem; color: var(--admin-text-soft); margin-top: 0.15rem; }
+  .empty-day { border: 1px dashed var(--admin-border); border-radius: 0.7rem; padding: 1.1rem; text-align: center; color: var(--admin-text-soft); font-size: 0.85rem; }
+
+  .month-title { font-family: monospace; font-size: 0.72rem; color: var(--admin-text-soft); margin: 0 0 0.6rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.35rem; }
+  .week-cell { border: 1px solid var(--admin-border); border-radius: 0.6rem; padding: 0.5rem 0.1rem 0.6rem; text-align: center; background: var(--admin-surface); cursor: pointer; }
+  .week-cell.has-event { border-color: var(--rhino); }
+  .week-cell .dow { font-family: monospace; font-size: 0.56rem; color: var(--admin-text-soft); }
+  .week-cell .num { font-weight: 700; font-size: 1rem; margin: 0.2rem 0; }
+  .week-cell .count { font-family: monospace; font-size: 0.56rem; color: var(--rhino); min-height: 0.8em; }
+
+  .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem; }
+  .month-dow { text-align: center; font-family: monospace; font-size: 0.56rem; color: var(--admin-text-soft); padding-bottom: 0.25rem; }
+  .month-cell {
+    aspect-ratio: 1; border-radius: 0.4rem; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; font-size: 0.74rem; background: var(--admin-surface); border: 1px solid transparent;
+    cursor: pointer; color: var(--admin-text);
+  }
+  .month-cell.is-blank { background: transparent; cursor: default; }
+  .month-cell.has-event { border-color: var(--rhino); font-weight: 700; }
+  .month-dot { width: 4px; height: 4px; border-radius: 999px; background: var(--rhino); margin-top: 0.15rem; opacity: 0; }
+  .month-dot.has-event { opacity: 1; }
+
+  .quarter-month { margin-bottom: 1.1rem; }
+  .quarter-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.18rem; }
+  .quarter-cell { aspect-ratio: 1; border-radius: 3px; background: var(--admin-surface-2); }
+  .quarter-cell.is-blank { background: transparent; }
+  .quarter-cell.heat-2 { background: color-mix(in oklch, var(--rhino) 45%, var(--admin-surface-2)); }
+  .quarter-cell.heat-3 { background: var(--rhino); }
+</style>

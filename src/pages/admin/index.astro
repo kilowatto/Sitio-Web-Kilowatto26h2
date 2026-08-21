@@ -3,6 +3,7 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
 import { checkAdminAuth } from "../../lib/admin-auth";
+import { getTopPages, getSiteDailyTotals } from "../../lib/telemetry-query";
 
 const token = await checkAdminAuth(Astro, env);
 const authorized = !!token;
@@ -29,6 +30,18 @@ let projectsTotal = 0;
 let projectsReachable = 0;
 let lastProjectsRefreshAt: string | null = null;
 let lastReindexAt: string | null = null;
+
+// New stats overview (2026-08-21 redesign) -- real D1 totals plus our own first-party
+// page-view log where it can answer things D1's cumulative counters can't (site-wide daily
+// trend, real top page).
+let totalContentViews = 0;
+let publishedColumnsCount = 0;
+let publishedInvestigacionesCount = 0;
+let postsNext7Days = 0;
+let topColumn: any = null;
+let topInvestigacion: any = null;
+let topPages: Awaited<ReturnType<typeof getTopPages>> = null;
+let siteDailyTotals: Awaited<ReturnType<typeof getSiteDailyTotals>> = null;
 
 if (authorized && env?.DB) {
   const [
@@ -137,6 +150,27 @@ if (authorized && env?.DB) {
   projectsReachable = (projectsRes as any)?.reachable ?? 0;
   lastProjectsRefreshAt = lastProjectsRefreshKv;
   lastReindexAt = lastReindexKv;
+
+  const [colsAgg, invAgg, next7Res, topColRes, topInvRes, pages, dailyTotals] = await Promise.all([
+    env.DB.prepare(`SELECT COUNT(*) AS n, SUM(view_count) AS views FROM columns WHERE status = 'published'`).first(),
+    env.DB.prepare(`SELECT COUNT(*) AS n, SUM(view_count) AS views FROM investigaciones WHERE status = 'published'`).first(),
+    env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM brand_posts WHERE status = 'approved' AND scheduled_for BETWEEN datetime('now') AND datetime('now', '+7 days')`
+    ).first(),
+    env.DB.prepare(`SELECT id, title, view_count FROM columns WHERE status = 'published' ORDER BY view_count DESC LIMIT 1`).first(),
+    env.DB.prepare(`SELECT id, title, view_count FROM investigaciones WHERE status = 'published' ORDER BY view_count DESC LIMIT 1`).first(),
+    getTopPages(30, 3),
+    getSiteDailyTotals(7),
+  ]);
+
+  publishedColumnsCount = (colsAgg as any)?.n ?? 0;
+  publishedInvestigacionesCount = (invAgg as any)?.n ?? 0;
+  totalContentViews = ((colsAgg as any)?.views ?? 0) + ((invAgg as any)?.views ?? 0);
+  postsNext7Days = (next7Res as any)?.n ?? 0;
+  topColumn = topColRes ?? null;
+  topInvestigacion = topInvRes ?? null;
+  topPages = pages;
+  siteDailyTotals = dailyTotals;
 }
 
 function timeAgo(iso: string | null): string {
@@ -160,6 +194,9 @@ const trendPoints = histogram
     return `${x},${y}`;
   })
   .join(" ");
+
+const maxSiteDaily = siteDailyTotals ? Math.max(...siteDailyTotals.map((d) => d.views), 1) : 1;
+const trackedSiteViews = siteDailyTotals ? siteDailyTotals.reduce((s, d) => s + d.views, 0) : 0;
 ---
 
 <AdminLayout title="Panel de administración" active="/admin" authorized={authorized}>
@@ -171,6 +208,77 @@ const trendPoints = histogram
         <div class="hub-top">
           <h1>Panel de administración</h1>
         </div>
+
+        <section class="stats-overview">
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-value">{totalContentViews.toLocaleString("es-MX")}</div>
+              <div class="kpi-label">Vistas totales</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-value">{publishedColumnsCount}</div>
+              <div class="kpi-label">Columnas</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-value">{publishedInvestigacionesCount}</div>
+              <div class="kpi-label">Investigaciones</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-value">{postsNext7Days}</div>
+              <div class="kpi-label">Posts en 7 días</div>
+            </div>
+          </div>
+
+          <div class="trend-card">
+            <div class="section-head">
+              <p class="section-title">Vistas del sitio · últimos 7 días</p>
+              <span class="real-tag">real</span>
+            </div>
+            {!siteDailyTotals || trackedSiteViews === 0 ? (
+              <p class="callout-inline">Aún acumulando datos reales — empezamos a registrarlos el 21 de agosto de 2026.</p>
+            ) : (
+              <div class="chart-bars">
+                {siteDailyTotals.map((d) => (
+                  <div class="chart-bar-wrap">
+                    <div class="chart-bar" style={`height:${Math.round((d.views / maxSiteDaily) * 100)}%`} />
+                    <span class="chart-bar-label">{d.day.slice(8)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div class="lead-grid">
+            {topColumn && (
+              <a href={`/admin/telemetria/columna/${topColumn.id}`} class="lead-card">
+                <p class="lead-kind">Columna más vista</p>
+                <p class="lead-title">{topColumn.title}</p>
+                <p class="lead-value">{topColumn.view_count.toLocaleString("es-MX")} <span>vistas</span></p>
+              </a>
+            )}
+            {topInvestigacion && (
+              <a href={`/admin/telemetria/investigacion/${topInvestigacion.id}`} class="lead-card">
+                <p class="lead-kind">Investigación más vista</p>
+                <p class="lead-title">{topInvestigacion.title}</p>
+                <p class="lead-value">{topInvestigacion.view_count.toLocaleString("es-MX")} <span>vistas</span></p>
+              </a>
+            )}
+            <div class="lead-card lead-card--static">
+              <p class="lead-kind">Página más vista (30d)</p>
+              {!topPages || topPages.length === 0 ? (
+                <p class="lead-empty">Aún sin suficientes datos.</p>
+              ) : (
+                <>
+                  <p class="lead-title">{topPages[0].pathname}</p>
+                  <p class="lead-value">{topPages[0].views.toLocaleString("es-MX")} <span>vistas</span></p>
+                </>
+              )}
+            </div>
+          </div>
+
+          <a href="/admin/contenido" class="see-more-link">Ver todo el contenido y su telemetría →</a>
+          <a href="/admin/calendario" class="see-more-link">Ver calendario de publicaciones →</a>
+        </section>
 
         <div class="widget-grid">
           <div class="widget widget--priority">
@@ -375,6 +483,39 @@ const trendPoints = histogram
 <style>
   .hub-top { margin-bottom: 1.25rem; }
   .hub-top h1 { font-size: 1.5rem; margin: 0; }
+
+  .stats-overview { margin-bottom: 1.75rem; padding-bottom: 1.75rem; border-bottom: 1px solid var(--admin-border); }
+  .kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; margin-bottom: 1rem; }
+  @media (min-width: 30rem) { .kpi-grid { grid-template-columns: repeat(4, 1fr); } }
+  .kpi-card { border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.8rem 0.5rem; text-align: center; background: var(--admin-surface); }
+  .kpi-value { font-size: 1.4rem; font-weight: 700; line-height: 1; }
+  .kpi-label { font-size: 0.62rem; color: var(--admin-text-soft); margin-top: 0.35rem; text-transform: uppercase; letter-spacing: 0.03em; font-family: monospace; }
+
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+  .section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--admin-text-soft); margin: 0; }
+  .real-tag {
+    font-family: monospace; font-size: 0.6rem; background: color-mix(in srgb, var(--rhino) 15%, transparent);
+    color: var(--rhino); padding: 0.15rem 0.5rem; border-radius: 999px; font-weight: 700;
+  }
+  .trend-card { border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.9rem; background: var(--admin-surface); margin-bottom: 1rem; }
+  .callout-inline { font-size: 0.8rem; color: var(--admin-text-soft); margin: 0; line-height: 1.5; }
+  .chart-bars { display: flex; align-items: flex-end; gap: 0.4rem; height: 5rem; }
+  .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; gap: 0.25rem; }
+  .chart-bar { width: 100%; background: var(--rhino); border-radius: 3px 3px 0 0; min-height: 2px; }
+  .chart-bar-label { font-family: monospace; font-size: 0.58rem; color: var(--admin-text-soft); }
+
+  .lead-grid { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
+  .lead-card {
+    border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.8rem 0.9rem; background: var(--admin-surface);
+    text-decoration: none; color: inherit; display: block;
+  }
+  .lead-card--static { cursor: default; }
+  .lead-kind { font-family: monospace; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--rhino); margin: 0 0 0.3rem; }
+  .lead-title { font-size: 0.86rem; font-weight: 600; margin: 0 0 0.3rem; line-height: 1.3; }
+  .lead-value { font-size: 1rem; font-weight: 700; color: var(--rhino); margin: 0; }
+  .lead-value span { font-family: monospace; font-size: 0.65rem; color: var(--admin-text-soft); font-weight: 400; }
+  .lead-empty { font-size: 0.8rem; color: var(--admin-text-soft); margin: 0; }
+  .see-more-link { display: block; font-size: 0.82rem; color: var(--rhino); font-weight: 600; text-decoration: none; margin-top: 0.4rem; }
 
   .widget-grid {
     display: grid;

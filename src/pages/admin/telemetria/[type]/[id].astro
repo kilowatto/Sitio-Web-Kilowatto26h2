@@ -1,0 +1,143 @@
+---
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import AdminLogin from "../../../../components/AdminLogin.astro";
+import { env } from "cloudflare:workers";
+import { checkAdminAuth } from "../../../../lib/admin-auth";
+import { getPathTelemetry, TRACKING_STARTED } from "../../../../lib/telemetry-query";
+
+export const prerender = false;
+
+const token = await checkAdminAuth(Astro, env);
+const authorized = !!token;
+
+const type = Astro.params.type === "investigacion" ? "investigacion" : "columna";
+const id = Number(Astro.params.id);
+
+let item: any = null;
+let telemetry: Awaited<ReturnType<typeof getPathTelemetry>> = null;
+
+if (authorized && env?.DB && Number.isFinite(id)) {
+  const table = type === "investigacion" ? "investigaciones" : "columns";
+  item = await env.DB.prepare(`SELECT id, slug, title, view_count, published_at FROM ${table} WHERE id = ?`)
+    .bind(id)
+    .first();
+
+  if (item) {
+    const pathname = type === "investigacion" ? `/a-fondo/${item.slug}` : `/columnas/${item.slug}`;
+    telemetry = await getPathTelemetry(pathname, 14);
+  }
+}
+
+const maxDaily = telemetry ? Math.max(...telemetry.daily.map((d) => d.views), 1) : 1;
+const maxHourly = telemetry ? Math.max(...telemetry.hourly.map((h) => h.views), 1) : 1;
+const hasEnoughData = (telemetry?.totalTrackedEvents ?? 0) >= 5;
+---
+
+{
+  !authorized ? (
+    <AdminLogin />
+  ) : (
+    <AdminLayout title={item ? `${item.title} — Telemetría` : "Telemetría"} active="/admin/contenido">
+      {!item ? (
+        <p class="empty">No se encontró ese contenido.</p>
+      ) : (
+        <div class="telemetry-page">
+          <a href="/admin/contenido" class="back-link">← Contenido</a>
+          <p class="kind">{type === "investigacion" ? "Investigación" : "Columna"}</p>
+          <h1>{item.title}</h1>
+          <p class="sub">Publicada {item.published_at ?? "—"}</p>
+
+          <div class="hero-stat">
+            <div class="hero-value">{item.view_count.toLocaleString("es-MX")}</div>
+            <div class="hero-label">Vistas totales (todo el tiempo)</div>
+          </div>
+
+          <div class="section">
+            <div class="section-head">
+              <p class="section-title">Vistas por día · últimos 14</p>
+              <span class="real-tag">real</span>
+            </div>
+            {!hasEnoughData ? (
+              <div class="callout">
+                Aún acumulando datos reales — empezamos a registrarlos el {TRACKING_STARTED}. Vuelve en unos días para
+                ver el patrón.
+              </div>
+            ) : (
+              <div class="card">
+                <div class="chart-bars">
+                  {telemetry!.daily.map((d) => (
+                    <div class="chart-bar-wrap">
+                      <div class="chart-bar" style={`height:${Math.round((d.views / maxDaily) * 100)}%`} />
+                      <span class="chart-bar-label">{d.day.slice(8)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div class="section">
+            <div class="section-head">
+              <p class="section-title">¿Cuándo lo leen? (hora UTC)</p>
+              <span class="real-tag">real</span>
+            </div>
+            {!hasEnoughData ? (
+              <div class="callout">Mismo caso — hace falta más historial para que este patrón diga algo real.</div>
+            ) : (
+              <div class="card">
+                <div class="heat-row">
+                  {telemetry!.hourly.map((h) => (
+                    <div
+                      class="heat-cell"
+                      style={`height:${Math.max(6, Math.round((h.views / maxHourly) * 100))}%;background:color-mix(in oklch, var(--rhino) ${25 + Math.round((h.views / maxHourly) * 75)}%, var(--admin-surface-2))`}
+                    />
+                  ))}
+                </div>
+                <div class="heat-labels">
+                  <span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>23h</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </AdminLayout>
+  )
+}
+
+<style>
+  .telemetry-page { max-width: 40rem; }
+  .back-link { color: var(--admin-text-soft); font-size: 0.85rem; text-decoration: none; }
+  .kind {
+    font-family: monospace; font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ember, #b83b09); margin: 0.75rem 0 0.2rem;
+  }
+  h1 { font-size: 1.35rem; margin: 0 0 0.2rem; line-height: 1.3; }
+  .sub { font-size: 0.8rem; color: var(--admin-text-soft); margin: 0 0 1.25rem; }
+
+  .hero-stat { text-align: center; padding: 1rem 0 1.5rem; border-bottom: 1px solid var(--admin-border); margin-bottom: 1.25rem; }
+  .hero-value { font-size: 2.4rem; font-weight: 700; color: var(--rhino); line-height: 1; }
+  .hero-label { font-size: 0.7rem; color: var(--admin-text-soft); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.4rem; }
+
+  .section { margin-bottom: 1.5rem; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+  .section-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--admin-text-soft); margin: 0; }
+  .real-tag {
+    font-family: monospace; font-size: 0.6rem; background: color-mix(in srgb, var(--rhino) 15%, transparent);
+    color: var(--rhino); padding: 0.15rem 0.5rem; border-radius: 999px; font-weight: 700;
+  }
+  .card { border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.9rem; background: var(--admin-surface); }
+  .callout { background: var(--admin-surface-2); border-radius: 0.7rem; padding: 0.9rem; font-size: 0.82rem; color: var(--admin-text-soft); line-height: 1.5; }
+
+  .chart-bars { display: flex; align-items: flex-end; gap: 3px; height: 6rem; }
+  .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; gap: 3px; }
+  .chart-bar { width: 100%; background: var(--rhino); border-radius: 2px 2px 0 0; min-height: 2px; }
+  .chart-bar-label { font-size: 0.5rem; color: var(--admin-text-soft); font-family: monospace; }
+
+  .heat-row { display: flex; gap: 2px; height: 3.5rem; align-items: flex-end; }
+  .heat-cell { flex: 1; border-radius: 2px; }
+  .heat-labels { display: flex; justify-content: space-between; margin-top: 0.4rem; }
+  .heat-labels span { font-size: 0.6rem; color: var(--admin-text-soft); font-family: monospace; }
+
+  .empty { color: var(--admin-text-soft); }
+</style>
