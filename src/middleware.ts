@@ -101,6 +101,30 @@ function entityTypeOf(pathname: string): string {
   return "pagina";
 }
 
+// Neither GA4 nor our own log had device/browser until now -- both are free out of the
+// User-Agent header, no library needed. Order matters: Edge/Opera UAs also contain
+// "Chrome" and "Safari", Chrome UAs also contain "Safari", so the more specific checks
+// must run first.
+function parseUserAgent(ua: string): { device: string; browser: string } {
+  const device = /iPad|Tablet/i.test(ua) && !/Mobile/i.test(ua)
+    ? "tablet"
+    : /Mobi|iPhone/i.test(ua)
+      ? "mobile"
+      : "desktop";
+
+  let browser = "other";
+  if (/bot|crawl|spider|slurp/i.test(ua)) browser = "bot";
+  else if (/Edg\//i.test(ua)) browser = "edge";
+  else if (/OPR\/|Opera/i.test(ua)) browser = "opera";
+  else if (/CriOS/i.test(ua)) browser = "chrome";
+  else if (/FxiOS/i.test(ua)) browser = "firefox";
+  else if (/Chrome\//i.test(ua)) browser = "chrome";
+  else if (/Firefox\//i.test(ua)) browser = "firefox";
+  else if (/Safari\//i.test(ua)) browser = "safari";
+
+  return { device, browser };
+}
+
 // Country/city/timezone come free on every Workers request via `request.cf` -- no external
 // API, no JS beacon, no account to create. Esteban's call (2026-08-21): start collecting
 // this ourselves (same Analytics Engine pattern already used for brand_posts metrics)
@@ -132,9 +156,10 @@ function logPageView(context: any) {
       }
     }
     const now = new Date();
+    const { device, browser } = parseUserAgent(context.request.headers.get("user-agent") ?? "");
 
     env.PAGE_ANALYTICS?.writeDataPoint({
-      blobs: [pathname, String(cf.country ?? "unknown"), language, entityTypeOf(pathname), referrerHost],
+      blobs: [pathname, String(cf.country ?? "unknown"), language, entityTypeOf(pathname), referrerHost, device, browser],
       doubles: [now.getUTCHours()],
       indexes: [pathname],
     });
