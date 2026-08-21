@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El negocio de las VPN: lo que cuestan, lo que prometen y lo que de verdad hacen — Esteban Rey</title>
+<style>
+  :root{
+    --accent:#ff5f14;
+    --accent-dark:#c94a0f;
+    --ink:#161616;
+    --paper:#fdfaf6;
+    --paper-2:#f4efe8;
+    --line:#e4dcd0;
+    --muted:#6b6259;
+    --green:#1f8a4c;
+    --yellow:#b8860b;
+    --red:#c0392b;
+    --navy:#1c1712;
+    --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --mono: 'SF Mono', 'Courier New', monospace;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    line-height:1.65;
+    font-size:17px;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent-dark);text-decoration-thickness:1px;}
+  a:hover{color:var(--accent);}
+
+  /* ---------- Hero / parallax ---------- */
+  .hero{
+    position:relative;
+    overflow:hidden;
+    padding:0;
+    min-height:78vh;
+    display:flex;
+    align-items:flex-end;
+    background:
+      radial-gradient(1100px 500px at 12% -10%, rgba(255,95,20,0.18), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(255,95,20,0.10), transparent 55%),
+      linear-gradient(180deg, #17130f 0%, #1d1712 60%, #221a13 100%);
+  }
+  .hero-grid{
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size:42px 42px;
+    transform:translateY(var(--parallax-grid, 0px));
+    will-change:transform;
+  }
+  .hero-glow{
+    position:absolute;
+    width:900px;height:900px;
+    right:-280px; top:-320px;
+    background:radial-gradient(circle at center, rgba(255,95,20,0.35), transparent 65%);
+    filter:blur(10px);
+    transform:translateY(var(--parallax-glow, 0px));
+    will-change:transform;
+  }
+  .hero-inner{
+    position:relative;
+    z-index:2;
+    max-width:820px;
+    margin:0 auto;
+    padding:120px 28px 72px;
+    color:#f6efe6;
+  }
+  .kicker{
+    font-family:var(--mono);
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    font-size:12.5px;
+    color:var(--accent);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:22px;
+  }
+  .kicker::before{
+    content:"";
+    width:26px;height:1px;
+    background:var(--accent);
+    display:inline-block;
+  }
+  h1.title{
+    font-family:var(--serif);
+    font-weight:700;
+    font-size:clamp(2.1rem, 4.6vw, 3.35rem);
+    line-height:1.08;
+    margin:0 0 20px;
+    letter-spacing:-0.01em;
+  }
+  .subhook{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:clamp(1.05rem,2.1vw,1.32rem);
+    color:#d9c9b8;
+    max-width:640px;
+    margin:0 0 34px;
+    line-height:1.5;
+  }
+  .byline{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px 14px;
+    font-family:var(--mono);
+    font-size:13px;
+    color:#b9ab9c;
+    border-top:1px solid rgba(255,255,255,0.14);
+    padding-top:18px;
+  }
+  .byline b{color:#f0e4d6;font-weight:600;}
+  .byline .dot{color:var(--accent);}
+
+  /* ---------- Content shell ---------- */
+  .shell{max-width:720px;margin:0 auto;padding:0 28px;}
+  .summary-card{
+    background:var(--paper-2);
+    border-left:3px solid var(--accent);
+    padding:28px 30px;
+    margin:-52px auto 56px;
+    max-width:720px;
+    position:relative;
+    z-index:3;
+    border-radius:2px;
+    box-shadow:0 18px 40px -22px rgba(20,15,10,0.35);
+  }
+  .summary-card h2{
+    font-family:var(--mono);
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    font-size:12.5px;
+    color:var(--accent-dark);
+    margin:0 0 12px;
+  }
+  .summary-card p{margin:0;color:#3a342c;font-size:15.5px;}
+
+  article h2{
+    font-family:var(--serif);
+    font-size:clamp(1.4rem,2.6vw,1.75rem);
+    line-height:1.28;
+    margin:64px 0 22px;
+    padding-top:26px;
+    border-top:1px solid var(--line);
+  }
+  article > p, article li{
+    font-size:16.6px;
+    color:#2b2620;
+  }
+  article p{margin:0 0 20px;}
+  article strong{color:#1a1611;}
+
+  .cite{
+    font-size:.86em;
+    text-decoration:none;
+    border-bottom:1px dotted var(--accent);
+    padding:0 1px;
+    white-space:nowrap;
+  }
+  .cite .flag{margin-left:1px;}
+
+  /* ---------- Chart cards (embedded inline in the article) ---------- */
+  .chart-card{
+    margin:34px 0 38px;
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:26px 26px 20px;
+    opacity:0;
+    transform:translateY(16px);
+    transition:opacity .7s ease, transform .7s cubic-bezier(.16,1,.3,1);
+  }
+  .chart-card.in-view{opacity:1;transform:translateY(0);}
+  .chart-card.dark{background:var(--navy);border-color:#332920;}
+  .chart-title{
+    font-family:var(--mono);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    font-size:11.5px;
+    color:var(--accent-dark);
+    margin:0 0 4px;
+  }
+  .chart-card.dark .chart-title{color:var(--accent);}
+  .chart-desc{
+    font-size:13.5px;
+    color:var(--muted);
+    margin:0 0 16px;
+    max-width:560px;
+  }
+  .chart-card.dark .chart-desc{color:#c3b6a5;}
+  .chart-svg-wrap{width:100%;overflow:visible;}
+  .chart-svg-wrap svg{width:100%;height:auto;display:block;}
+  .chart-source{
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--muted);
+    margin-top:14px;
+  }
+  .chart-card.dark .chart-source{color:#a89c8c;}
+  .chart-source a{color:var(--accent-dark);}
+  .chart-card.dark .chart-source a{color:var(--accent);}
+
+  /* bar reveal animation (children of .chart-card) */
+  .bar-anim{
+    transform-box:fill-box;
+    transform-origin:bottom;
+    transform:scaleY(0);
+    transition:transform .8s cubic-bezier(.16,1,.3,1);
+    transition-delay:var(--d,0s);
+  }
+  .bar-anim.h{transform-origin:left;}
+  .chart-card.in-view .bar-anim{transform:scaleY(1);}
+  .chart-card.in-view .bar-anim.h{transform:scaleX(1);}
+  .bar-anim.h{transform:scaleX(0);}
+
+  .dot-anim{
+    opacity:0;
+    transform:scale(.3);
+    transform-box:fill-box;
+    transform-origin:center;
+    transition:opacity .5s ease, transform .5s cubic-bezier(.34,1.56,.64,1);
+    transition-delay:var(--d,0s);
+  }
+  .chart-card.in-view .dot-anim{opacity:1;transform:scale(1);}
+
+  .line-anim{
+    stroke-dasharray:700;
+    stroke-dashoffset:700;
+    transition:stroke-dashoffset 1.1s ease;
+  }
+  .chart-card.in-view .line-anim{stroke-dashoffset:0;}
+
+  /* ---------- Ownership map (HTML/CSS, not SVG) ---------- */
+  .ownership-map{display:flex;flex-wrap:wrap;gap:14px;}
+  .owner-box{
+    flex:1 1 190px;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:16px 16px 14px;
+  }
+  .owner-box h4{
+    margin:0 0 3px;
+    font-family:var(--serif);
+    font-size:15.5px;
+    color:#1a1611;
+  }
+  .owner-box .owner-sub{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--muted);
+    margin:0 0 12px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .owner-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{
+    font-family:var(--mono);
+    font-size:12px;
+    padding:4px 9px;
+    border-radius:20px;
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    color:#3a342c;
+  }
+  .owner-box.kape .chip{background:rgba(255,95,20,0.10);border-color:rgba(255,95,20,0.35);}
+  .owner-box.nord .chip{background:rgba(79,195,247,0.12);border-color:rgba(79,195,247,0.4);}
+  .owner-box.indep .chip{background:rgba(126,217,87,0.12);border-color:rgba(126,217,87,0.4);}
+
+  .fallback-table{width:100%;border-collapse:collapse;margin:10px 0 0;font-size:13px;display:none;}
+  .fallback-table th,.fallback-table td{border:1px solid var(--line);padding:7px 9px;text-align:left;}
+  .fallback-table th{background:var(--paper-2);font-family:var(--mono);font-size:11px;text-transform:uppercase;}
+
+  blockquote{
+    margin:32px 0;
+    padding:4px 0 4px 22px;
+    border-left:2px solid var(--accent);
+    font-family:var(--serif);
+    font-style:italic;
+    color:#4a4338;
+  }
+
+  .divider{
+    display:flex;align-items:center;gap:14px;
+    margin:56px 0;color:var(--muted);
+  }
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line);}
+  .divider span{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
+
+  /* ---------- Radar legend / tooltip ---------- */
+  .radar-flex{display:flex;flex-wrap:wrap;gap:32px;align-items:center;justify-content:center;}
+  .radar-svg-box{flex:0 0 auto;max-width:100%;}
+  .radar-svg-box svg{width:100%;max-width:420px;height:auto;display:block;margin:0 auto;}
+  .radar-legend{flex:1 1 220px;min-width:200px;}
+  .legend-item{
+    display:flex;align-items:center;gap:10px;
+    font-family:var(--mono);font-size:12.5px;
+    padding:6px 9px;border-radius:4px;cursor:pointer;
+    transition:background .15s ease;
+  }
+  .chart-card.dark .legend-item:hover, .chart-card.dark .legend-item.active{background:rgba(255,255,255,0.06);}
+  .legend-swatch{width:11px;height:11px;border-radius:50%;flex:0 0 auto;}
+  .legend-item span.name{color:#eee1d2;}
+  .tooltip{
+    position:absolute;
+    pointer-events:none;
+    background:#0f0c09;
+    color:#f6efe6;
+    border:1px solid rgba(255,95,20,0.5);
+    padding:7px 10px;
+    font-family:var(--mono);
+    font-size:12px;
+    border-radius:4px;
+    opacity:0;
+    transform:translate(-50%,-120%);
+    transition:opacity .12s ease;
+    white-space:nowrap;
+    z-index:10;
+  }
+
+  .signoff{
+    margin:70px 0 20px;
+    padding-top:26px;
+    border-top:1px solid var(--line);
+    font-family:var(--mono);
+    font-size:13.5px;
+    color:var(--muted);
+    line-height:2;
+  }
+  .signoff b{color:#1a1611;font-family:var(--serif);font-size:16px;}
+
+  details.methodology{
+    margin:30px 0;
+    background:var(--paper-2);
+    border-radius:3px;
+    padding:6px 22px;
+  }
+  details.methodology summary{
+    cursor:pointer;
+    font-family:var(--mono);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    font-size:12px;
+    color:var(--accent-dark);
+    padding:16px 0;
+  }
+  details.methodology[open] summary{border-bottom:1px solid var(--line);}
+  details.methodology p{font-size:15px;}
+
+  .sources{font-size:13.5px;color:#3a342c;}
+  .sources ol{padding-left:22px;}
+  .sources li{margin-bottom:9px;}
+
+  footer.site{
+    text-align:center;
+    padding:48px 28px 80px;
+    color:var(--muted);
+    font-family:var(--mono);
+    font-size:12.5px;
+  }
+  footer.site a{color:var(--accent-dark);}
+
+  @media (max-width:600px){
+    .hero-inner{padding:88px 20px 56px;}
+    .summary-card{margin:-40px 18px 48px;padding:22px 20px;}
+    .radar-flex{flex-direction:column;}
+    .chart-card{padding:20px 16px 16px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto;}
+    .hero-grid,.hero-glow{transform:none !important;}
+    * {animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="hero" id="hero">
+  <div class="hero-grid" id="heroGrid"></div>
+  <div class="hero-glow" id="heroGlow"></div>
+  <div class="hero-inner">
+    <div class="kicker">Investigación · Kilowatto · 2026-08-15</div>
+    <h1 class="title">El negocio de las VPN: lo que cuestan, lo que prometen y lo que de verdad hacen</h1>
+    <p class="subhook">Pagué $2.19 al mes por mi VPN. Al renovar, la misma empresa me cobró casi cuatro veces más — y no fui el único.</p>
+    <div class="byline">
+      <span>2026-08-15</span><span class="dot">·</span>
+      <span>Por <b>Esteban Rey</b> (<a href="https://x.com/kilowatto" style="color:inherit">@Kilowatto</a>)</span><span class="dot">·</span>
+      <span>Tiempo estimado de lectura: 22 min</span>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <div class="summary-card">
+    <h2>Resumen ejecutivo</h2>
+    <p>Investigué a fondo la industria de las VPN de consumo —NordVPN, ExpressVPN, Surfshark, CyberGhost, Proton VPN, Mullvad, las gratuitas y el &ldquo;VPN&rdquo; integrado de Opera— para separar el marketing de la realidad técnica y legal. Encontré un patrón: varias de las VPN más patrocinadas pertenecen a los mismos dos o tres grupos corporativos que también son dueños de sitios que las &ldquo;comparan de forma independiente&rdquo;. Las auditorías de no-registro de datos son hoy más rigurosas que hace cinco años, pero el precio que ves el primer mes casi nunca es el que pagarás al renovar, y NordVPN enfrenta demandas por eso mismo en EE.UU. Las VPN gratuitas, con pocas excepciones auditadas, siguen siendo el negocio inverso: tú eres el producto. Y mitos como &ldquo;te vuelves invisible&rdquo; o &ldquo;es obligatorio usarla en el aeropuerto&rdquo; resisten poco al escrutinio técnico.</p>
+  </div>
+
+  <article>
+
+    <p>Hace unas semanas revisé el estado de cuenta de mi tarjeta y encontré un cargo que no reconocía: $107 dólares de una VPN que hace dos años contraté por $2.19 al mes. Por un momento pensé que se trataba de un error de facturación. No lo era. Era el precio de &ldquo;renovación automática&rdquo; — el que la misma empresa que me vendió la privacidad de mi tráfico nunca puso en letras grandes.</p>
+
+    <p>No fui el único sorprendido. Un análisis de casi 30,000 reseñas de Android de los cuatro proveedores más grandes —NordVPN, ExpressVPN, Surfshark y Proton VPN— encontró que las quejas sobre renovaciones automáticas y disparos de precio dominan las reseñas negativas <a class="cite" href="https://www.techradar.com/vpn/vpn-privacy-security/they-will-renew-your-subscription-even-if-you-turn-off-the-auto-renewal-which-vpn-has-the-most-price-complaints-on-the-play-store" target="_blank">(TechRadar, 2026)<span class="flag">🟡</span></a>. Y NordVPN específicamente enfrenta ya cuatro demandas en cortes federales de EE.UU. por prácticas de renovación que los demandantes califican de &ldquo;engañosas&rdquo; <a class="cite" href="https://www.techradar.com/vpn/vpn-services/a-us-law-firm-is-taking-nordvpn-to-court-over-deceptive-auto-renewal-pricing-heres-what-we-know" target="_blank">(TechRadar, 2026)<span class="flag">🟢</span></a>.</p>
+
+    <p>Ese fue el gancho que me hizo abrir la caja completa: ¿qué tan cierto es todo lo demás que promete esta industria de $70 a $80 mil millones de dólares al año <a class="cite" href="https://vpnpro.com/blog/vpn-market-size-and-share-2026/" target="_blank">(VPNpro, 2026)<span class="flag">🟡</span></a>? Pasé varias semanas revisando auditorías, demandas, papers académicos y hasta el código fuente de apps gratuitas. Esto fue lo que encontré.</p>
+
+    <h2>El dueño de tu VPN también es dueño de quien te dice cuál comprar</h2>
+
+    <p>Empecemos por donde casi nadie mira: quién es el dueño real de la marca que ves patrocinada en YouTube.</p>
+
+    <p>ExpressVPN, CyberGhost, Private Internet Access (PIA) y ZenMate pertenecen todas al mismo grupo: Kape Technologies, una empresa que cotiza en Londres y que hoy controla el israelí-británico Teddy Sagi <a class="cite" href="https://en.wikipedia.org/wiki/Kape_Technologies" target="_blank">(Wikipedia / registros corporativos, 2026)<span class="flag">🟢</span></a>. Kape se llamaba Crossrider hasta 2018, cuando se renombró tras años de operar como distribuidora de software publicitario (adware) <a class="cite" href="https://cyberinsider.com/kape-technologies-owns-expressvpn-cyberghost-pia-zenmate-vpn-review-sites/" target="_blank">(CyberInsider, 2024)<span class="flag">🟢</span></a>. El propio CEO de Kape ha reconocido en entrevistas que el cambio de nombre buscaba distanciarse de &ldquo;actividades pasadas&rdquo; <a class="cite" href="https://cyberinsider.com/kape-technologies-owns-expressvpn-cyberghost-pia-zenmate-vpn-review-sites/" target="_blank">(CyberInsider, 2024)<span class="flag">🟢</span></a>.</p>
+
+    <p>Eso ya sería una nota de pie de página incómoda. Lo que la vuelve relevante para ti como consumidor es lo segundo: varias investigaciones de medios especializados documentan que Kape también controla sitios de &ldquo;reseñas independientes&rdquo; de VPN que, sistemáticamente, colocan a sus propias marcas en el primer lugar de sus rankings <a class="cite" href="https://privacyproof.online/blog/who-owns-your-vpn-corporate-ownership-2026" target="_blank">(PrivacyProof, 2026)<span class="flag">🟡</span></a> <a class="cite" href="https://vpntesting.com/ownership/kape-technologies/" target="_blank">(VPN Testing Research Lab, 2026)<span class="flag">🟡</span></a>. No es ilegal —ninguna ley obliga a un sitio de reseñas a declarar quién es su dueño— pero sí es la razón por la que, cuando un YouTuber dice &ldquo;comparé todas las VPN y esta ganó&rdquo;, vale la pena preguntar quién financió la comparación.</p>
+
+    <p>NordVPN y Surfshark tienen un problema de transparencia distinto, aunque menos grave: desde la fusión de 2022 pertenecen al mismo grupo, Nord Security, con sede operativa en Lituania y estructura corporativa que incluye entidades en Panamá <a class="cite" href="https://jazod.com/ownership/" target="_blank">(Jazod, 2026)<span class="flag">🟡</span></a>. Nord Security reporta ingresos recurrentes anuales de alrededor de $357 millones de dólares y una valuación cercana a los $3,000 millones <a class="cite" href="https://getlatka.com/companies/nordsecurity.com" target="_blank">(Latka, 2025)<span class="flag">🟡</span></a>, y sus fundadores —a diferencia de Kape— son públicos y verificables: Tomas Okmanas y Eimantas Sabaliauskas, quienes construyeron la empresa sin capital externo durante una década antes de recibir sus primeras rondas de inversión en 2022 <a class="cite" href="https://sifted.eu/articles/nord-security-bootstrap-ipo" target="_blank">(Sifted, 2024)<span class="flag">🟢</span></a>.</p>
+
+    <p>En el otro extremo están Proton VPN, ligada a la fundación suiza detrás de Proton Mail, y Mullvad, sueca, cuyos fundadores son públicos y que se niega deliberadamente a pedirte un correo electrónico para registrarte <a class="cite" href="https://shieldedbrowsing.com/mullvad-review/" target="_blank">(Shielded Browsing, 2026)<span class="flag">🟢</span></a>. Sobre esto volveré más adelante, porque es la comparación más honesta que se puede hacer en esta industria.</p>
+
+    <!-- CHART A: mapa de propiedad -->
+    <div class="chart-card" data-chart="A">
+      <p class="chart-title">Gráfica 1 · Mapa de propiedad</p>
+      <p class="chart-desc">Quién controla qué marca. Tres grupos, tres niveles muy distintos de transparencia.</p>
+      <div class="ownership-map">
+        <div class="owner-box kape">
+          <h4>Kape Technologies</h4>
+          <p class="owner-sub">Londres · Teddy Sagi</p>
+          <div class="owner-chips">
+            <span class="chip">ExpressVPN</span>
+            <span class="chip">CyberGhost</span>
+            <span class="chip">PIA</span>
+            <span class="chip">ZenMate</span>
+          </div>
+        </div>
+        <div class="owner-box nord">
+          <h4>Nord Security</h4>
+          <p class="owner-sub">Lituania</p>
+          <div class="owner-chips">
+            <span class="chip">NordVPN</span>
+            <span class="chip">Surfshark</span>
+          </div>
+        </div>
+        <div class="owner-box indep">
+          <h4>Independientes</h4>
+          <p class="owner-sub">Sin grupo matriz común</p>
+          <div class="owner-chips">
+            <span class="chip">Proton VPN (Suiza)</span>
+            <span class="chip">Mullvad (Suecia)</span>
+          </div>
+        </div>
+      </div>
+      <p class="chart-source">Fuentes: <a href="https://en.wikipedia.org/wiki/Kape_Technologies" target="_blank">Wikipedia/Kape Technologies</a>, <a href="https://jazod.com/ownership/" target="_blank">Jazod</a>, <a href="https://shieldedbrowsing.com/mullvad-review/" target="_blank">Shielded Browsing</a> 🟢</p>
+    </div>
+
+    <h2>Cuánto paga una VPN por un YouTuber (y por qué algunos ya no aceptan el cheque)</h2>
+
+    <p>Antes de entrar a la parte técnica, vale la pena entender por qué ves tantos anuncios de VPN en el mismo video: el nicho de tecnología paga entre $30 y $60 de CPM (costo por cada mil vistas), uno de los más altos de la plataforma después de finanzas <a class="cite" href="https://sponsorradar.com/insights/youtube-sponsorship-rates-what-brands-should-pay" target="_blank">(SponsorRadar, 2026)<span class="flag">🟡</span></a>. Un canal mediano de 200,000 vistas por video puede cobrar entre $6,000 y $12,000 dólares por una sola integración patrocinada de VPN; canales grandes negocian cifras de cinco dígitos por video <a class="cite" href="https://sponsorradar.com/insights/how-much-do-youtubers-make-from-sponsorships" target="_blank">(SponsorRadar, 2026)<span class="flag">🟡</span></a>.</p>
+
+    <!-- CHART B: CPM YouTube -->
+    <div class="chart-card" data-chart="B">
+      <p class="chart-title">Gráfica 2 · Cuánto paga cada nicho en YouTube (CPM)</p>
+      <p class="chart-desc">Dólares por cada mil vistas de un video patrocinado. Tecnología —donde viven las VPN— es el segundo nicho mejor pagado.</p>
+      <div class="chart-svg-wrap">
+        <svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg">
+          <!-- grid -->
+          <line x1="176" y1="16" x2="176" y2="192" stroke="#d8cfc1" stroke-width="1"/>
+          <line x1="271" y1="16" x2="271" y2="192" stroke="#e4dcd0" stroke-width="1"/>
+          <line x1="366" y1="16" x2="366" y2="192" stroke="#e4dcd0" stroke-width="1"/>
+          <line x1="461" y1="16" x2="461" y2="192" stroke="#e4dcd0" stroke-width="1"/>
+          <line x1="556" y1="16" x2="556" y2="192" stroke="#e4dcd0" stroke-width="1"/>
+          <text x="176" y="205" font-family="SF Mono, monospace" font-size="10.5" fill="#6b6259" text-anchor="middle">$0</text>
+          <text x="271" y="205" font-family="SF Mono, monospace" font-size="10.5" fill="#6b6259" text-anchor="middle">$20</text>
+          <text x="366" y="205" font-family="SF Mono, monospace" font-size="10.5" fill="#6b6259" text-anchor="middle">$40</text>
+          <text x="461" y="205" font-family="SF Mono, monospace" font-size="10.5" fill="#6b6259" text-anchor="middle">$60</text>
+          <text x="556" y="205" font-family="SF Mono, monospace" font-size="10.5" fill="#6b6259" text-anchor="middle">$80</text>
+
+          <text x="168" y="25" font-family="Georgia, serif" font-size="13.5" fill="#2b2620" text-anchor="end">Finanzas y negocios</text>
+          <rect class="bar-anim h" style="--d:.05s" x="366.2" y="21" width="190.2" height="26" rx="3" fill="#a89c8c"/>
+          <text x="562" y="38" font-family="SF Mono, monospace" font-size="11" fill="#3a342c">$40&ndash;$80</text>
+
+          <text x="168" y="71" font-family="Georgia, serif" font-size="13.5" fill="#2b2620" text-anchor="end">Tecnología (incl. VPN)</text>
+          <rect class="bar-anim h" style="--d:.15s" x="318.7" y="67" width="142.7" height="26" rx="3" fill="#ff5f14"/>
+          <text x="467" y="84" font-family="SF Mono, monospace" font-size="11" fill="#3a342c">$30&ndash;$60</text>
+
+          <text x="168" y="117" font-family="Georgia, serif" font-size="13.5" fill="#2b2620" text-anchor="end">Salud y bienestar</text>
+          <rect class="bar-anim h" style="--d:.25s" x="294.9" y="113" width="95.1" height="26" rx="3" fill="#a89c8c"/>
+          <text x="396" y="130" font-family="SF Mono, monospace" font-size="11" fill="#3a342c">$25&ndash;$45</text>
+
+          <text x="168" y="163" font-family="Georgia, serif" font-size="13.5" fill="#2b2620" text-anchor="end">Gaming</text>
+          <rect class="bar-anim h" style="--d:.35s" x="223.6" y="159" width="71.3" height="26" rx="3" fill="#a89c8c"/>
+          <text x="301" y="176" font-family="SF Mono, monospace" font-size="11" fill="#3a342c">$10&ndash;$25</text>
+        </svg>
+      </div>
+      <p class="chart-source">Fuente: <a href="https://sponsorradar.com/insights/youtube-sponsorship-rates-what-brands-should-pay" target="_blank">SponsorRadar, 2026</a> 🟡</p>
+    </div>
+
+    <p>Ese dinero ha generado, dentro de la propia comunidad tech, un debate incómodo. El divulgador británico Tom Scott publicó un video —convertido en referencia obligada— desmontando las afirmaciones típicas de los guiones de patrocinio de VPN, empezando por la más repetida: que sin VPN un atacante puede robarte la contraseña en cualquier red pública, algo que el cifrado HTTPS ya hace innecesario en la inmensa mayoría de sitios desde hace años <a class="cite" href="https://linustechtips.com/topic/1118228-tom-scott-on-common-vpn-sponsorship-claims/" target="_blank">(Linus Tech Tips forum citando a Tom Scott, 2019)<span class="flag">🟢</span></a>. Linus Tech Tips, el canal de tecnología más grande en su categoría, dejó de aceptar patrocinios de VPN durante años por las mismas razones antes de anunciar en 2024 que reconsideraría hacerlo caso por caso <a class="cite" href="https://thetvdb.com/series/linus-tech-tips/episodes/10515747" target="_blank">(registro de episodio, LTT, 2024)<span class="flag">🟡</span></a>. Es una señal reveladora: si los propios creadores que cobran por promocionar VPN dudan de los guiones que les entregan, el consumidor final tiene motivos de sobra para revisar la letra pequeña.</p>
+
+    <h2>Las auditorías &ldquo;sin registros&rdquo;: lo que sí cambió (y lo que sigue sin poder probarse)</h2>
+
+    <p>Aquí viene la parte donde la industria realmente mejoró. Hace diez años, &ldquo;no guardamos registros&rdquo; era una frase de marketing sin nada detrás. Hoy, NordVPN, ExpressVPN, Surfshark, Proton VPN, Mullvad y PIA han pasado por auditorías repetidas de firmas serias: PwC, Deloitte, KPMG y la firma alemana de pruebas de penetración Cure53 <a class="cite" href="https://www.vpnvertex.com/vpn-independent-audits/" target="_blank">(VPN Vertex, 2026)<span class="flag">🟢</span></a>. ExpressVPN, por ejemplo, publicó en 2025 su tercera auditoría consecutiva de KPMG sobre su arquitectura TrustedServer, que corre enteramente en RAM y se borra en cada reinicio <a class="cite" href="https://www.expressvpn.com/blog/kpmg-2025-no-logs-policy-audit/" target="_blank">(ExpressVPN, blog oficial, 2025)<span class="flag">🟢</span></a>. Proton VPN, al ser de código abierto, suma a sus auditorías anuales de Securitum una revisión pública continua de su código por parte de la comunidad <a class="cite" href="https://www.vpnvertex.com/vpn-independent-audits/" target="_blank">(VPN Vertex, 2026)<span class="flag">🟢</span></a>.</p>
+
+    <p>Pero &ldquo;auditado&rdquo; no significa &ldquo;infalible&rdquo;, y aquí es donde el escepticismo del lector tiene toda la razón. Estas auditorías certifican una arquitectura y un punto en el tiempo, no un juramento eterno. El ejemplo de manual es PureVPN: en 2017 su política de privacidad decía textualmente que no guardaba ningún registro. Cuando el FBI investigó un caso de ciberacoso, PureVPN entregó marcas de tiempo de conexión que, cruzadas con otros datos, ayudaron a identificar al sospechoso <a class="cite" href="https://cyberinsider.com/vpn-logs-lies/" target="_blank">(documento judicial del FBI, citado por CyberInsider, 2026)<span class="flag">🟢</span></a>. No entregaron historial de navegación —eso técnicamente era cierto que no lo guardaban— pero sí guardaban más de lo que su propia política prometía. Casos similares se han documentado con HideMyAss <a class="cite" href="https://cyberinsider.com/vpn-logs-lies/" target="_blank">(CyberInsider, 2026)<span class="flag">🟡</span></a>.</p>
+
+    <p>NordVPN tuvo su propio momento de prueba en 2018, cuando un atacante comprometió uno de sus más de 3,000 servidores en un centro de datos en Finlandia, aprovechando un sistema de administración remota que el propio proveedor del centro de datos había dejado inseguro <a class="cite" href="https://nordvpn.com/blog/official-response-datacenter-breach/" target="_blank">(comunicado oficial de NordVPN, 2019)<span class="flag">🟢</span></a>. La empresa tardó más de un año en revelarlo públicamente después de descubrirlo, lo cual generó críticas legítimas sobre transparencia, aunque investigadores externos coincidieron en que no había evidencia de que se hubiera filtrado actividad de usuarios <a class="cite" href="https://www.itpro.com/data-insights/34675/nordvpn-confirms-2018-data-centre-breach" target="_blank">(IT Pro, 2019)<span class="flag">🟡</span></a>. Tras el incidente, NordVPN migró toda su infraestructura a servidores que operan exclusivamente en RAM y multiplicó sus auditorías anuales <a class="cite" href="https://nordvpn.com/blog/official-response-datacenter-breach/" target="_blank">(NordVPN, 2019)<span class="flag">🟢</span></a>.</p>
+
+    <p>La lección honesta aquí no es &ldquo;no confíes en ninguna VPN auditada&rdquo;. Es que una auditoría reduce el riesgo de mentira deliberada, pero no elimina el riesgo de una implementación técnica fallida ni el de una filtración por un tercero mal asegurado. Las auditorías de 2026 son un piso mínimo razonable para elegir proveedor — no una garantía de invulnerabilidad.</p>
+
+    <!-- CHART C: cronología -->
+    <div class="chart-card" data-chart="C">
+      <p class="chart-title">Gráfica 3 · Cronología: escándalos, arreglos y demandas</p>
+      <p class="chart-desc">Siete momentos que marcaron cómo cambió (o no) la confianza en la industria.</p>
+      <div class="chart-svg-wrap">
+        <svg viewBox="0 0 640 225" xmlns="http://www.w3.org/2000/svg">
+          <line x1="50" y1="130" x2="590" y2="130" stroke="#d8cfc1" stroke-width="1.5"/>
+
+          <!-- 2015 scandal, above -->
+          <line x1="50" y1="130" x2="50" y2="105" stroke="#c0392b" stroke-width="1.5"/>
+          <circle class="dot-anim" style="--d:0s" cx="50" cy="105" r="6" fill="#c0392b"/>
+          <text x="50" y="93" text-anchor="middle" font-family="SF Mono, monospace" font-size="11" fill="#c0392b" font-weight="bold">2015</text>
+          <text x="50" y="77" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#2b2620"><tspan x="50" dy="0">ancho de banda</tspan><tspan x="50" dy="-15">Hola VPN vende</tspan></text>
+
+          <!-- 2017 scandal, below -->
+          <line x1="140" y1="130" x2="140" y2="155" stroke="#c0392b" stroke-width="1.5"/>
+          <circle class="dot-anim" style="--d:.08s" cx="140" cy="155" r="6" fill="#c0392b"/>
+          <text x="140" y="171" text-anchor="middle" font-family="SF Mono, monospace" font-size="11" fill="#c0392b" font-weight="bold">2017</text>
+          <text x="140" y="188" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#2b2620"><tspan x="140" dy="0">FTC vs. Hotspot Shield</tspan><tspan x="140" dy="14">PureVPN y el FBI</tspan></text>
+
+          <!-- 2018 scandal, above -->
+          <line x1="230" y1="130" x2="230" y2="105" stroke="#c0392b" stroke-width="1.5"/>
+          <circle class="dot-anim" style="--d:.16s" cx="230" cy="105" r="6" fill="#c0392b"/>
+          <text x="230" y="93" text-anchor="middle" font-family="SF Mono, monospace" font-size="11" fill="#c0392b" font-weight="bold">2018</text>
+          <text x="230" y="77" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#2b2620"><tspan x="230" dy="0">de NordVPN</tspan><tspan x="230" dy="-15">Brecha en un servidor</tspan></text>
+
+          <!-- 2019 fix, below -->
+          <line x1="320" y1="130" x2="320" y2="155" stroke="#1f8a4c" stroke-width="1.5"/>
+          <circle class="dot-anim" style="--d:.24s" cx="320" cy="155" r="6" fill="#1f8a4c"/>
+          <text x="320" y="171" text-anchor="middle" font-family="SF Mono, monospace" font-size="11" fill="#1f8a4c" font-weight="bold">2019</text>
+          <text x="320" y="188" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#2b2620"><tspan x="320" dy="0">Facebook cierra Onavo</tspan><tspan x="320" dy="14">tras presión de Apple</tspan></text>
+
+          <!-- 2021 ownership, above -->
+          <line x1="410" y1="130" x2="410" y2="105" stroke="#4fc3f7" stroke-width="1.5"/>
+          <circle class="dot-anim" style="--d:.32s" cx="410" cy="105" r="6" fill="#4fc3f7"/>
+          <text x="410" y="93" text-anchor="middle" font-family="SF Mono, monospace" font-size="11" fill="#2a7fa3" font-weight="bold">2021</text>
+          <text x="410" y="77" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#2b2620"><tspan x="410" dy="0">por $936M</tspan><tspan x="410" dy="-15">Kape compra ExpressVPN</tspan></text>
+
+          <!-- 2025 fix, below -->
+          <line x1="500" y1="130" x2="500" y2="155" stroke="#1f8a4c" stroke-width="1.5"/>
+          <circle class="dot-anim" style="--d:.4s" cx="500" cy="155" r="6" fill="#1f8a4c"/>
+          <text x="500" y="171" text-anchor="middle" font-family="SF Mono, monospace" font-size="11" fill="#1f8a4c" font-weight="bold">2025</text>
+          <text x="500" y="188" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#2b2620"><tspan x="500" dy="0">Auditorías KPMG /</tspan><tspan x="500" dy="14">Deloitte más rigurosas</tspan></text>
+
+          <!-- 2026 legal, above -->
+          <line x1="590" y1="130" x2="590" y2="105" stroke="#ff5f14" stroke-width="1.5"/>
+          <circle class="dot-anim" style="--d:.48s" cx="590" cy="105" r="6" fill="#ff5f14"/>
+          <text x="590" y="93" text-anchor="middle" font-family="SF Mono, monospace" font-size="11" fill="#c94a0f" font-weight="bold">2026</text>
+          <text x="590" y="77" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#2b2620"><tspan x="590" dy="0">automática</tspan><tspan x="590" dy="-13">renovación</tspan><tspan x="590" dy="-13">Demandas por</tspan></text>
+        </svg>
+      </div>
+      <p class="chart-source">🔴 escándalo · 🟢 corrección/regulación · 🔵 propiedad · 🟠 legal — ver fuentes 5, 27, 19, 26, 9, 17, 2 en la lista final 🟢</p>
+    </div>
+
+    <h2>Las gratuitas: el negocio en el que tú eres el inventario</h2>
+
+    <p>Si pagar $2 al mes por una VPN auditada ya tiene letra pequeña, las gratuitas son harina de otro costal. Un estudio académico presentado en el simposio NDSS 2026 por investigadores de la Universidad de Michigan, la Universidad de Nuevo México y el IIT Delhi analizó 281 apps de VPN gratuitas para Android y encontró fugas de tráfico, configuraciones sin cifrar y bibliotecas de rastreo activas en una porción significativa de ellas <a class="cite" href="https://thehackernews.com/2026/07/study-of-281-free-android-vpn-apps.html" target="_blank">(The Hacker News citando el paper NDSS, 2026)<span class="flag">🟢</span></a>. Una investigación separada de Top10VPN sobre 100 apps gratuitas de Android encontró que la mitad enviaba datos a terceros como ByteDance y Yandex, y que un porcentaje mayoritario solicitaba permisos —como escanear qué otras apps tienes instaladas o acceder a tu ubicación— que no tienen ninguna función legítima dentro de una VPN <a class="cite" href="https://axis-intelligence.com/are-free-vpns-safe/" target="_blank">(Top10VPN, citado por Axis Intelligence, 2026)<span class="flag">🟢</span></a>.</p>
+
+    <!-- CHART D: hallazgos VPN gratuitas -->
+    <div class="chart-card" data-chart="D">
+      <p class="chart-title">Gráfica 4 · Lo que encontró la auditoría de 100 VPN gratuitas</p>
+      <p class="chart-desc">Porcentaje de apps gratuitas de Android que incurrieron en cada práctica.</p>
+      <div class="chart-svg-wrap">
+        <svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+          <line x1="60" y1="240" x2="600" y2="240" stroke="#d8cfc1" stroke-width="1.5"/>
+          <line x1="60" y1="140" x2="600" y2="140" stroke="#e4dcd0" stroke-width="1" stroke-dasharray="3,4"/>
+          <text x="52" y="144" text-anchor="end" font-family="SF Mono, monospace" font-size="10" fill="#a89c8c">50%</text>
+
+          <rect class="bar-anim" style="--d:.05s" x="85.5" y="60" width="84" height="180" rx="3" fill="#c0392b"/>
+          <text x="127.5" y="52" text-anchor="middle" font-family="SF Mono, monospace" font-size="14" font-weight="bold" fill="#c0392b">90%</text>
+          <text x="127.5" y="258" text-anchor="middle" font-family="Georgia, serif" font-size="11.5" fill="#2b2620"><tspan x="127.5" dy="0">Filtran algún dato</tspan><tspan x="127.5" dy="13">del usuario</tspan></text>
+
+          <rect class="bar-anim" style="--d:.15s" x="220.5" y="100" width="84" height="140" rx="3" fill="#c0392b"/>
+          <text x="262.5" y="92" text-anchor="middle" font-family="SF Mono, monospace" font-size="14" font-weight="bold" fill="#c0392b">70%</text>
+          <text x="262.5" y="258" text-anchor="middle" font-family="Georgia, serif" font-size="11.5" fill="#2b2620"><tspan x="262.5" dy="0">Piden permisos sin</tspan><tspan x="262.5" dy="13">función legítima</tspan></text>
+
+          <rect class="bar-anim" style="--d:.25s" x="355.5" y="140" width="84" height="100" rx="3" fill="#c0392b"/>
+          <text x="397.5" y="132" text-anchor="middle" font-family="SF Mono, monospace" font-size="14" font-weight="bold" fill="#c0392b">50%</text>
+          <text x="397.5" y="258" text-anchor="middle" font-family="Georgia, serif" font-size="11.5" fill="#2b2620"><tspan x="397.5" dy="0">Comparten datos con</tspan><tspan x="397.5" dy="13">terceros externos</tspan></text>
+
+          <rect class="bar-anim" style="--d:.35s" x="490.5" y="174" width="84" height="66" rx="3" fill="#c0392b"/>
+          <text x="532.5" y="166" text-anchor="middle" font-family="SF Mono, monospace" font-size="14" font-weight="bold" fill="#c0392b">33%</text>
+          <text x="532.5" y="258" text-anchor="middle" font-family="Georgia, serif" font-size="11.5" fill="#2b2620"><tspan x="532.5" dy="0">Usan cifrado más débil</tspan><tspan x="532.5" dy="13">que el estándar</tspan></text>
+        </svg>
+      </div>
+      <p class="chart-source">Fuente: <a href="https://axis-intelligence.com/are-free-vpns-safe/" target="_blank">Top10VPN, citado por Axis Intelligence, 2026</a> 🟢</p>
+    </div>
+
+    <p>El caso más citado de &ldquo;modelo de negocio inverso&rdquo; es Hola VPN: su versión gratuita convertía el dispositivo de cada usuario en un nodo de salida de una red de proxies residenciales comercial, llamada Luminati (hoy Bright Data), que la misma empresa vendía a terceros <a class="cite" href="https://www.newsweek.com/hola-holavpn-luminati-cybersecurity-trend-micro-virtual-private-network-1264639" target="_blank">(Newsweek citando investigación de Trend Micro, 2018)<span class="flag">🟢</span></a>. En la práctica, tu conexión a internet podía ser usada por un cliente de Luminati en cualquier parte del mundo —incluyendo, según documentó la investigación de Trend Micro, actores que abusaban de la red para intentar acceder a cuentas de correo robadas <a class="cite" href="https://social.cyware.com/news/researchers-warn-hola-vpn-users-of-weak-encryption-and-ip-address-leaks-ca9daa39" target="_blank">(Trend Micro, citado por Cyware, 2020)<span class="flag">🟢</span></a>. El fundador de Hola, cuando le preguntaron si sus usuarios sabían cómo se usaba su ancho de banda, respondió que la mayoría &ldquo;no le importa&rdquo; <a class="cite" href="https://cisomag.com/free-vpn/" target="_blank">(CISO Mag, 2019)<span class="flag">🟢</span></a>.</p>
+
+    <p>Ni Facebook se salvó de este patrón. Su app Onavo Protect se vendía como una VPN para proteger datos personales, pero en realidad alimentaba a Facebook con métricas de qué apps usabas, cuánto tiempo y qué sitios visitabas — información que la empresa usó, entre otras cosas, para detectar el crecimiento de WhatsApp antes de comprarlo <a class="cite" href="https://techcrunch.com/2019/02/21/facebook-removes-onavo/" target="_blank">(TechCrunch, 2019)<span class="flag">🟢</span></a>. Apple expulsó la versión de &ldquo;investigación&rdquo; de Onavo de su tienda por violar las reglas de certificados empresariales, y Facebook terminó por cerrar el servicio por completo en 2019 <a class="cite" href="https://techcrunch.com/2019/02/21/facebook-removes-onavo/" target="_blank">(TechCrunch, 2019)<span class="flag">🟢</span></a>.</p>
+
+    <p>Y luego está Hotspot Shield, cuyo caso ilustra el mecanismo regulatorio que sí existe (aunque sea lento): en 2017, el Center for Democracy and Technology presentó una queja formal ante la Comisión Federal de Comercio de EE.UU. (FTC) documentando que la versión gratuita de Hotspot Shield redirigía tráfico de comercio electrónico a dominios socios y compartía identificadores de dispositivo con redes publicitarias, pese a anunciar &ldquo;privacidad garantizada&rdquo; <a class="cite" href="https://cdt.org/press/cdt-files-complaint-with-the-ftc-on-hotspot-shield-vpn/" target="_blank">(queja formal de CDT ante la FTC, documento primario, 2017)<span class="flag">🟢</span></a>.</p>
+
+    <p>No todas las gratuitas son un fraude. Proton VPN Free —sin límite de datos, aunque con menos servidores— y Windscribe Free operan bajo la misma infraestructura auditada que sus versiones de paga, y son la excepción documentada dentro de un mercado que, en conjunto, sigue siendo un terreno minado <a class="cite" href="https://trustmyip.com/blog/free-vpn-vs-paid-vpn" target="_blank">(TrustMyIP, 2026)<span class="flag">🟡</span></a>.</p>
+
+    <h2>Opera: el &ldquo;VPN gratis&rdquo; que en realidad es un proxy de navegador</h2>
+
+    <p>Aquí hay un mito que probablemente te afecta directamente si usas Opera o Opera GX: su &ldquo;VPN gratis integrada&rdquo; no es, técnicamente, una VPN.</p>
+
+    <p>Lo que Opera llama &ldquo;Free VPN&rdquo; es un proxy que cifra únicamente el tráfico que pasa por el navegador Opera, usando el protocolo estándar HTTPS/TLS — el mismo que ya usa cualquier sitio web seguro — en lugar de un protocolo real de túnel VPN como OpenVPN o WireGuard <a class="cite" href="https://www.top10vpn.com/guides/is-opera-vpn-safe/" target="_blank">(Top10VPN, 2026)<span class="flag">🟢</span></a>. Eso significa que tu cliente de correo, tus apps de escritorio, tu cliente de torrents o incluso otro navegador que tengas abierto simultáneamente no reciben ninguna protección — solo lo que ocurre dentro de la ventana de Opera <a class="cite" href="https://privacysavvy.com/reviews/vpn/opera-vpn/" target="_blank">(PrivacySavvy, 2026)<span class="flag">🟢</span></a>. Múltiples revisores técnicos coinciden en llamarlo, literalmente, &ldquo;una VPN solo de nombre&rdquo; <a class="cite" href="https://cybernews.com/best-vpn/opera-vpn-review/" target="_blank">(Cybernews, 2024)<span class="flag">🟢</span></a>. El propio Opera sí es transparente en su descripción técnica si lees la letra pequeña — el problema es que la etiqueta &ldquo;Free VPN&rdquo; en la interfaz no lo es <a class="cite" href="https://www.opera.com/features/free-vpn" target="_blank">(Opera, página oficial, 2026)<span class="flag">🟡</span></a>.</p>
+
+    <p>Vale la pena añadir contexto sobre quién es dueño de Opera: desde 2016 el navegador pertenece a un consorcio encabezado por la china Kunlun Tech y Qihoo 360 <a class="cite" href="https://grokipedia.com/page/Opera_(company)" target="_blank">(registro corporativo, 2026)<span class="flag">🟢</span></a>. En 2020, la firma de investigación bursátil Hindenburg Research acusó a Opera de operar aplicaciones de préstamos de corto plazo en Kenia, Nigeria e India con tasas efectivas de entre 365% y 876% anual, muy por encima de lo que anunciaban públicamente <a class="cite" href="https://www.theregister.com/2020/01/21/opera_accused_predatory_loans/" target="_blank">(The Register citando el reporte de Hindenburg, 2020)<span class="flag">🟡</span></a>. Opera calificó el reporte como lleno de errores y lo rechazó públicamente <a class="cite" href="https://www.theregister.com/2020/01/21/opera_accused_predatory_loans/" target="_blank">(The Register, 2020)<span class="flag">🟡</span></a> — el caso quedó, en los hechos, como una disputa no resuelta entre ambas partes, sin que yo haya encontrado una resolución judicial posterior que zanje la discusión. Ninguno de estos dos temas —ni la naturaleza de proxy del &ldquo;VPN gratis&rdquo;, ni la disputa sobre las apps de préstamos— tiene relación técnica directa con la seguridad de tu navegación, pero sí son relevantes si tu razón para usar Opera es &ldquo;privacidad&rdquo;.</p>
+
+    <h2>Los mitos que hay que enterrar: invisibilidad, Google y el antivirus de regalo</h2>
+
+    <p>Vamos ahora a las preguntas que probablemente te trajeron hasta aquí.</p>
+
+    <p><strong>¿Te vuelve invisible?</strong> No. Una VPN oculta tu dirección IP real y cifra el tráfico entre tu dispositivo y el servidor del proveedor. Eso es real y es valioso. Pero no te hace anónimo: el llamado &ldquo;fingerprinting&rdquo; de navegador —una combinación de resolución de pantalla, fuentes instaladas, zona horaria, versión de navegador y decenas de variables más— puede identificar tu dispositivo con precisión casi única entre cientos de usuarios, y sobrevive a que cambies de servidor VPN, borres cookies o uses modo incógnito <a class="cite" href="https://hackaday.com/2025/11/19/browser-fingerprinting-and-why-vpns-wont-make-you-anonymous/" target="_blank">(Hackaday, 2025)<span class="flag">🟢</span></a>. Y si inicias sesión en tu cuenta de Google, Facebook o Netflix mientras usas la VPN, esa empresa sabe exactamente quién eres, sin importar qué IP estés usando ese día <a class="cite" href="https://nordvpn.com/blog/can-you-be-tracked-with-a-vpn/" target="_blank">(NordVPN, blog propio reconociendo la limitación, 2026)<span class="flag">🟢</span></a>.</p>
+
+    <p><strong>¿Google ya no puede rastrearte?</strong> Solo parcialmente. Una VPN le oculta tu ubicación de red a Google, pero no a Google-el-servicio si usas una cuenta de Google activa, ni a las cookies y píxeles de rastreo que la mayoría de sitios siguen usando pase lo que pase con tu IP <a class="cite" href="https://www.ghostery.com/blog/can-you-be-tracked-if-you-use-a-vpn" target="_blank">(Ghostery, 2026)<span class="flag">🟢</span></a>.</p>
+
+    <p><strong>¿El &ldquo;antivirus incluido&rdquo; sirve o es relleno de marketing?</strong> Aquí, sorprendentemente, la respuesta es más matizada de lo que esperaba. El motor de bloqueo de amenazas de NordVPN (Threat Protection Pro) fue certificado por AV-TEST, un laboratorio alemán independiente, con una tasa de detección de enlaces maliciosos de 83.4% frente a un 47% del segundo mejor competidor evaluado en la misma prueba <a class="cite" href="https://www.techradar.com/pro/vpn/two-independent-audits-confirm-nordvpn-as-top-tool-for-blocking-malicious-sites" target="_blank">(TechRadar citando resultados de AV-TEST, 2025)<span class="flag">🟢</span></a>. En pruebas de AV-Comparatives de 2026 bloqueó hasta 96% de URLs de phishing activas sin falsos positivos <a class="cite" href="https://nordvpn.com/blog/nordvpn-anti-phishing-test-results/" target="_blank">(NordVPN citando AV-Comparatives, 2026)<span class="flag">🟢</span></a>. Dicho esto, es importante entender qué es realmente: un bloqueador de dominios y enlaces maliciosos a nivel de red, no un antivirus tradicional que escanea archivos ya descargados en tu disco en busca de comportamiento malicioso. Es una capa útil, con evidencia independiente real detrás — no un sustituto completo de un antivirus dedicado.</p>
+
+    <!-- CHART F: deteccion de amenazas -->
+    <div class="chart-card" data-chart="F">
+      <p class="chart-title">Gráfica 5 · &ldquo;Antivirus incluido&rdquo;: los números detrás del bloqueo de amenazas</p>
+      <p class="chart-desc">Tasa de detección en pruebas de laboratorios independientes.</p>
+      <div class="chart-svg-wrap">
+        <svg viewBox="0 0 640 205" xmlns="http://www.w3.org/2000/svg">
+          <text x="272" y="26" text-anchor="end" font-family="Georgia, serif" font-size="12.5" fill="#2b2620"><tspan x="272" dy="0">NordVPN — malware</tspan><tspan x="272" dy="13">(AV-TEST)</tspan></text>
+          <rect class="bar-anim h" style="--d:.05s" x="280" y="14" width="266.9" height="32" rx="3" fill="#ff5f14"/>
+          <text x="552" y="35" font-family="SF Mono, monospace" font-size="13" font-weight="bold" fill="#c94a0f">83.4%</text>
+
+          <text x="272" y="86" text-anchor="end" font-family="Georgia, serif" font-size="12.5" fill="#2b2620"><tspan x="272" dy="0">Resto evaluado —</tspan><tspan x="272" dy="13">malware (AV-TEST)</tspan></text>
+          <rect class="bar-anim h" style="--d:.15s" x="280" y="74" width="150.4" height="32" rx="3" fill="#a89c8c"/>
+          <text x="436" y="95" font-family="SF Mono, monospace" font-size="13" font-weight="bold" fill="#6b6259">47%</text>
+
+          <text x="272" y="146" text-anchor="end" font-family="Georgia, serif" font-size="12.5" fill="#2b2620"><tspan x="272" dy="0">NordVPN — phishing</tspan><tspan x="272" dy="13">(AV-Comparatives)</tspan></text>
+          <rect class="bar-anim h" style="--d:.25s" x="280" y="134" width="307.2" height="32" rx="3" fill="#ff5f14"/>
+          <text x="592" y="155" font-family="SF Mono, monospace" font-size="13" font-weight="bold" fill="#c94a0f">96%</text>
+        </svg>
+      </div>
+      <p class="chart-source">Fuentes: <a href="https://www.techradar.com/pro/vpn/two-independent-audits-confirm-nordvpn-as-top-tool-for-blocking-malicious-sites" target="_blank">TechRadar/AV-TEST</a>, <a href="https://nordvpn.com/blog/nordvpn-anti-phishing-test-results/" target="_blank">NordVPN/AV-Comparatives</a> 🟢</p>
+    </div>
+
+    <p><strong>¿No hay registros (logs), entonces?</strong> Ya lo cubrimos arriba: depende enteramente del proveedor, de si fue auditado recientemente y de si esa auditoría cubrió lo que a ti te importa (no solo el marketing).</p>
+
+    <h2>¿De verdad necesitas una VPN en el Starbucks o el aeropuerto?</h2>
+
+    <p>Esta es, probablemente, la afirmación de venta más repetida en cualquier patrocinio: &ldquo;nunca te conectes a wifi público sin VPN, te pueden robar todo.&rdquo; La realidad es más aburrida y más tranquilizadora de lo que el guion de marketing sugiere.</p>
+
+    <p>La Comisión Federal de Comercio de EE.UU. (FTC) actualizó su postura pública para reconocer que la adopción masiva de HTTPS —el candado que ves en la barra de direcciones— ha hecho que el wifi público sea considerablemente más seguro de lo que era hace una década, porque cifra el contenido de la conexión independientemente de si usas VPN o no <a class="cite" href="https://travlfi.com/blogs/travlsync/is-public-wi-fi-safe" target="_blank">(FTC, citada por TravlFi, 2025)<span class="flag">🟢</span></a>. Un análisis de MakeUseOf lo resume sin rodeos: puedes estar seguro en el wifi de la cafetería sin pagar por una VPN, siempre que verifiques que el sitio use HTTPS antes de meter datos sensibles <a class="cite" href="https://www.makeuseof.com/please-stop-paying-for-a-vpn-to-be-safe-on-coffee-shop-wi-fi/" target="_blank">(MakeUseOf, 2026)<span class="flag">🟢</span></a>.</p>
+
+    <p>Eso no significa que el riesgo sea cero. La agencia de ciberseguridad de EE.UU. (CISA) sigue recomendando usar VPN en redes que no controlas cuando esté disponible, y los llamados ataques de &ldquo;gemelo malvado&rdquo; —un punto de acceso falso que imita el nombre de una red legítima— siguen siendo reales y no los detiene el HTTPS por sí solo <a class="cite" href="https://www.le-vpn.com/public-wifi-dangers-2026/" target="_blank">(Le VPN, 2026)<span class="flag">🟡</span></a>. Mi lectura honesta, después de revisar ambos lados: si vas a hacer trámites bancarios o meter información sensible en una red pública, una VPN es una capa extra razonable; si solo vas a revisar redes sociales o leer noticias, el riesgo real hoy es mucho menor de lo que el marketing de VPN quiere hacerte creer.</p>
+
+    <h2>Netflix, Disney+, HBO Max: la guerra silenciosa contra las VPN</h2>
+
+    <p>Aquí la mecánica es puramente de negocio, no de seguridad. Netflix y las demás plataformas de streaming licencian contenido por país o región: un estudio puede vender los derechos de una serie a un distribuidor distinto en cada mercado, y el contrato exige que la plataforma bloquee el acceso desde fuera de esa región <a class="cite" href="https://browvopetshop.com/netflix-vpn-ban/" target="_blank">(guía técnica sobre bloqueo geográfico, 2026)<span class="flag">🟡</span></a>. Cuando usas una VPN para &ldquo;aparecer&rdquo; en otro país, técnicamente no cometes un delito en la gran mayoría de jurisdicciones, pero sí violas los términos de servicio de la plataforma — lo cual puede resultar en advertencias o, en casos repetidos, suspensión de cuenta, dependiendo de la política de cada servicio <a class="cite" href="https://www.techtimes.com/articles/312125/20251001/how-stay-safe-public-wi-fi-2025-practical-lessons-real-world-scenarios.htm" target="_blank">(nota legal recogida por TechTimes, 2025)<span class="flag">🟡</span></a>.</p>
+
+    <p>En la práctica, algunas VPN premium siguen ganando la carrera técnica contra la detección de IP de estas plataformas —NordVPN, ExpressVPN y Surfshark documentan compatibilidad activa con Netflix, Disney+, Amazon Prime Video y HBO Max en pruebas recientes de terceros <a class="cite" href="https://www.gbnews.com/tech/best-vpns-for-streaming-netflix-hbo-max-bbc-iplayer-disney" target="_blank">(GB News, 2026)<span class="flag">🟡</span></a>— mientras que las gratuitas casi nunca lo logran de forma consistente, salvo excepciones limitadas como Proton VPN Free o Windscribe en un puñado de servidores <a class="cite" href="https://www.top10vpn.com/guides/how-to-watch-hbo-max-outside-the-us/" target="_blank">(Top10VPN, 2026)<span class="flag">🟡</span></a>. Ten en cuenta que estas fuentes provienen mayormente de sitios de reseñas con modelo de afiliados —el mismo problema de incentivos que expliqué en la sección de propiedad corporativa— así que trátalas como una guía general, no como garantía.</p>
+
+    <p>¿Y te banean por usarla? En la práctica, el peor escenario habitual es un mensaje de error o una pantalla de &ldquo;proxy detectado&rdquo; que te obliga a cambiar de servidor — las suspensiones permanentes de cuenta por este motivo específico son, según la documentación disponible, extremadamente raras <a class="cite" href="https://ipdrop.io/en/are-vpns-legal" target="_blank">(ipdrop.io, 2026)<span class="flag">🟡</span></a>. Donde sí hay consecuencias legales reales de otro tipo es en un puñado de países: China, Rusia, Irán y los Emiratos Árabes Unidos restringen o prohíben el uso de VPN no autorizadas, con multas que en el caso emiratí pueden llegar a los dos millones de dirhams <a class="cite" href="https://www.le-vpn.com/vpn-legality-guide-2026/" target="_blank">(Le VPN, 2026)<span class="flag">🟡</span></a>. Para el resto del mundo —incluyendo México y prácticamente toda América Latina— usar una VPN es completamente legal; lo único que sigue siendo ilegal es lo que hagas con ella, VPN de por medio o no <a class="cite" href="https://nordvpn.com/blog/are-vpns-legal/" target="_blank">(NordVPN, citando consenso legal general, 2026)<span class="flag">🟢</span></a>.</p>
+
+    <h2>¿Boletos de avión más baratos con VPN? El mito que resultó ser mito a medias</h2>
+
+    <p>Esta es, de todas las promesas que investigué, la que tiene la evidencia más contradictoria — y por eso vale la pena explicarla con cuidado en lugar de darte un sí o un no falso.</p>
+
+    <p>Del lado del escepticismo: Business Insider hizo la prueba reservando vuelos con cinco VPN distintas en múltiples rutas y no encontró ni un centavo de diferencia <a class="cite" href="https://www.thetraveler.org/the-risky-side-of-using-vpn-for-flight-prices/" target="_blank">(Business Insider, citado por The Traveler, 2025)<span class="flag">🟡</span></a>. Un economista de Yale que estudió los algoritmos de tarificación de aerolíneas concluyó que los precios responden a demanda, disponibilidad de asientos y tiempo hasta la salida — no a cookies ni a tu dirección IP <a class="cite" href="https://devrunners.com/blog/vpn-cheaper-flights-hotels/" target="_blank">(investigación citada por DevRunners, 2026)<span class="flag">🟡</span></a>. Consumer Reports encontró en su propio análisis que 88% de los vuelos mostraban el mismo precio en modo incógnito que en modo normal <a class="cite" href="https://devrunners.com/blog/vpn-cheaper-flights-hotels/" target="_blank">(Consumer Reports, citado por DevRunners, 2026)<span class="flag">🟡</span></a>.</p>
+
+    <p>Del otro lado: sí existe un fenómeno real y distinto, que no tiene que ver con &ldquo;rastreo&rdquo; sino con discriminación de precios por punto de venta (point of sale). Algunas aerolíneas y plataformas de reservación fijan precios distintos según el país desde el que se hace la compra, por razones de poder adquisitivo local y competencia regional — y ahí una VPN sí puede, en algunas rutas específicas, mostrar una tarifa distinta <a class="cite" href="https://dollarflightclub.com/articles/vpn-for-cheaper-flights/" target="_blank">(Dollar Flight Club, 2025)<span class="flag">🟡</span></a>. Una prueba independiente encontró ahorros reales pero inconsistentes al comparar tarifas desde distintos países, con México y Vietnam entre los orígenes más baratos en ese experimento puntual, aunque los propios autores advierten que los resultados varían por ruta y por momento <a class="cite" href="https://www.goodreads.com/author_blog_posts/19561399-how-to-get-cheap-flights-with-vpn?tab=book" target="_blank">(blog de viajes, muestra puntual de diciembre, sin repetirse en el tiempo)<span class="flag">🟡</span></a>. Además, varias aerolíneas ya detectan y bloquean intentos de reserva vía VPN, y hay reportes de reservaciones canceladas por sistemas antifraude cuando detectan una discrepancia entre el país de la tarjeta y el punto de venta <a class="cite" href="https://www.thetraveler.org/the-risky-side-of-using-vpn-for-flight-prices/" target="_blank">(The Traveler, 2025)<span class="flag">🟡</span></a>.</p>
+
+    <p>Mi conclusión honesta: el mito de &ldquo;Google te sube el precio porque te vio buscar el vuelo dos veces&rdquo; está bastante bien desmentido. El fenómeno de precios distintos por país sí existe, pero es inconsistente, depende de la ruta, y viene con riesgo real de que te cancelen la reserva. No es la mina de oro que promete el marketing, pero tampoco es pura fantasía.</p>
+
+    <h2>El precio real: lo que pagas primero y lo que pagas después</h2>
+
+    <p>Volvamos a donde empezó esta columna. El patrón de &ldquo;precio de entrada bajísimo en plan de dos años, luego renovación silenciosa a precio de lista&rdquo; no es exclusivo de una marca — es prácticamente el modelo estándar de la industria. NordVPN, por ejemplo, ofrece planes promocionales de $2.19 a $3.09 mensuales en compromisos de dos años, pero su tarifa mensual regular sin descuento ronda los $11.95 al mes <a class="cite" href="https://www.tomsguide.com/news/save-83-over-two-years-with-this-massive-surfshark-black-friday-vpn-deal" target="_blank">(TomsGuide, histórico de precios, 2026)<span class="flag">🟡</span></a>. Si dejas la renovación automática activada, pagas ese precio de lista completo, no el promocional — una diferencia de hasta cuatro veces, según documentó el propio TechRadar en su cobertura de las demandas contra NordVPN <a class="cite" href="https://www.techradar.com/vpn/vpn-services/a-us-law-firm-is-taking-nordvpn-to-court-over-deceptive-auto-renewal-pricing-heres-what-we-know" target="_blank">(TechRadar, 2026)<span class="flag">🟢</span></a>.</p>
+
+    <!-- CHART E: precio promo vs renovación -->
+    <div class="chart-card" data-chart="E">
+      <p class="chart-title">Gráfica 6 · Precio anunciado vs. precio real de renovación</p>
+      <p class="chart-desc">Dólares mensuales: el plan promocional de dos años (naranja) contra la tarifa regular sin descuento (gris).</p>
+      <div class="chart-svg-wrap">
+        <svg viewBox="0 0 640 275" xmlns="http://www.w3.org/2000/svg">
+          <line x1="60" y1="240" x2="600" y2="240" stroke="#d8cfc1" stroke-width="1.5"/>
+
+          <rect class="bar-anim" style="--d:.05s" x="88" y="208.7" width="58" height="31.3" rx="3" fill="#ff5f14"/>
+          <text x="117" y="203" text-anchor="middle" font-family="SF Mono, monospace" font-size="11.5" font-weight="bold" fill="#c94a0f">$2.19</text>
+          <rect class="bar-anim" style="--d:.1s" x="154" y="69.3" width="58" height="170.7" rx="3" fill="#a89c8c"/>
+          <text x="183" y="63" text-anchor="middle" font-family="SF Mono, monospace" font-size="11.5" font-weight="bold" fill="#6b6259">$11.95</text>
+          <text x="150" y="262" text-anchor="middle" font-family="Georgia, serif" font-size="13" fill="#2b2620">NordVPN</text>
+
+          <rect class="bar-anim" style="--d:.15s" x="268" y="208.4" width="58" height="31.6" rx="3" fill="#ff5f14"/>
+          <text x="297" y="203" text-anchor="middle" font-family="SF Mono, monospace" font-size="11.5" font-weight="bold" fill="#c94a0f">$2.21</text>
+          <rect class="bar-anim" style="--d:.2s" x="334" y="55.0" width="58" height="185.0" rx="3" fill="#a89c8c"/>
+          <text x="363" y="49" text-anchor="middle" font-family="SF Mono, monospace" font-size="11.5" font-weight="bold" fill="#6b6259">$12.95</text>
+          <text x="330" y="262" text-anchor="middle" font-family="Georgia, serif" font-size="13" fill="#2b2620">Surfshark</text>
+
+          <rect class="bar-anim" style="--d:.25s" x="448" y="208.7" width="58" height="31.3" rx="3" fill="#ff5f14"/>
+          <text x="477" y="203" text-anchor="middle" font-family="SF Mono, monospace" font-size="11.5" font-weight="bold" fill="#c94a0f">$2.19</text>
+          <rect class="bar-anim" style="--d:.3s" x="514" y="54.4" width="58" height="185.6" rx="3" fill="#a89c8c"/>
+          <text x="543" y="48" text-anchor="middle" font-family="SF Mono, monospace" font-size="11.5" font-weight="bold" fill="#6b6259">$12.99</text>
+          <text x="510" y="262" text-anchor="middle" font-family="Georgia, serif" font-size="13" fill="#2b2620">CyberGhost</text>
+
+          <rect x="60" y="270" width="12" height="4" fill="#ff5f14"/>
+          <text x="76" y="274" font-family="SF Mono, monospace" font-size="11" fill="#3a342c">precio promocional (2 años)</text>
+          <rect x="270" y="270" width="12" height="4" fill="#a89c8c"/>
+          <text x="286" y="274" font-family="SF Mono, monospace" font-size="11" fill="#3a342c">precio regular al renovar</text>
+        </svg>
+      </div>
+      <p class="chart-source">Fuentes: <a href="https://www.tomsguide.com/news/save-83-over-two-years-with-this-massive-surfshark-black-friday-vpn-deal" target="_blank">TomsGuide</a>, <a href="https://surfshark.com/blog/cheapest-monthly-vpn" target="_blank">Surfshark blog</a>, <a href="https://vpnexperto.com/precio-cyberghost" target="_blank">VPNExperto</a> 🟡</p>
+    </div>
+
+    <p>Para el lector en México, esto importa doblemente: la mayoría de estos precios se cotizan y cobran en dólares, así que la variación del tipo de cambio se suma al golpe de la renovación. Y en la práctica, casi ningún comparador de precios en español que revisé —VPNExperto, ClavesLADA y similares— es independiente: funcionan con enlaces de afiliado que solo generan comisión si compras, el mismo conflicto de interés de fondo que ya vimos con las reseñas en inglés <a class="cite" href="https://vpnexperto.com/precio-de-nordvpn" target="_blank">(VPNExperto, nota de transparencia propia, 2026)<span class="flag">🟡</span></a>.</p>
+
+    <p>Mullvad es la excepción notable a todo este patrón: cobra una tarifa plana de 5 euros al mes, sin escalones promocionales, sin trampa de renovación, y sin siquiera pedirte un correo electrónico — te da un número de cuenta generado al azar y acepta pago en efectivo por correo postal para quien quiera anonimato máximo <a class="cite" href="https://shattered.io/mullvad-vs-protonvpn/" target="_blank">(Shattered.io, 2026)<span class="flag">🟢</span></a>. Es, literalmente, el modelo de precios más honesto de todo el sector que documenté.</p>
+
+    <h2>Entonces, ¿cuáles valen la pena?</h2>
+
+    <p>Después de todo esto, mi resumen práctico:</p>
+
+    <p>Si quieres el balance entre facilidad de uso, desbloqueo de streaming y seguridad auditada, <strong>NordVPN, ExpressVPN, Surfshark y Proton VPN</strong> cumplen razonablemente lo que prometen en la parte técnica —pero cancela la renovación automática el día que te suscribas y ponte una alarma para decidir manualmente cada año. Si tu prioridad es el anonimato real por encima de todo lo demás y no te importa sacrificar el streaming, <strong>Mullvad</strong> es hoy la opción más honesta del mercado, con precio fijo y registro verdaderamente anónimo <a class="cite" href="https://ifeeltech.com/blog/mullvad-vs-nordvpn-vs-proton-vpn" target="_blank">(iFeelTech, comparación técnica, 2026)<span class="flag">🟢</span></a>. Si tu presupuesto es cero, <strong>Proton VPN Free o Windscribe Free</strong> son las únicas gratuitas que corren sobre la misma infraestructura auditada que sus versiones de paga <a class="cite" href="https://trustmyip.com/blog/free-vpn-vs-paid-vpn" target="_blank">(TrustMyIP, 2026)<span class="flag">🟡</span></a> — evita cualquier otra VPN gratuita sin auditoría pública, sin excepción. Y si usas Opera esperando privacidad de verdad, entiende que su &ldquo;VPN gratis&rdquo; solo protege el navegador, no tu dispositivo completo.</p>
+
+    <p>Una nota final sobre las que definitivamente no valen la pena: cualquier VPN gratuita sin nombre reconocible, sin política de privacidad clara y sin auditoría pública verificable —el tipo que aparece en la primera página de una tienda de apps prometiendo &ldquo;velocidad ilimitada gratis para siempre&rdquo; sin explicar cómo pagan sus servidores— debe tratarse como sospechosa por definición. Si no te cobra dinero, alguien más está pagando por acceder a algo tuyo, y en esta industria ese &ldquo;algo&rdquo; casi siempre es tu tráfico, tus metadatos o tu ancho de banda.</p>
+
+    <!-- CHART G: radar, embedded inline -->
+    <div class="chart-card dark" data-chart="G">
+      <p class="chart-title">Gráfica 7 · La comparación en números</p>
+      <p class="chart-desc">Seis ejes donde encontré la mayor distancia entre el marketing y la evidencia documentada. Pasa el cursor sobre los puntos o toca un nombre en la lista para resaltar cada proveedor.</p>
+      <div class="radar-flex">
+        <div class="radar-svg-box">
+          <svg id="radarSvg" viewBox="0 0 520 520"></svg>
+        </div>
+        <div class="radar-legend" id="radarLegend"></div>
+      </div>
+      <table class="fallback-table" id="radarFallback">
+        <thead><tr><th>Proveedor</th><th>Transparencia</th><th>Auditorías</th><th>Incidentes</th><th>Precios</th><th>Anonimato</th><th>Streaming</th></tr></thead>
+        <tbody>
+          <tr><td>NordVPN</td><td>6</td><td>9</td><td>6</td><td>4</td><td>5</td><td>9</td></tr>
+          <tr><td>ExpressVPN</td><td>3</td><td>8</td><td>7</td><td>5</td><td>5</td><td>9</td></tr>
+          <tr><td>Surfshark</td><td>6</td><td>8</td><td>7</td><td>5</td><td>5</td><td>8</td></tr>
+          <tr><td>Proton VPN</td><td>9</td><td>9</td><td>8</td><td>7</td><td>6</td><td>6</td></tr>
+          <tr><td>Mullvad</td><td>9</td><td>8</td><td>8</td><td>10</td><td>10</td><td>2</td></tr>
+          <tr><td>VPN gratis promedio</td><td>2</td><td>1</td><td>2</td><td>3</td><td>3</td><td>3</td></tr>
+        </tbody>
+      </table>
+      <p class="chart-source">Elaboración propia a partir de los hallazgos citados a lo largo de esta investigación 🟡</p>
+    </div>
+
+    <p>Ninguna VPN te vuelve invisible, ninguna sustituye el sentido común en redes públicas, y ninguna te va a conseguir sistemáticamente vuelos más baratos. Pero elegida bien, sí cifra tu tráfico frente a tu proveedor de internet, sí te da control real sobre tu ubicación aparente, y sí vale su precio — el de lista, no el de la oferta de bienvenida.</p>
+
+  </article>
+
+  <details class="methodology" open>
+    <summary>Metodología de investigación</summary>
+    <p>Para esta investigación se desplegaron 10 líneas de investigación en paralelo, organizadas por ángulo temático: una a favor de la industria de VPN (beneficios reales, auditorías, cifras de mercado), una en contra (escándalos, demandas, filtraciones), una neutral (estructura de propiedad corporativa, tamaño de mercado), una técnica (protocolos, auditorías de no-registro, fingerprinting), y sub-líneas específicas para patrocinios a creadores de YouTube, streaming y geobloqueo, mitos de viajes (vuelos, wifi público), el caso específico de Opera como navegador con &ldquo;VPN&rdquo; integrada, precios y renovaciones en el mercado de habla hispana, y alternativas gratuitas auditadas.</p>
+    <p>Se consultaron 65 fuentes distintas, incluyendo documentos judiciales primarios (queja de la FTC contra Hotspot Shield, registros del caso PureVPN-FBI), comunicados corporativos oficiales (NordVPN, ExpressVPN, Opera, Kape Technologies vía registros regulatorios en Londres), estudios académicos presentados en el simposio NDSS 2026, reportes de laboratorios de pruebas independientes (AV-TEST, AV-Comparatives, Top10VPN), cobertura de medios especializados en tecnología y sitios de comparación de precios en inglés y español.</p>
+    <p><strong>Variante de investigación aplicada:</strong> investigación profunda con contraparte/réplica, porque el tema no gira en torno a un evento detonante único, sino a una industria completa cuyo marketing pedía ser confrontado punto por punto con evidencia técnica y legal.</p>
+    <p><strong>Fact-check:</strong> cada dato duro se verificó contra la fuente primaria cuando existía y se buscó activamente contraevidencia antes de asignar el marcador de confianza. Un dato sobre presuntas relaciones de Kape Technologies con servicios de inteligencia israelíes, mencionado en una sola fuente secundaria sin corroboración independiente, se investigó y se descartó explícitamente por no cumplir el estándar de verificación de esta columna.</p>
+    <p><strong>Justificación de las gráficas:</strong> se incorporaron siete visualizaciones directamente en el cuerpo del texto —mapa de propiedad, CPM de patrocinios, cronología de escándalos, hallazgos en VPN gratuitas, detección de amenazas, precio promocional vs. renovación, y el radar comparativo de seis dimensiones— porque cada una traduce a números concretos una afirmación que, de otro modo, quedaría como texto narrativo difícil de verificar de un vistazo. Las seis dimensiones del radar —transparencia de propiedad, auditorías independientes, historial de incidentes, claridad de precios, anonimato en el registro y desbloqueo de streaming— se eligieron porque fueron, en ese orden, los criterios que más peso tuvieron en las decisiones documentadas de los propios usuarios y reguladores citados a lo largo de la investigación.</p>
+  </details>
+
+  <div class="shell" style="padding:0;">
+  <p style="text-align:center;font-family:Georgia, serif;font-style:italic;font-size:1.15rem;margin:52px 0;">¿A ustedes también los sorprendió la renovación de su VPN, o ya habían aprendido esta lección antes que yo? Los leo.</p>
+
+  <div class="signoff">
+    <b>Esteban Rey</b><br>
+    X: <a href="https://x.com/kilowatto">@Kilowatto</a> — https://x.com/kilowatto<br>
+    LinkedIn: <a href="https://www.linkedin.com/in/kilowatto">https://www.linkedin.com/in/kilowatto</a><br>
+    Wikidata: <a href="https://www.wikidata.org/wiki/Q140672978">https://www.wikidata.org/wiki/Q140672978</a>
+  </div>
+
+  <div class="divider"><span>Fuentes</span></div>
+
+  <div class="sources">
+    <ol>
+      <li>TechRadar — <a href="https://www.techradar.com/vpn/vpn-privacy-security/they-will-renew-your-subscription-even-if-you-turn-off-the-auto-renewal-which-vpn-has-the-most-price-complaints-on-the-play-store" target="_blank">Análisis de 30,000 reseñas de Android sobre precios de VPN</a> (2026)</li>
+      <li>TechRadar — <a href="https://www.techradar.com/vpn/vpn-services/a-us-law-firm-is-taking-nordvpn-to-court-over-deceptive-auto-renewal-pricing-heres-what-we-know" target="_blank">Demanda contra NordVPN por renovación automática</a> (2026)</li>
+      <li>VPNpro — <a href="https://vpnpro.com/blog/vpn-market-size-and-share-2026/" target="_blank">Tamaño del mercado global de VPN 2026</a> (2026)</li>
+      <li>Wikipedia / registros corporativos — <a href="https://en.wikipedia.org/wiki/Kape_Technologies" target="_blank">Kape Technologies</a> (2026)</li>
+      <li>CyberInsider — <a href="https://cyberinsider.com/kape-technologies-owns-expressvpn-cyberghost-pia-zenmate-vpn-review-sites/" target="_blank">Kape Technologies y su historial como Crossrider</a> (2024)</li>
+      <li>PrivacyProof — <a href="https://privacyproof.online/blog/who-owns-your-vpn-corporate-ownership-2026" target="_blank">Mapa de propiedad corporativa de VPN 2026</a> (2026)</li>
+      <li>VPN Testing Research Lab — <a href="https://vpntesting.com/ownership/kape-technologies/" target="_blank">Kape Technologies, conflicto de interés</a> (2026)</li>
+      <li>Jazod — <a href="https://jazod.com/ownership/" target="_blank">Mapa de propiedad de VPN</a> (2026)</li>
+      <li>Latka — <a href="https://getlatka.com/companies/nordsecurity.com" target="_blank">Ingresos de Nord Security</a> (2025)</li>
+      <li>Sifted — <a href="https://sifted.eu/articles/nord-security-bootstrap-ipo" target="_blank">Nord Security, bootstrap a unicornio</a> (2024)</li>
+      <li>Shielded Browsing — <a href="https://shieldedbrowsing.com/mullvad-review/" target="_blank">Reseña de Mullvad VPN</a> (2026)</li>
+      <li>SponsorRadar — <a href="https://sponsorradar.com/insights/youtube-sponsorship-rates-what-brands-should-pay" target="_blank">Tarifas de patrocinio en YouTube por nicho</a> (2026)</li>
+      <li>SponsorRadar — <a href="https://sponsorradar.com/insights/how-much-do-youtubers-make-from-sponsorships" target="_blank">Cuánto ganan los YouTubers por patrocinios</a> (2026)</li>
+      <li>Linus Tech Tips (foro) — <a href="https://linustechtips.com/topic/1118228-tom-scott-on-common-vpn-sponsorship-claims/" target="_blank">Tom Scott sobre patrocinios de VPN</a> (2019)</li>
+      <li>TheTVDB — <a href="https://thetvdb.com/series/linus-tech-tips/episodes/10515747" target="_blank">Registro de episodio LTT sobre patrocinios VPN</a> (2024)</li>
+      <li>VPN Vertex — <a href="https://www.vpnvertex.com/vpn-independent-audits/" target="_blank">Auditorías independientes de VPN 2026</a> (2026)</li>
+      <li>ExpressVPN — <a href="https://www.expressvpn.com/blog/kpmg-2025-no-logs-policy-audit/" target="_blank">Tercera auditoría KPMG de política sin registros</a> (2025)</li>
+      <li>CyberInsider — <a href="https://cyberinsider.com/vpn-logs-lies/" target="_blank">Casos documentados de VPN que mintieron sobre registros</a> (2026)</li>
+      <li>NordVPN — <a href="https://nordvpn.com/blog/official-response-datacenter-breach/" target="_blank">Comunicado oficial sobre la brecha de 2018</a> (2019)</li>
+      <li>IT Pro — <a href="https://www.itpro.com/data-insights/34675/nordvpn-confirms-2018-data-centre-breach" target="_blank">NordVPN confirma brecha de centro de datos</a> (2019)</li>
+      <li>The Hacker News — <a href="https://thehackernews.com/2026/07/study-of-281-free-android-vpn-apps.html" target="_blank">Estudio NDSS 2026 sobre 281 apps VPN gratuitas</a> (2026)</li>
+      <li>Axis Intelligence — <a href="https://axis-intelligence.com/are-free-vpns-safe/" target="_blank">Auditoría de Top10VPN sobre VPN gratuitas</a> (2026)</li>
+      <li>Newsweek — <a href="https://www.newsweek.com/hola-holavpn-luminati-cybersecurity-trend-micro-virtual-private-network-1264639" target="_blank">Investigación de Trend Micro sobre Hola/Luminati</a> (2018)</li>
+      <li>Cyware — <a href="https://social.cyware.com/news/researchers-warn-hola-vpn-users-of-weak-encryption-and-ip-address-leaks-ca9daa39" target="_blank">Hola VPN, fugas de IP y cifrado débil</a> (2020)</li>
+      <li>CISO Mag — <a href="https://cisomag.com/free-vpn/" target="_blank">Declaraciones del fundador de Hola</a> (2019)</li>
+      <li>TechCrunch — <a href="https://techcrunch.com/2019/02/21/facebook-removes-onavo/" target="_blank">Facebook cierra Onavo</a> (2019)</li>
+      <li>Center for Democracy and Technology — <a href="https://cdt.org/press/cdt-files-complaint-with-the-ftc-on-hotspot-shield-vpn/" target="_blank">Queja formal ante la FTC contra Hotspot Shield</a> (2017)</li>
+      <li>TrustMyIP — <a href="https://trustmyip.com/blog/free-vpn-vs-paid-vpn" target="_blank">VPN gratis vs. de paga</a> (2026)</li>
+      <li>Top10VPN — <a href="https://www.top10vpn.com/guides/is-opera-vpn-safe/" target="_blank">¿Es segura la VPN gratis de Opera?</a> (2026)</li>
+      <li>PrivacySavvy — <a href="https://privacysavvy.com/reviews/vpn/opera-vpn/" target="_blank">Reseña de Opera VPN</a> (2026)</li>
+      <li>Cybernews — <a href="https://cybernews.com/best-vpn/opera-vpn-review/" target="_blank">Reseña de Opera VPN Pro</a> (2024)</li>
+      <li>Opera — <a href="https://www.opera.com/features/free-vpn" target="_blank">Página oficial de Free VPN</a> (2026)</li>
+      <li>Grokipedia — <a href="https://grokipedia.com/page/Opera_(company)" target="_blank">Perfil corporativo de Opera</a> (2026)</li>
+      <li>The Register — <a href="https://www.theregister.com/2020/01/21/opera_accused_predatory_loans/" target="_blank">Opera y el reporte de Hindenburg Research</a> (2020)</li>
+      <li>Hackaday — <a href="https://hackaday.com/2025/11/19/browser-fingerprinting-and-why-vpns-wont-make-you-anonymous/" target="_blank">Fingerprinting de navegador y por qué las VPN no dan anonimato</a> (2025)</li>
+      <li>NordVPN — <a href="https://nordvpn.com/blog/can-you-be-tracked-with-a-vpn/" target="_blank">¿Se puede rastrear con una VPN?</a> (2026)</li>
+      <li>Ghostery — <a href="https://www.ghostery.com/blog/can-you-be-tracked-if-you-use-a-vpn" target="_blank">¿Te pueden rastrear si usas VPN?</a> (2026)</li>
+      <li>TechRadar — <a href="https://www.techradar.com/pro/vpn/two-independent-audits-confirm-nordvpn-as-top-tool-for-blocking-malicious-sites" target="_blank">Auditorías independientes confirman a NordVPN como bloqueador de sitios maliciosos</a> (2025)</li>
+      <li>NordVPN — <a href="https://nordvpn.com/blog/nordvpn-anti-phishing-test-results/" target="_blank">Resultados de prueba anti-phishing de AV-Comparatives</a> (2026)</li>
+      <li>TravlFi — <a href="https://travlfi.com/blogs/travlsync/is-public-wi-fi-safe" target="_blank">¿Es seguro el wifi público? Postura de la FTC</a> (2025)</li>
+      <li>MakeUseOf — <a href="https://www.makeuseof.com/please-stop-paying-for-a-vpn-to-be-safe-on-coffee-shop-wi-fi/" target="_blank">Deja de pagar por una VPN solo para el wifi de la cafetería</a> (2026)</li>
+      <li>Le VPN — <a href="https://www.le-vpn.com/public-wifi-dangers-2026/" target="_blank">Peligros del wifi público en 2026</a> (2026)</li>
+      <li>Browvopetshop — <a href="https://browvopetshop.com/netflix-vpn-ban/" target="_blank">Cómo Netflix bloquea VPN</a> (2026)</li>
+      <li>TechTimes — <a href="https://www.techtimes.com/articles/312125/20251001/how-stay-safe-public-wi-fi-2025-practical-lessons-real-world-scenarios.htm" target="_blank">Nota legal sobre VPN y términos de servicio</a> (2025)</li>
+      <li>GB News — <a href="https://www.gbnews.com/tech/best-vpns-for-streaming-netflix-hbo-max-bbc-iplayer-disney" target="_blank">Mejores VPN para streaming en 2026</a> (2026)</li>
+      <li>Top10VPN — <a href="https://www.top10vpn.com/guides/how-to-watch-hbo-max-outside-the-us/" target="_blank">Cómo ver HBO Max fuera de EE.UU.</a> (2026)</li>
+      <li>The Traveler — <a href="https://www.thetraveler.org/the-risky-side-of-using-vpn-for-flight-prices/" target="_blank">El lado riesgoso de usar VPN para precios de vuelos</a> (2025)</li>
+      <li>DevRunners — <a href="https://devrunners.com/blog/vpn-cheaper-flights-hotels/" target="_blank">¿Consigue una VPN vuelos y hoteles más baratos?</a> (2026)</li>
+      <li>Dollar Flight Club — <a href="https://dollarflightclub.com/articles/vpn-for-cheaper-flights/" target="_blank">Incógnito vs. VPN para vuelos baratos</a> (2025)</li>
+      <li>Goodreads (blog de viajes) — <a href="https://www.goodreads.com/author_blog_posts/19561399-how-to-get-cheap-flights-with-vpn?tab=book" target="_blank">Cómo conseguir vuelos baratos con VPN</a></li>
+      <li>TomsGuide — <a href="https://www.tomsguide.com/news/save-83-over-two-years-with-this-massive-surfshark-black-friday-vpn-deal" target="_blank">Histórico de precios y ofertas de VPN</a></li>
+      <li>VPNExperto — <a href="https://vpnexperto.com/precio-de-nordvpn" target="_blank">Precio de NordVPN en México 2026</a> (2026)</li>
+      <li>Shattered.io — <a href="https://shattered.io/mullvad-vs-protonvpn/" target="_blank">Mullvad vs. ProtonVPN</a> (2026)</li>
+      <li>iFeelTech — <a href="https://ifeeltech.com/blog/mullvad-vs-nordvpn-vs-proton-vpn" target="_blank">Mullvad vs. NordVPN vs. Proton VPN</a> (2026)</li>
+      <li>RNS Kape Technologies plc — <a href="https://pdf.dfcfw.com/pdf/H22_AN202303211584441241_1.pdf" target="_blank">Resultados anuales auditados FY2022</a> (2023)</li>
+      <li>TechRadar — <a href="https://www.techradar.com/vpn/vpn-services/yes-we-made-a-mistake-i-asked-nordvpn-everything-youve-always-wanted-to-and-their-answers-may-surprise-you" target="_blank">NordVPN, &ldquo;sí cometimos un error&rdquo;</a></li>
+      <li>CBC — <a href="https://www.cbc.ca/news/canada/british-columbia/linus-tech-tips-youtube-controversy-1.6940087" target="_blank">Controversia de Linus Tech Tips</a></li>
+      <li>Fortune — <a href="https://fortune.com/2015/05/29/hola-luminati-vpn" target="_blank">Hola VPN vendía ancho de banda como botnet</a> (2015)</li>
+      <li>Digital Trends — <a href="https://www.digitaltrends.com/computing/hola-found-to-be-selling-users-internet-bandwidth-as-botnet/" target="_blank">Hola encontrada vendiendo ancho de banda de usuarios</a> (2015)</li>
+      <li>SC Media — <a href="https://www.scworld.com/news/nordvpn-confirms-2018-breach" target="_blank">NordVPN confirma brecha de 2018</a></li>
+      <li>CyberGuy — <a href="https://cyberguy.com/privacy/can-you-be-tracked-when-using-a-vpn/" target="_blank">¿Se puede rastrear cuando usas VPN?</a> (2026)</li>
+      <li>AllAboutCookies — <a href="https://allaboutcookies.org/nordvpn-threat-protection-review" target="_blank">Reseña de NordVPN Threat Protection Pro</a> (2026)</li>
+      <li>ipdrop.io — <a href="https://ipdrop.io/en/are-vpns-legal" target="_blank">Legalidad de VPN por país 2026</a> (2026)</li>
+      <li>Le VPN — <a href="https://www.le-vpn.com/vpn-legality-guide-2026/" target="_blank">Guía de legalidad de VPN 2026</a> (2026)</li>
+      <li>NordVPN — <a href="https://nordvpn.com/blog/are-vpns-legal/" target="_blank">¿Son legales las VPN? Leyes y sanciones por país</a> (2026)</li>
+      <li>Surfshark — <a href="https://surfshark.com/blog/cheapest-monthly-vpn" target="_blank">VPN barata mensual 2026 (precios ExpressVPN/CyberGhost)</a> (2026)</li>
+      <li>VPNExperto — <a href="https://vpnexperto.com/precio-cyberghost" target="_blank">Precio de CyberGhost 2026</a> (2026)</li>
+    </ol>
+  </div>
+  </div>
+</div>
+
+<footer class="site">Kilowatto — Esteban Rey · <a href="https://x.com/kilowatto">X</a> · <a href="https://www.linkedin.com/in/kilowatto">LinkedIn</a> · <a href="https://www.wikidata.org/wiki/Q140672978">Wikidata</a></footer>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+(function(){
+  /* ---------------- Parallax hero ---------------- */
+  var grid = document.getElementById('heroGrid');
+  var glow = document.getElementById('heroGlow');
+  var hero = document.getElementById('hero');
+  function onScroll(){
+    var y = window.scrollY || window.pageYOffset;
+    var h = hero.offsetHeight;
+    if (y < h * 1.2){
+      grid.style.transform = 'translateY(' + (y * 0.18) + 'px)';
+      glow.style.transform = 'translateY(' + (y * 0.32) + 'px)';
+    }
+  }
+  window.addEventListener('scroll', onScroll, {passive:true});
+
+  /* ---------------- Scroll-reveal for all chart cards ---------------- */
+  var cards = document.querySelectorAll('.chart-card');
+  if ('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (entry.isIntersecting){
+          entry.target.classList.add('in-view');
+          io.unobserve(entry.target);
+        }
+      });
+    }, {threshold:0.2, rootMargin:'0px 0px -60px 0px'});
+    cards.forEach(function(c){ io.observe(c); });
+  } else {
+    cards.forEach(function(c){ c.classList.add('in-view'); });
+  }
+
+  /* ---------------- Radar chart ---------------- */
+  var dims = ['Transparencia\nde propiedad','Auditorías\nindependientes','Manejo de\nincidentes','Claridad\nde precios','Anonimato\nen el registro','Desbloqueo\nde streaming'];
+  var series = [
+    {name:'NordVPN', color:'#4fc3f7', values:[6,9,6,4,5,9]},
+    {name:'ExpressVPN', color:'#ff5f14', values:[3,8,7,5,5,9]},
+    {name:'Surfshark', color:'#7ed957', values:[6,8,7,5,5,8]},
+    {name:'Proton VPN', color:'#c084fc', values:[9,9,8,7,6,6]},
+    {name:'Mullvad', color:'#f4d35e', values:[9,8,8,10,10,2]},
+    {name:'VPN gratis promedio', color:'#8a8378', values:[2,1,2,3,3,3]}
+  ];
+
+  var svgNS = 'http://www.w3.org/2000/svg';
+  var svg = document.getElementById('radarSvg');
+  var cx = 260, cy = 250, R = 175;
+  var N = dims.length;
+  var levels = 5;
+
+  function pointFor(i, valueFrac){
+    var angle = (Math.PI * 2 * i / N) - Math.PI/2;
+    var r = R * valueFrac;
+    return [cx + r*Math.cos(angle), cy + r*Math.sin(angle)];
+  }
+
+  function el(tag, attrs){
+    var e = document.createElementNS(svgNS, tag);
+    for (var k in attrs){ e.setAttribute(k, attrs[k]); }
+    return e;
+  }
+
+  for (var lvl=1; lvl<=levels; lvl++){
+    var frac = lvl/levels;
+    var pts = [];
+    for (var i=0;i<N;i++){ pts.push(pointFor(i, frac).join(',')); }
+    svg.appendChild(el('polygon', {points:pts.join(' '), fill:'none', stroke:'rgba(255,255,255,0.10)', 'stroke-width':'1'}));
+  }
+  for (var i=0;i<N;i++){
+    var p = pointFor(i,1);
+    svg.appendChild(el('line', {x1:cx, y1:cy, x2:p[0], y2:p[1], stroke:'rgba(255,255,255,0.14)', 'stroke-width':'1'}));
+    var lp = pointFor(i,1.24);
+    var lines = dims[i].split('\n');
+    var textEl = el('text', {x:lp[0], y:lp[1], fill:'#cbbfae', 'font-family':'SF Mono, monospace', 'font-size':'11', 'text-anchor':'middle'});
+    lines.forEach(function(line, idx){
+      var tspan = document.createElementNS(svgNS,'tspan');
+      tspan.setAttribute('x', lp[0]);
+      tspan.setAttribute('dy', idx===0 ? 0 : 12);
+      tspan.textContent = line;
+      textEl.appendChild(tspan);
+    });
+    svg.appendChild(textEl);
+  }
+
+  var seriesGroups = [];
+  series.forEach(function(s, sIdx){
+    var g = el('g', {class:'series-group', 'data-idx':sIdx});
+    var poly = el('polygon', {
+      points:'', fill:s.color, 'fill-opacity':'0.10', stroke:s.color, 'stroke-width':'2.2',
+      style:'transition: opacity .2s ease, stroke-width .2s ease;'
+    });
+    g.appendChild(poly);
+    var dotsGroup = el('g', {});
+    var dots = [];
+    s.values.forEach(function(v, i){
+      var d = el('circle', {r:'4.2', fill:s.color, stroke:'#1c1712', 'stroke-width':'1.4', cx:cx, cy:cy});
+      d.style.cursor = 'pointer';
+      dotsGroup.appendChild(d);
+      dots.push(d);
+    });
+    g.appendChild(dotsGroup);
+    svg.appendChild(g);
+    seriesGroups.push({group:g, poly:poly, dots:dots, data:s});
+  });
+
+  var radarAnimated = false;
+  function animateRadar(){
+    if (radarAnimated) return;
+    radarAnimated = true;
+    var start = null;
+    var duration = 900;
+    function step(ts){
+      if (!start) start = ts;
+      var t = Math.min(1, (ts-start)/duration);
+      var eased = 1 - Math.pow(1-t, 3);
+      seriesGroups.forEach(function(sg){
+        var pts = [];
+        sg.data.values.forEach(function(v, i){
+          var frac = (v/10) * eased;
+          var p = pointFor(i, frac);
+          pts.push(p.join(','));
+          sg.dots[i].setAttribute('cx', p[0]);
+          sg.dots[i].setAttribute('cy', p[1]);
+        });
+        sg.poly.setAttribute('points', pts.join(' '));
+      });
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  var radarCard = document.querySelector('[data-chart="G"]');
+  if ('IntersectionObserver' in window && radarCard){
+    var radarIo = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (entry.isIntersecting){
+          animateRadar();
+          radarIo.disconnect();
+        }
+      });
+    }, {threshold:0.15});
+    radarIo.observe(radarCard);
+  } else {
+    animateRadar();
+  }
+
+  var legend = document.getElementById('radarLegend');
+  var tooltip = document.getElementById('tooltip');
+  series.forEach(function(s, idx){
+    var item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = '<span class="legend-swatch" style="background:'+s.color+'"></span><span class="name">'+s.name+'</span>';
+    item.addEventListener('mouseenter', function(){ highlight(idx); });
+    item.addEventListener('mouseleave', function(){ highlight(-1); });
+    item.addEventListener('click', function(){ highlight(idx); });
+    legend.appendChild(item);
+  });
+
+  function highlight(idx){
+    seriesGroups.forEach(function(sg, i){
+      var active = (idx === -1) || (i === idx);
+      sg.poly.style.opacity = active ? '1' : '0.12';
+      sg.dots.forEach(function(d){ d.style.opacity = active ? '1' : '0.12'; });
+    });
+    var items = legend.querySelectorAll('.legend-item');
+    items.forEach(function(it, i){ it.classList.toggle('active', i===idx); });
+  }
+
+  seriesGroups.forEach(function(sg, sIdx){
+    sg.dots.forEach(function(dot, i){
+      dot.addEventListener('mousemove', function(e){
+        var val = sg.data.values[i];
+        var dimName = dims[i].replace('\n',' ');
+        tooltip.style.left = e.clientX + 'px';
+        tooltip.style.top = (e.clientY + window.scrollY) + 'px';
+        tooltip.textContent = sg.data.name + ' · ' + dimName + ': ' + val + '/10';
+        tooltip.style.opacity = '1';
+      });
+      dot.addEventListener('mouseleave', function(){ tooltip.style.opacity = '0'; });
+      dot.addEventListener('mouseenter', function(){ highlight(sIdx); });
+    });
+  });
+})();
+</script>
+</body>
+</html>
