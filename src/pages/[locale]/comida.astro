@@ -59,6 +59,281 @@ const ES_CONTENT = {
     "El nombre \"trompo\" viene de la forma del montón de carne apilada en el asador vertical, que gira igual que un trompo de juguete mientras se cocina.",
     "El Farolito es una de las taquerías más queridas de la Ciudad de México, con sucursales —como la Condesa, Insurgentes o el Pedregal— que se llenan a cualquier hora del día o de la noche.",
   ],
+  paellaEyebrow: "Arroz a la paella",
+  paellaAlt1: "Paella marinera recién sacada del papel aluminio, con camarón, mejillón, almeja y chorizo sobre arroz amarillo",
+  paellaAlt2: "Sirviendo arroz a la paella marinera con una cuchara, con almejas, mejillones, camarón y chorizo alrededor",
+  paellaDetalleCaption: "Serviéndose directo del sartén — así se come, sin ceremonia.",
+  paellaIntro: [
+    "Esta paella marinera —camarón, almeja, mejillón, chorizo y alcachofa sobre arroz amarillo— es de esas comidas que exigen silencio en la mesa. Se sirve del mismo recipiente donde se cocinó, en el centro, y cada quien saca lo que puede antes de que se acabe. La de la foto, por llevar chorizo junto con el marisco, sería en rigor una paella mixta casera, aunque nadie en la mesa se detuvo a discutir la clasificación.",
+    "Y ya que estamos aquí, una aclaración que hace todo valenciano ortodoxo, aunque el resto del mundo la ignore alegremente: \"paella\" no es, en rigor, el nombre del platillo — es el nombre del sartén. Viene del latín patella (\"sartén pequeño\"), por la vía del valenciano, y designa ese recipiente ancho, bajo y con dos asas donde se cocina el arroz. Lo que va adentro, hablando con propiedad, se llama arroz a la paella — \"arroz hecho en la paella\", la misma construcción que \"pollo a la plancha\" o \"pescado a la parrilla\".",
+    "¿Y la paellera? Ahí depende de a quién le preguntes. En varios países de América Latina, \"paellera\" es sinónimo del mismo sartén. Pero entre familias, \"la paellera\" muchas veces no es el objeto sino la persona: quien manda en la cocina de arroz ese domingo. Lo curioso es que en la propia Valencia, hacer la paella es tradicionalmente un rito casi exclusivo de hombres, al aire libre y sobre leña — así que la paellera familiar y el paellero valenciano de domingo son, culturalmente, dos personajes bastante distintos.",
+  ],
+  paellaFacts: [
+    "\"Paella\" viene del latín patella (sartén pequeño) por la vía del valenciano — el nombre del recipiente, no del platillo, que estrictamente se llama arroz a la paella.",
+    "La paella valenciana tradicional lleva pollo, conejo, garrofón y judía verde — nada de marisco, que es una variante costera posterior y, para un valenciano purista, casi una hereja.",
+    "El color amarillo del arroz viene del azafrán, la especia más cara del mundo por peso — aunque muchas recetas domésticas lo estiran, o lo sustituyen del todo, con colorante alimentario.",
+    "El socarrat —la capa de arroz ligeramente tostada y crujiente que se pega al fondo— no es un error de cocción: es el resultado más codiciado de todos, y quien se lo queda gana la comida.",
+    "La paella se cocina tradicionalmente sobre fuego de leña de naranjo o de vid, nunca sobre estufa — el humo y el calor disperso de la leña son, según los valencianos, imposibles de replicar en una cocina normal.",
+  ],
+  paellaRecipeHeading: "Once tipos de arroz a la paella",
+  paellaTypes: [
+    {
+      name: "Paella valenciana (la original)",
+      description: "La receta madre, sin marisco, de la que salen —y contra la que se comparan— todas las demás: pollo, conejo, garrofón y judía verde.",
+      ingredients: [
+        "Arroz bomba",
+        "Pollo troceado",
+        "Conejo troceado",
+        "Garrofón (o judía blanca)",
+        "Judía verde plana (ferraura)",
+        "Tomate rallado",
+        "Azafrán",
+        "Pimentón dulce",
+        "Aceite de oliva",
+        "Agua o caldo",
+      ],
+      steps: [
+        "Sofreír el pollo y el conejo troceados en aceite de oliva dentro de la paella, hasta dorar bien.",
+        "Agregar la judía verde y el garrofón, sofreír unos minutos más.",
+        "Añadir el tomate rallado y el pimentón, cocinar hasta que se reduzca.",
+        "Agregar agua o caldo caliente con el azafrán y sal; dejar hervir 15-20 minutos.",
+        "Incorporar el arroz repartiéndolo uniformemente, sin revolver después.",
+        "Cocinar a fuego fuerte 10 minutos y luego bajo 8-10 minutos más, hasta formar el socarrat en el fondo.",
+        "Dejar reposar 5 minutos tapada con un trapo antes de servir.",
+      ],
+    },
+    {
+      name: "Paella de conejo (de monte)",
+      description: "Versión más rústica y \"de secano\" de la valenciana, con el conejo como protagonista absoluto — a veces con caracoles.",
+      ingredients: [
+        "Arroz bomba",
+        "Conejo troceado",
+        "Costilla de cerdo (opcional)",
+        "Caracoles (opcional)",
+        "Judía verde",
+        "Garrofón",
+        "Tomate rallado",
+        "Ajo",
+        "Pimentón",
+        "Romero fresco",
+        "Azafrán",
+        "Aceite de oliva",
+      ],
+      steps: [
+        "Dorar bien el conejo (y la costilla, si se usa) en aceite de oliva — necesita más tiempo de sofrito que el pollo para quedar tierno.",
+        "Añadir el ajo picado, la judía verde y el garrofón; sofreír.",
+        "Incorporar el tomate rallado y el pimentón, cocinar hasta espesar.",
+        "Agregar el caldo caliente con el azafrán (y los caracoles, si se usan); hervir 20 minutos para que el conejo se cueza bien.",
+        "Añadir el arroz, repartir uniformemente y cocinar a fuego fuerte 10 minutos, luego bajo 10 minutos más.",
+        "Terminar con romero fresco encima los últimos minutos, y reposar 5 minutos antes de servir.",
+      ],
+    },
+    {
+      name: "Paella de marisco",
+      description: "La variante costera, sin carne, protagonizada por el marisco — la que casi todo el mundo fuera de España imagina al pensar en \"paella\".",
+      ingredients: [
+        "Arroz bomba",
+        "Camarón",
+        "Mejillón",
+        "Almeja",
+        "Calamar en anillos",
+        "Pimiento rojo",
+        "Ajo",
+        "Tomate rallado",
+        "Azafrán",
+        "Caldo de pescado o marisco",
+      ],
+      steps: [
+        "Sofreír los camarones enteros brevemente solo para dorarlos, retirar y reservar.",
+        "En el mismo aceite, sofreír el ajo, el pimiento y el calamar.",
+        "Añadir el tomate rallado y cocinar hasta reducir.",
+        "Agregar el caldo de pescado caliente con azafrán y dejar hervir.",
+        "Incorporar el arroz, repartir uniformemente, y colocar encima los mejillones y almejas con la concha hacia arriba, para que se abran con el vapor.",
+        "Cocinar a fuego fuerte 10 minutos y bajo 8-10 minutos más; regresar los camarones los últimos 3-4 minutos.",
+        "Dejar reposar antes de servir.",
+      ],
+    },
+    {
+      name: "Paella mixta",
+      description: "La que mezcla mundos —carne y marisco— que todo purista valenciano condena y que todo el mundo pide de todos modos. La de las fotos de arriba es prima cercana de esta.",
+      ingredients: [
+        "Arroz bomba",
+        "Pollo troceado",
+        "Costilla de cerdo o chorizo",
+        "Camarón",
+        "Calamar",
+        "Mejillón",
+        "Judía verde",
+        "Pimiento rojo",
+        "Tomate rallado",
+        "Azafrán",
+        "Caldo",
+      ],
+      steps: [
+        "Dorar el pollo y la costilla o chorizo en aceite de oliva.",
+        "Añadir el calamar, el pimiento y la judía verde; sofreír.",
+        "Incorporar el tomate rallado y el pimentón, cocinar hasta espesar.",
+        "Agregar el caldo caliente con azafrán, hervir 15 minutos.",
+        "Añadir el arroz, repartir uniformemente, y colocar el camarón y el mejillón encima.",
+        "Cocinar a fuego fuerte 10 minutos y bajo 8-10 minutos más, hasta formar el socarrat.",
+        "Reposar 5 minutos antes de servir.",
+      ],
+    },
+    {
+      name: "Arroz negro (paella negra)",
+      description: "Teñido de negro profundo con tinta de calamar o sepia — dramático en la mesa y, con un poco de alioli encima, uno de los más elegantes de toda la familia.",
+      ingredients: [
+        "Arroz bomba",
+        "Calamar o sepia en trozos",
+        "Tinta de calamar o sepia",
+        "Ajo",
+        "Pimiento rojo",
+        "Tomate rallado",
+        "Caldo de pescado",
+        "Alioli para servir",
+      ],
+      steps: [
+        "Sofreír el calamar o sepia en aceite de oliva hasta dorar.",
+        "Añadir el ajo y el pimiento, sofreír.",
+        "Incorporar el tomate rallado, cocinar hasta reducir.",
+        "Agregar el caldo caliente disuelto con la tinta de calamar, mezclando bien para un color uniforme.",
+        "Añadir el arroz, repartir uniformemente y cocinar a fuego fuerte 10 minutos y bajo 8-10 minutos más.",
+        "Servir con una cucharada de alioli encima de cada plato.",
+      ],
+    },
+    {
+      name: "Arroz a banda",
+      description: "El arroz de los pescadores de Alicante — el pescado se cocina y se sirve aparte, y el arroz, solo con su caldo, no necesita nada más encima.",
+      ingredients: [
+        "Arroz bomba",
+        "Pescado de roca variado (para el caldo)",
+        "Caldo de pescado concentrado",
+        "Ajo",
+        "Tomate rallado",
+        "Pimentón",
+        "Azafrán o colorante",
+        "Alioli para acompañar",
+      ],
+      steps: [
+        "Preparar un caldo de pescado concentrado con pescado de roca, y reservar el pescado ya cocido aparte para servir como segundo plato.",
+        "Sofreír ajo y tomate rallado en aceite de oliva dentro de la paella.",
+        "Añadir el pimentón y el caldo de pescado caliente con azafrán.",
+        "Incorporar el arroz, repartir uniformemente y cocinar a fuego fuerte 10 minutos y bajo 8-10 minutos más.",
+        "Servir el arroz solo, como plato principal, con el pescado cocido aparte y alioli para acompañar.",
+      ],
+    },
+    {
+      name: "Paella de bogavante (o langosta)",
+      description: "La versión de lujo — el bogavante entero, troceado con todo y caparazón, luciendo sobre el arroz como la estrella indiscutible del plato.",
+      ingredients: [
+        "Arroz bomba",
+        "Bogavante o langosta troceado (con caparazón)",
+        "Tomate rallado",
+        "Ajo",
+        "Pimiento rojo",
+        "Azafrán",
+        "Caldo de pescado",
+      ],
+      steps: [
+        "Sofreír brevemente las piezas de bogavante en aceite de oliva solo para dorar por fuera, retirar y reservar.",
+        "En el mismo aceite, sofreír el ajo y el pimiento.",
+        "Añadir el tomate rallado, cocinar hasta espesar.",
+        "Agregar el caldo de pescado caliente con azafrán, hervir.",
+        "Incorporar el arroz, repartir uniformemente y colocar de nuevo las piezas de bogavante encima.",
+        "Cocinar a fuego fuerte 10 minutos y bajo 8-10 minutos más, y reposar antes de servir — el caparazón sigue soltando sabor hasta el último minuto.",
+      ],
+    },
+    {
+      name: "Paella de verduras (hortelana)",
+      description: "La versión vegetariana, con la huerta valenciana entera puesta sobre el arroz, sin que se sienta como un sacrificio frente a las versiones con carne.",
+      ingredients: [
+        "Arroz bomba",
+        "Alcachofa",
+        "Judía verde",
+        "Garrofón",
+        "Pimiento rojo",
+        "Tomate rallado",
+        "Ajo",
+        "Azafrán",
+        "Caldo de verduras",
+      ],
+      steps: [
+        "Sofreír la alcachofa y el pimiento en aceite de oliva.",
+        "Añadir la judía verde y el garrofón, sofreír unos minutos más.",
+        "Incorporar el tomate rallado y el ajo, cocinar hasta reducir.",
+        "Agregar el caldo de verduras caliente con azafrán, hervir 10 minutos.",
+        "Añadir el arroz, repartir uniformemente y cocinar a fuego fuerte 10 minutos y bajo 8-10 minutos más.",
+        "Reposar 5 minutos antes de servir.",
+      ],
+    },
+    {
+      name: "Paella de pato",
+      description: "Menos común, más intensa — el pato aporta una grasa y un sabor mucho más profundos que el pollo, sobre todo con sus muslos confitados.",
+      ingredients: [
+        "Arroz bomba",
+        "Muslos de pato (frescos o confitados)",
+        "Setas",
+        "Judía verde",
+        "Tomate rallado",
+        "Ajo",
+        "Azafrán",
+        "Caldo de pato o pollo",
+      ],
+      steps: [
+        "Dorar bien los muslos de pato en su propia grasa dentro de la paella.",
+        "Añadir las setas y la judía verde, sofreír.",
+        "Incorporar el tomate rallado y el ajo, cocinar hasta espesar.",
+        "Agregar el caldo caliente con azafrán, hervir 15-20 minutos para que el pato quede tierno.",
+        "Añadir el arroz, repartir uniformemente y cocinar a fuego fuerte 10 minutos y bajo 8-10 minutos más.",
+        "Reposar antes de servir.",
+      ],
+    },
+    {
+      name: "Arroz al horno (estilo Alicante)",
+      description: "No se hace en la paella tradicional sino al horno, en cazuela de barro — con costilla, garbanzo y morcilla, de las versiones más contundentes de toda la familia.",
+      ingredients: [
+        "Arroz bomba",
+        "Costilla de cerdo",
+        "Morcilla",
+        "Garbanzo cocido",
+        "Cabeza de ajo entera",
+        "Tomate rallado",
+        "Pimentón",
+        "Caldo",
+      ],
+      steps: [
+        "Dorar la costilla de cerdo y la morcilla en una cazuela de barro sobre la estufa.",
+        "Añadir el tomate rallado y el pimentón, cocinar unos minutos.",
+        "Agregar el caldo caliente, el garbanzo cocido y el arroz; repartir uniformemente.",
+        "Colocar la cabeza de ajo entera en el centro, encima de todo.",
+        "Meter la cazuela al horno precalentado a 200°C durante 20-25 minutos, sin tapar, hasta que el arroz absorba el líquido y se dore la superficie.",
+        "Dejar reposar 5 minutos antes de servir directo de la cazuela.",
+      ],
+    },
+    {
+      name: "Arroz meloso (o caldoso) de marisco",
+      description: "El primo cremoso de la paella — mismo espíritu, más caldo, textura casi de risotto en vez del grano suelto y seco de la paella clásica.",
+      ingredients: [
+        "Arroz bomba o senia",
+        "Camarón",
+        "Calamar",
+        "Mejillón",
+        "Ajo",
+        "Tomate rallado",
+        "Pimentón",
+        "Azafrán",
+        "Caldo de pescado (más cantidad que en una paella normal)",
+      ],
+      steps: [
+        "Sofreír el ajo y el calamar en aceite de oliva.",
+        "Añadir el tomate rallado y el pimentón, cocinar hasta reducir.",
+        "Agregar el caldo caliente con azafrán, usando más cantidad de la habitual — el resultado debe quedar jugoso, no seco.",
+        "Incorporar el arroz y cocinar a fuego medio, revolviendo de vez en cuando (a diferencia de la paella seca, aquí sí se puede mover).",
+        "Añadir el camarón y el mejillón los últimos 5 minutos de cocción.",
+        "Servir de inmediato en plato hondo, con cuchara — este no se deja reposar, se come caldoso.",
+      ],
+    },
+  ],
   restaurants: [
     {
       name: "El Japonez",
@@ -166,7 +441,7 @@ function parseWithBracketRepair(text: string): any {
   }
 }
 
-const CACHE_KEY = `kw:static:comida:${locale.code}:v2`;
+const CACHE_KEY = `kw:static:comida:${locale.code}:v3`;
 let content = ES_CONTENT;
 
 if (env?.KILOWATTO_KV) {
@@ -175,12 +450,12 @@ if (env?.KILOWATTO_KV) {
     content = cached as typeof ES_CONTENT;
   } else if (env?.AI) {
     const voice = VOICE_INSTRUCTIONS[locale.code] ?? `Translate to ${locale.code}.`;
-    const prompt = `${voice}\n\nTraduce este objeto JSON (español mexicano) a ${locale.code}. NO traduzcas los nombres propios "El Japonez", "Sushi Ran", "Kunio", "Yoshi Tome", "Takanori Wada", "San Ángel", "Sausalito", "OpenTable Diners' Choice", "Bib Gourmand", "San Francisco Chronicle", "amashito", "amaxito", "chiltepín", "Larry", "El Farolito", "Condesa", "Insurgentes", "Pedregal", ni las URLs (campos "url"/"urlLabel" que empiecen con "http" o contengan un dominio) — cópialas literalmente. Mantén exactamente las mismas claves y la misma cantidad de elementos en cada arreglo. Devuelve SOLO el objeto JSON traducido, sin texto adicional ni bloques de código:\n\n${JSON.stringify(ES_CONTENT)}`;
+    const prompt = `${voice}\n\nTraduce este objeto JSON (español mexicano) a ${locale.code}. NO traduzcas los nombres propios "El Japonez", "Sushi Ran", "Kunio", "Yoshi Tome", "Takanori Wada", "San Ángel", "Sausalito", "OpenTable Diners' Choice", "Bib Gourmand", "San Francisco Chronicle", "amashito", "amaxito", "chiltepín", "Larry", "El Farolito", "Condesa", "Insurgentes", "Pedregal", ni los términos culinarios "paella", "paellera", "arroz a la paella", "patella", "socarrat", "garrofón", "ferraura", "arroz bomba", "senia", "alioli", "arroz a banda", "arroz al horno", ni las URLs (campos "url"/"urlLabel" que empiecen con "http" o contengan un dominio) — cópialas literalmente. Mantén exactamente las mismas claves y la misma cantidad de elementos en cada arreglo. Devuelve SOLO el objeto JSON traducido, sin texto adicional ni bloques de código:\n\n${JSON.stringify(ES_CONTENT)}`;
 
     try {
       const result: any = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 8000,
+        max_tokens: 14000,
       });
       const parsed =
         typeof result?.response === "object"
@@ -200,7 +475,7 @@ if (env?.KILOWATTO_KV) {
 
 <Site
   title={`${nl.comida} — Esteban Rey`}
-  description="Marquesitas tabasqueñas, tacos al pastor en El Farolito, y los restaurantes de sushi favoritos de Esteban Rey: El Japonez, Sushi Ran en Sausalito y Kunio en San Ángel."
+  description="Marquesitas tabasqueñas, tacos al pastor en El Farolito, once tipos de arroz a la paella con receta, y los restaurantes de sushi favoritos de Esteban Rey: El Japonez, Sushi Ran en Sausalito y Kunio en San Ángel."
   active="/comida"
   locale={locale.code}
   dir={locale.rtl ? "rtl" : "ltr"}
@@ -267,6 +542,47 @@ if (env?.KILOWATTO_KV) {
       <ul class="facts-list">
         {content.pastorFacts.map((f) => <li>{f}</li>)}
       </ul>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <p class="eyebrow">{content.paellaEyebrow}</p>
+      <img
+        src="/comida/paella-marinera.webp"
+        alt={content.paellaAlt1}
+        loading="lazy"
+        width="1600"
+        height="1200"
+        class="hero-photo"
+      />
+      {content.paellaIntro.map((p) => <p class="hero__sub">{p}</p>)}
+      <figure class="paella-detalle">
+        <img
+          src="/comida/paella-marinera-detalle.webp"
+          alt={content.paellaAlt2}
+          loading="lazy"
+          width="1600"
+          height="1200"
+        />
+        <figcaption>{content.paellaDetalleCaption}</figcaption>
+      </figure>
+      <ul class="facts-list">
+        {content.paellaFacts.map((f) => <li>{f}</li>)}
+      </ul>
+      <h3 class="recipe-heading">{content.paellaRecipeHeading}</h3>
+      <div class="paella-grid">
+        {content.paellaTypes.map((t) => (
+          <article class="paella-card">
+            <h4>{t.name}</h4>
+            <p>{t.description}</p>
+            <p class="paella-ingredients"><strong>Ingredientes:</strong> {t.ingredients.join(", ")}.</p>
+            <ol class="facts-list recipe-steps">
+              {t.steps.map((s) => <li>{s}</li>)}
+            </ol>
+          </article>
+        ))}
+      </div>
     </div>
   </section>
 
@@ -349,5 +665,50 @@ if (env?.KILOWATTO_KV) {
     color: var(--ember);
     font-weight: 600;
     text-decoration: none;
+  }
+  .paella-detalle {
+    max-width: 28rem;
+    margin: var(--space-3) 0 0;
+  }
+  .paella-detalle img {
+    width: 100%;
+    display: block;
+    border-radius: 0.5rem;
+  }
+  .paella-detalle figcaption {
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+  .paella-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-top: var(--space-3);
+  }
+  .paella-card {
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 1.1rem 1.2rem;
+  }
+  .paella-card h4 {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    margin: 0;
+  }
+  .paella-card p {
+    color: var(--ink-soft);
+    margin: 0.5rem 0 0;
+  }
+  .paella-ingredients {
+    font-size: 0.9rem;
+  }
+  .paella-ingredients strong {
+    color: var(--ink);
+  }
+  .paella-card .recipe-steps {
+    margin-top: 0.6rem;
+    font-size: 0.9rem;
+    padding-left: 1.2rem;
   }
 </style>
