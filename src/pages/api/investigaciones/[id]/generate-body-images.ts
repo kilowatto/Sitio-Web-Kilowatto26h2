@@ -17,6 +17,10 @@ function countWords(html: string): number {
   return html.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
 }
 
+function stripTags(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
 async function withConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let next = 0;
@@ -49,37 +53,42 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   // Split on paragraph/heading/chart-placeholder boundaries so an image only ever lands
   // between blocks, never mid-sentence -- each chunk keeps its own tag intact.
-  const blocks = row.body_html.split(/(?=<h2|<!--chart:)|(?<=<\/p>)|(?<=-->)/g).filter((b: string) => b.trim());
+  const blocks: string[] = row.body_html.split(/(?=<h2|<!--chart:)|(?<=<\/p>)|(?<=-->)/g).filter((b: string) => b.trim());
 
-  const totalWords = countWords(row.body_html);
-  const imageCount = Math.max(0, Math.floor(totalWords / WORDS_PER_IMAGE) - 1); // -1: skip right after the hook, before the first real section
-  if (imageCount === 0) {
-    return new Response(JSON.stringify({ ok: true, inserted: 0, note: "pieza demasiado corta para imágenes de cuerpo" }), {
-      headers: { "content-type": "application/json" },
-    });
-  }
+  // Greedy min-gap placement (confirmed live 2026-08-21 the earlier even-target version
+  // clustered images: short paragraphs near section breaks let two precomputed targets
+  // both resolve to nearly-adjacent boundaries). This walks once and only places an image
+  // after >=WORDS_PER_IMAGE words have accumulated since the last one, and only right
+  // before another real paragraph -- never immediately before an h2/chart placeholder
+  // (which would orphan it with nothing to wrap) and never immediately after one (no
+  // intro-less image right at the top of a section).
+  let currentSectionTitle = "";
+  let wordsSinceLastImage = 0;
+  const insertions: { afterBlockIndex: number; sectionTitle: string }[] = [];
 
-  // Evenly spaced target word-counts, e.g. 3 images in a 2400-word piece land near word
-  // 600, 1200, 1800 -- then each snaps to the next paragraph boundary at/after that point.
-  const targets = Array.from({ length: imageCount }, (_, i) => Math.round((totalWords / (imageCount + 1)) * (i + 1)));
-
-  let running = 0;
-  let nextTargetIdx = 0;
-  const insertions: { afterBlockIndex: number; contextText: string }[] = [];
-  for (let i = 0; i < blocks.length && nextTargetIdx < targets.length; i++) {
+  for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
-    running += countWords(block);
-    // Only paragraph ends are valid drop points -- never right after an h2 or a chart
-    // placeholder, which would visually orphan the image from any real body text.
-    const isParagraphEnd = /<\/p>\s*$/.test(block);
-    if (isParagraphEnd && running >= targets[nextTargetIdx]) {
-      insertions.push({ afterBlockIndex: i, contextText: block.replace(/<[^>]+>/g, " ").slice(0, 400) });
-      nextTargetIdx++;
+    if (/^<h2/.test(block)) {
+      currentSectionTitle = stripTags(block);
+      wordsSinceLastImage = 0; // don't let a long prior section's count bleed into a fresh one
+      continue;
     }
+    wordsSinceLastImage += countWords(block);
+    const isParagraphEnd = /<\/p>\s*$/.test(block);
+    if (!isParagraphEnd || wordsSinceLastImage < WORDS_PER_IMAGE) continue;
+
+    const next = blocks[i + 1];
+    const prev = blocks[i - 1];
+    const nextIsHeadingOrChart = next && /^(<h2|<!--chart:)/.test(next);
+    const prevWasImageSpot = prev && insertions.some((ins) => ins.afterBlockIndex === i - 1);
+    if (nextIsHeadingOrChart || prevWasImageSpot) continue;
+
+    insertions.push({ afterBlockIndex: i, sectionTitle: currentSectionTitle });
+    wordsSinceLastImage = 0;
   }
 
   if (insertions.length === 0) {
-    return new Response(JSON.stringify({ ok: true, inserted: 0, note: "no se encontraron puntos de párrafo válidos" }), {
+    return new Response(JSON.stringify({ ok: true, inserted: 0, note: "pieza demasiado corta o sin puntos de párrafo válidos" }), {
       headers: { "content-type": "application/json" },
     });
   }
@@ -89,7 +98,16 @@ export const POST: APIRoute = async ({ params, request }) => {
   // 2026-08-21: a sequential run was still going after 30s+ and the request timed out
   // client-side). Same limit/pattern as generate-posts.ts's per-post image generation.
   const results = await withConcurrency(insertions, 4, async (ins, i) => {
-    const prompt = `Editorial illustration for a long-form investigative piece titled "${row.title}". This section discusses: "${ins.contextText}". Conceptual metaphor, no text, no letters, no numbers, no logos, no recognizable people, clean professional editorial illustration style, warm amber and deep orange color palette, cinematic lighting.`;
+    // Deliberately a short THEME phrase (the section heading), never the raw paragraph
+    // text -- feeding Gemini a stats-dense excerpt made it render the numbers as garbled
+    // infographic-style labels despite explicit "no text" instructions (confirmed live
+    // 2026-08-21 on the China section). A clean heading has no digits to be tempted by.
+    const prompt =
+      `Purely conceptual editorial illustration for a long-form investigative piece titled "${row.title}", ` +
+      `for the section: "${ins.sectionTitle}". Abstract visual metaphor only -- absolutely no text, no letters, ` +
+      `no numbers, no digits, no charts, no diagrams, no data visualization, no logos, no recognizable people. ` +
+      `Clean professional editorial illustration style, warm amber and deep orange color palette, cinematic lighting. ` +
+      `Reminder: the image must contain zero writing or numerals of any kind.`;
     const r2Key = await generateInvestigacionImage(prompt);
     return r2Key ? { afterBlockIndex: ins.afterBlockIndex, r2Key, float: (i % 2 === 0 ? "left" : "right") as const } : null;
   });
@@ -110,7 +128,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   await env.DB.prepare("UPDATE investigaciones SET body_html = ? WHERE id = ?").bind(newBodyHtml, id).run();
 
-  return new Response(JSON.stringify({ ok: true, inserted: generated.length, targetCount: imageCount }), {
+  return new Response(JSON.stringify({ ok: true, inserted: generated.length, targetCount: insertions.length }), {
     headers: { "content-type": "application/json" },
   });
 };
