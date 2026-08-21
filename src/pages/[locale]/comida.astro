@@ -623,10 +623,20 @@ if (env?.KILOWATTO_KV) {
 </Site>
 
 <style>
+  /* Contain floated photos within their own chapter so they never bleed into
+     the next section's heading below (a bare block doesn't clear floats on
+     its own). */
+  .chapter .container {
+    display: flow-root;
+  }
+  .hero__sub {
+    max-width: var(--measure);
+    color: var(--ink-soft);
+    margin: 0.9em 0 0;
+  }
   .hero-photo {
     width: 100%;
-    max-height: 26rem;
-    object-fit: cover;
+    height: auto;
     display: block;
     margin: var(--space-3) 0;
     border-radius: 0.5rem;
@@ -634,13 +644,30 @@ if (env?.KILOWATTO_KV) {
   .salmon-photo {
     width: 100%;
     max-width: 20rem;
+    height: auto;
     display: block;
     margin: var(--space-3) 0 0;
     border-radius: 0.5rem;
   }
   .salmon-caption {
-    max-width: 20rem;
     font-size: 0.9rem;
+  }
+  /* On viewports wide enough to spare room beside a floated image, let the
+     opening paragraphs/caption wrap around the photo instead of sitting in
+     their own separate full-width block. Bullet/step lists and the recipe
+     grid still clear below, since wrapped text next to a list looks broken. */
+  @media (min-width: 700px) {
+    .hero-photo {
+      float: left;
+      width: 20rem;
+      max-height: 24rem;
+      object-fit: cover;
+      margin: 0.2em var(--space-3) var(--space-3) 0;
+    }
+    .salmon-photo {
+      float: left;
+      margin: var(--space-3) var(--space-3) var(--space-3) 0;
+    }
   }
   .facts-list {
     margin: var(--space-3) 0 0;
@@ -649,11 +676,13 @@ if (env?.KILOWATTO_KV) {
     gap: 0.55rem;
     color: var(--ink-soft);
     max-width: var(--measure);
+    clear: both;
   }
   .recipe-heading {
     font-family: var(--font-display);
     font-size: 1.1rem;
     margin: var(--space-3) 0 0;
+    clear: both;
   }
   .recipe-steps {
     color: var(--ink);
@@ -672,6 +701,7 @@ if (env?.KILOWATTO_KV) {
   }
   .paella-detalle img {
     width: 100%;
+    height: auto;
     display: block;
     border-radius: 0.5rem;
   }
@@ -685,6 +715,7 @@ if (env?.KILOWATTO_KV) {
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1.5rem;
     margin-top: var(--space-3);
+    clear: both;
   }
   .paella-card {
     border: 1px solid var(--line);
