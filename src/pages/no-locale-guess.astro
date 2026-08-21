@@ -17,8 +17,8 @@ const guess = (Astro.originPathname ?? Astro.url.pathname).replace(/\//g, "").to
         src="/larry/larry-no.webp"
         alt="Larry, un rinoceronte antropomórfico, levantando el dedo en señal de alto/no"
         class="not-found-image"
-        width="300"
-        height="164"
+        width="192"
+        height="208"
       />
       <p class="eyebrow">Nada que ver aquí</p>
       <h1>¿"{guess}"? Aquí no hay.</h1>
@@ -40,10 +40,13 @@ const guess = (Astro.originPathname ?? Astro.url.pathname).replace(/\//g, "").to
     max-width: 34rem;
   }
   .not-found-image {
-    width: 14rem;
+    width: 12rem;
+    height: 13rem;
     max-width: 70vw;
     margin: 0 auto var(--space-3);
     border-radius: 1rem;
+    object-fit: cover;
+    object-position: 50% 15%;
   }
   .not-found h1 {
     font-family: var(--font-display);
