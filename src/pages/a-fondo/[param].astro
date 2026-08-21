@@ -18,7 +18,7 @@ import {
   excerptFrom,
   type InvestigacionRow,
 } from "../../lib/investigaciones-query";
-import { splitInvestigacionBody, extractSections } from "../../lib/investigacion-layout";
+import { splitInvestigacionBody, extractSections, stampSectionIds } from "../../lib/investigacion-layout";
 import { env } from "cloudflare:workers";
 
 const raw = Astro.params.param ?? "";
@@ -81,8 +81,14 @@ if (investigacion && env?.DB) {
 }
 
 const chartByKey = new Map(charts.map((c) => [c.chart_key, c]));
-const segments = investigacion ? splitInvestigacionBody(investigacion.body_html) : [];
-const sections = investigacion ? extractSections(investigacion.body_html) : [];
+// stampSectionIds() was defined but never actually called anywhere (confirmed live
+// 2026-08-21) -- the sidebar TOC's links pointed at ids extractSections() computes on the
+// fly, but the real <h2> tags never got those same ids written onto them, so every anchor
+// link/scroll-spy match silently failed. The old markdown importer used to bake ids
+// straight into body_html at import time; the newer JSON-payload pipeline never did.
+const stampedBodyHtml = investigacion ? stampSectionIds(investigacion.body_html) : "";
+const segments = investigacion ? splitInvestigacionBody(stampedBodyHtml) : [];
+const sections = investigacion ? extractSections(stampedBodyHtml) : [];
 
 const articleJsonLd = investigacion
   ? {
