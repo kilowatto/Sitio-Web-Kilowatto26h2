@@ -17,6 +17,19 @@ function countWords(html: string): number {
   return html.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
 }
 
+async function withConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 export const POST: APIRoute = async ({ params, request }) => {
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
@@ -71,13 +84,16 @@ export const POST: APIRoute = async ({ params, request }) => {
     });
   }
 
-  const generated: { afterBlockIndex: number; r2Key: string; float: "left" | "right" }[] = [];
-  for (let i = 0; i < insertions.length; i++) {
-    const ins = insertions[i];
+  // Concurrency-limited (not sequential) -- a long piece can need 15+ images, and
+  // generating them one at a time risked minutes-long requests (confirmed live
+  // 2026-08-21: a sequential run was still going after 30s+ and the request timed out
+  // client-side). Same limit/pattern as generate-posts.ts's per-post image generation.
+  const results = await withConcurrency(insertions, 4, async (ins, i) => {
     const prompt = `Editorial illustration for a long-form investigative piece titled "${row.title}". This section discusses: "${ins.contextText}". Conceptual metaphor, no text, no letters, no numbers, no logos, no recognizable people, clean professional editorial illustration style, warm amber and deep orange color palette, cinematic lighting.`;
     const r2Key = await generateInvestigacionImage(prompt);
-    if (r2Key) generated.push({ afterBlockIndex: ins.afterBlockIndex, r2Key, float: i % 2 === 0 ? "left" : "right" });
-  }
+    return r2Key ? { afterBlockIndex: ins.afterBlockIndex, r2Key, float: (i % 2 === 0 ? "left" : "right") as const } : null;
+  });
+  const generated = results.filter((r): r is { afterBlockIndex: number; r2Key: string; float: "left" | "right" } => r !== null);
 
   if (generated.length === 0) {
     return new Response(JSON.stringify({ error: "image generation failed for all insertion points" }), { status: 502 });
