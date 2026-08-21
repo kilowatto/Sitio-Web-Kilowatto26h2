@@ -1,0 +1,72 @@
+---
+import Site from "../layouts/Site.astro";
+
+// Reached via a rewrite from [...slug].astro and [locale]/index.astro whenever the
+// requested path matches BOT_SCAN_RE (see src/lib/bot-scan.ts) -- WordPress/vuln-scanner
+// probes that used to flood the broken_links admin report as fake dead links. Setting the
+// status here too in case this route is ever hit directly rather than via a rewrite.
+Astro.response.status = 200;
+
+const WORDPRESS_MESSAGES = [
+  "Lo siento mucho, pero aquí no se usa WordPress.",
+  "No hay wp-admin, no hay plugins, no hay nada que hackear por aquí.",
+  "Este sitio corre en Astro. WordPress se fue por otro lado.",
+  "Larry revisó y confirma: cero PHP en este servidor.",
+];
+const message = WORDPRESS_MESSAGES[Math.floor(Math.random() * WORDPRESS_MESSAGES.length)];
+---
+
+<Site title="Aquí no hay WordPress — Kilowatto" active="">
+  <section class="page-head">
+    <div class="container not-found">
+      <img
+        src="/larry/larry-no.webp"
+        alt="Larry, un rinoceronte antropomórfico, levantando el dedo en señal de alto/no"
+        class="not-found-image"
+        width="300"
+        height="164"
+      />
+      <p class="eyebrow">Nada que ver aquí</p>
+      <h1>¿WordPress? No, gracias.</h1>
+      <p class="not-found-message">{message}</p>
+      <nav class="not-found-links" aria-label="Secciones populares">
+        <a href="/">Ir al inicio</a>
+      </nav>
+    </div>
+  </section>
+</Site>
+
+<style>
+  .not-found {
+    text-align: center;
+    padding-block: var(--space-4) var(--space-5);
+    max-width: 34rem;
+  }
+  .not-found-image {
+    width: 14rem;
+    max-width: 70vw;
+    margin: 0 auto var(--space-3);
+    border-radius: 1rem;
+  }
+  .not-found h1 {
+    font-family: var(--font-display);
+    font-size: clamp(1.8rem, 6vw, 2.6rem);
+    margin: 0.2em 0;
+  }
+  .not-found-message {
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+    margin-bottom: var(--space-3);
+  }
+  .not-found-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1rem;
+  }
+  .not-found-links a {
+    color: var(--ember);
+    font-weight: 600;
+    text-decoration: none;
+  }
+</style>

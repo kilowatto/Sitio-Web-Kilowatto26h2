@@ -1,0 +1,16 @@
+---
+// This site runs on Astro/Cloudflare Workers -- it has zero legitimate routes matching
+// bot-scan patterns (see src/lib/bot-scan.ts). This catch-all exists because Astro's
+// automatic not-found fallback hard-codes the response status to 404 regardless of what
+// the page sets -- confirmed live, Astro.response.status = 200 there had no effect. A
+// genuinely-matched route is a normal render, so the status is fully ours to set here.
+// Anything that isn't a bot-scan path falls through to the real 404, exactly as before
+// this route existed.
+import { BOT_SCAN_RE } from "../lib/bot-scan";
+
+if (!BOT_SCAN_RE.test(Astro.url.pathname)) {
+  return Astro.rewrite("/404");
+}
+Astro.response.status = 200;
+return Astro.rewrite("/no-wordpress");
+---

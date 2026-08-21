@@ -7,6 +7,7 @@ import { env } from "cloudflare:workers";
 import { localeFromParam } from "../../lib/locales";
 import { loadTranslations, t } from "../../lib/i18n";
 import { projectsLabels } from "../../lib/nav-labels";
+import { BOT_SCAN_RE } from "../../lib/bot-scan";
 
 const locale = localeFromParam(Astro.params.locale);
 // A single unmatched path segment (a broken link, a typo, anything) structurally matches
@@ -14,8 +15,15 @@ const locale = localeFromParam(Astro.params.locale);
 // real locale (confirmed live 2026-07-22: this swallowed every genuine 404 on the site,
 // including the custom src/pages/404.astro page, which never got a chance to render).
 // Only a recognized-but-canonical locale (e.g. someone typed /es-MX explicitly) should
-// redirect — anything else is a real 404.
+// redirect — anything else is a real 404. A single-segment WordPress/vuln-scanner probe
+// (/wp-login.php, /.env, ...) ALSO structurally matches this route (before it ever reaches
+// [...slug].astro, which only sees paths this route doesn't claim) — same bot-scan check
+// as there, see src/lib/bot-scan.ts.
 if (!locale) {
+  if (BOT_SCAN_RE.test(Astro.url.pathname)) {
+    Astro.response.status = 200;
+    return Astro.rewrite("/no-wordpress");
+  }
   Astro.response.status = 404;
   return Astro.rewrite("/404");
 }
