@@ -1,0 +1,122 @@
+---
+// Horizontal bar chart (CSS-driven, not SVG) -- one or two "series" per row,
+// covers single-value comparisons (CPM by niche, % of apps with a finding) and
+// grouped comparisons (promo price vs. renewal price). CSS bars instead of SVG
+// so long translated labels and RTL locales both just work without redoing
+// any viewBox math per language.
+interface BarValue {
+  name?: string;
+  value: number;
+  displayValue?: string;
+}
+interface BarItem {
+  label: string;
+  values: BarValue[];
+}
+interface Props {
+  data: {
+    unit?: string;
+    maxValue?: number;
+    items: BarItem[];
+  };
+}
+
+const { data } = Astro.props;
+const items = data.items ?? [];
+const explicitMax = data.maxValue;
+const computedMax = Math.max(1, ...items.flatMap((i: BarItem) => i.values.map((v) => v.value)));
+const max = explicitMax ?? computedMax;
+const multiSeries = items.some((i: BarItem) => i.values.length > 1);
+---
+
+<div class="bars" class:list={{ "bars--multi": multiSeries }}>
+  {items.map((item: BarItem) => (
+    <div class="bars__row">
+      <p class="bars__label">{item.label}</p>
+      <div class="bars__track-group">
+        {item.values.map((v: BarValue, i: number) => (
+          <div class="bars__track">
+            {v.name && <span class="bars__series-name">{v.name}</span>}
+            <div class="bars__rail">
+              <div
+                class="bars__fill"
+                data-series={i}
+                style={`--pct: ${Math.min(100, (v.value / max) * 100)}%`}
+              />
+            </div>
+            <span class="bars__value">{v.displayValue ?? `${v.value}${data.unit ?? ""}`}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  ))}
+</div>
+
+<style>
+  .bars {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+  .bars__row {
+    display: grid;
+    gap: 0.35rem;
+  }
+  .bars__label {
+    font-size: 0.85rem;
+    color: var(--ink);
+    margin: 0;
+    font-weight: 600;
+  }
+  .bars__track-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .bars__track {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .bars--multi .bars__track {
+    grid-template-columns: 5.5rem 1fr auto;
+  }
+  .bars__series-name {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--ink-soft);
+  }
+  .bars__rail {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    height: 0.6rem;
+    overflow: hidden;
+  }
+  .bars__fill {
+    height: 100%;
+    width: var(--pct);
+    border-radius: 999px;
+    background: var(--rhino);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .bars__fill[data-series="1"] {
+    background: var(--volt);
+  }
+  :global(.chart-card.in-view) .bars__fill {
+    transform: scaleX(1);
+  }
+  .bars__value {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--ink);
+    min-width: 3.2rem;
+    text-align: right;
+  }
+  [dir="rtl"] .bars__value {
+    text-align: left;
+  }
+</style>

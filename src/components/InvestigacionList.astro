@@ -1,0 +1,109 @@
+---
+// Mirrors ColumnList.astro's listing pattern for "A fondo" pieces.
+import { excerptFrom, displayViewCount, type InvestigacionRow } from "../lib/investigaciones-query";
+
+interface Props {
+  rows: InvestigacionRow[];
+  currentPage: number;
+  totalPages: number;
+  basePath: string; // e.g. "/a-fondo"
+}
+
+const { rows, currentPage, totalPages, basePath } = Astro.props;
+
+function pageUrl(n: number) {
+  return n <= 1 ? basePath : `${basePath}/${n}`;
+}
+
+const hasNext = currentPage < totalPages;
+const nextPage = currentPage + 1;
+---
+
+<ol class="rows" id="investigacion-list">
+  {rows.map((r) => (
+    <li class="row">
+      <span class="row__range">{r.published_at} · {r.read_minutes} min</span>
+      <div class="column-item">
+        {r.cover_r2_key && (
+          <a href={`${basePath}/${r.slug}`} class="column-thumb-link">
+            <img
+              src={`/media/${r.cover_r2_key}?w=250`}
+              srcset={`/media/${r.cover_r2_key}?w=250 250w, /media/${r.cover_r2_key}?w=450 450w`}
+              sizes="11rem"
+              alt=""
+              class="column-thumb"
+              loading="lazy"
+            />
+          </a>
+        )}
+        <div class="column-item__text">
+          <h3>
+            <a href={`${basePath}/${r.slug}`}>{r.title}</a>
+          </h3>
+          <p class="row__summary">{r.summary}</p>
+          <p class="row__summary column-item__excerpt">
+            {displayViewCount(r).toLocaleString("es-MX")} lecturas · {excerptFrom(r.body_html, 140)}
+          </p>
+        </div>
+      </div>
+    </li>
+  ))}
+</ol>
+
+{totalPages > 1 && (
+  <nav class="pagination" aria-label="Paginación de investigaciones">
+    {currentPage > 1 ? (
+      <a href={pageUrl(currentPage - 1)} rel="prev">← Anterior</a>
+    ) : (
+      <span />
+    )}
+    <span class="pagination__status">Página {currentPage} de {totalPages}</span>
+    {hasNext ? (
+      <a href={pageUrl(nextPage)} rel="next">Siguiente →</a>
+    ) : (
+      <span />
+    )}
+  </nav>
+)}
+
+<style>
+  .column-item {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  .column-thumb-link {
+    flex: 0 0 auto;
+  }
+  .column-thumb {
+    width: 7rem;
+    height: 5rem;
+    object-fit: cover;
+    border-radius: 0.4rem;
+    display: block;
+  }
+  .column-item__text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .column-item__excerpt {
+    color: var(--ink-soft);
+  }
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--space-3);
+    font-size: 0.9rem;
+  }
+  .pagination a {
+    color: var(--ember);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .pagination__status {
+    color: var(--ink-soft);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+</style>

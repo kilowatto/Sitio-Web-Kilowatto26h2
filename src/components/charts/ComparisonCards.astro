@@ -1,0 +1,86 @@
+---
+// Grouped "chip" cards -- e.g. an ownership map (which brands belong to which
+// parent group). Plain HTML/CSS, no SVG needed.
+interface Group {
+  title: string;
+  subtitle?: string;
+  items: string[];
+  variant?: string;
+}
+interface Props {
+  data: { groups: Group[] };
+}
+
+const { data } = Astro.props;
+const groups: Group[] = data.groups ?? [];
+const VARIANTS = ["a", "b", "c", "d", "e"];
+---
+
+<div class="cards">
+  {groups.map((g: Group, i: number) => (
+    <div class={`cards__box cards__box--${g.variant ?? VARIANTS[i % VARIANTS.length]}`}>
+      <h4 class="cards__title">{g.title}</h4>
+      {g.subtitle && <p class="cards__subtitle">{g.subtitle}</p>}
+      <div class="cards__chips">
+        {g.items.map((item: string) => (
+          <span class="cards__chip">{item}</span>
+        ))}
+      </div>
+    </div>
+  ))}
+</div>
+
+<style>
+  .cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+  }
+  .cards__box {
+    flex: 1 1 12rem;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 1rem 1.1rem 0.9rem;
+  }
+  .cards__title {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    margin: 0 0 0.15rem;
+    color: var(--ink);
+  }
+  .cards__subtitle {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    margin: 0 0 0.7rem;
+  }
+  .cards__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .cards__chip {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    background: var(--mist);
+    border: 1px solid var(--line);
+    color: var(--ink);
+  }
+  .cards__box--a .cards__chip {
+    background: color-mix(in srgb, var(--rhino) 12%, var(--mist));
+    border-color: color-mix(in srgb, var(--rhino) 35%, var(--line));
+  }
+  .cards__box--b .cards__chip {
+    background: color-mix(in srgb, #2f7ec9 12%, var(--mist));
+    border-color: color-mix(in srgb, #2f7ec9 35%, var(--line));
+  }
+  .cards__box--c .cards__chip {
+    background: color-mix(in srgb, #1f8a4c 12%, var(--mist));
+    border-color: color-mix(in srgb, #1f8a4c 35%, var(--line));
+  }
+</style>

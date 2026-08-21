@@ -247,7 +247,7 @@ async function runImageModel(prompt: string, negativePrompt: string): Promise<st
   }
 }
 
-async function storeImageBytes(bytes: Uint8Array, contentType: string): Promise<string | null> {
+export async function storeImageBytes(bytes: Uint8Array, contentType: string): Promise<string | null> {
   if (bytes.length === 0) return null;
   const key = `photos/social-generated/${crypto.randomUUID()}.png`;
   await env.MEDIA.put(key, bytes, { httpMetadata: { contentType } });
@@ -259,7 +259,7 @@ async function storeImageBytes(bytes: Uint8Array, contentType: string): Promise<
 // a generic 401 regardless of gateway name/config, so this calls Google directly instead —
 // one less unconfirmed moving part. Requires GOOGLE_AI_STUDIO_KEY as a Worker secret with
 // billing enabled on the Google AI Studio project (confirmed working live 2026-07-21).
-async function generateWithGemini(prompt: string): Promise<Uint8Array | null> {
+export async function generateWithGemini(prompt: string): Promise<Uint8Array | null> {
   const apiKey = (env as any).GOOGLE_AI_STUDIO_KEY;
   if (!apiKey) return null;
 

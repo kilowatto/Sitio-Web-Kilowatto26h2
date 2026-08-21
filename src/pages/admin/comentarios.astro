@@ -14,13 +14,21 @@ let bans: any[] = [];
 if (authorized && env?.DB) {
   const [pendingRes, approvedRes, bansRes] = await Promise.all([
     env.DB.prepare(
-      `SELECT c.*, col.title AS column_title, col.slug AS column_slug
-       FROM comments c JOIN columns col ON col.id = c.column_id
+      `SELECT c.*,
+              COALESCE(col.title, inv.title) AS entry_title,
+              CASE WHEN col.id IS NOT NULL THEN '/columnas/' || col.slug ELSE '/a-fondo/' || inv.slug END AS entry_url
+       FROM comments c
+       LEFT JOIN columns col ON col.id = c.column_id
+       LEFT JOIN investigaciones inv ON inv.id = c.investigacion_id
        WHERE c.status = 'pending' ORDER BY c.created_at ASC`
     ).all(),
     env.DB.prepare(
-      `SELECT c.*, col.title AS column_title, col.slug AS column_slug
-       FROM comments c JOIN columns col ON col.id = c.column_id
+      `SELECT c.*,
+              COALESCE(col.title, inv.title) AS entry_title,
+              CASE WHEN col.id IS NOT NULL THEN '/columnas/' || col.slug ELSE '/a-fondo/' || inv.slug END AS entry_url
+       FROM comments c
+       LEFT JOIN columns col ON col.id = c.column_id
+       LEFT JOIN investigaciones inv ON inv.id = c.investigacion_id
        WHERE c.status = 'approved' ORDER BY c.created_at DESC LIMIT 15`
     ).all(),
     env.DB.prepare(`SELECT * FROM comment_bans ORDER BY created_at DESC`).all(),
@@ -53,8 +61,8 @@ if (authorized && env?.DB) {
                 {c.flagged_reason && <p class="flag">⚠️ {c.flagged_reason}</p>}
                 <p class="draft__meta">
                   <strong>{c.author_name || "Anónimo"}</strong> · {c.created_at} · en{" "}
-                  <a href={`/columnas/${c.column_slug}`} target="_blank" rel="noopener">
-                    {c.column_title}
+                  <a href={c.entry_url} target="_blank" rel="noopener">
+                    {c.entry_title}
                   </a>
                 </p>
                 <p class="draft__body">{c.body}</p>
@@ -82,8 +90,8 @@ if (authorized && env?.DB) {
             {recentApproved.map((c: any) => (
               <li>
                 <strong>{c.author_name || "Anónimo"}</strong> en{" "}
-                <a href={`/columnas/${c.column_slug}`} target="_blank" rel="noopener">
-                  {c.column_title}
+                <a href={c.entry_url} target="_blank" rel="noopener">
+                  {c.entry_title}
                 </a>{" "}
                 — {c.created_at}: {c.body.slice(0, 100)}
                 {c.body.length > 100 ? "…" : ""}

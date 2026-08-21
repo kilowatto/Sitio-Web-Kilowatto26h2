@@ -1,0 +1,95 @@
+---
+// Share affordance for "A fondo" pieces -- WhatsApp/LinkedIn/Facebook plus copy-link,
+// each tagged with its own UTM params so referral traffic is attributable per platform
+// (separate from the per-citation click tracking short_links already handles inside
+// the body). See docs/investigaciones-spec.md -- the "image with text overlay" part of
+// this requirement is a follow-up; this ships UTM-tracked links with the existing cover
+// photo as the share preview (og:image) for now.
+interface Props {
+  url: string;
+  title: string;
+}
+const { url, title } = Astro.props;
+
+function withUtm(source: string) {
+  const u = new URL(url);
+  u.searchParams.set("utm_source", source);
+  u.searchParams.set("utm_medium", "social");
+  u.searchParams.set("utm_campaign", "a-fondo");
+  return u.toString();
+}
+
+const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${title}\n${withUtm("whatsapp")}`)}`;
+const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(withUtm("linkedin"))}`;
+const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(withUtm("facebook"))}`;
+const copyUrl = withUtm("copy-link");
+---
+
+<div class="ia-share" data-copy-url={copyUrl}>
+  <a class="ia-share__btn ia-share__btn--whatsapp" href={whatsappUrl} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+  <a class="ia-share__btn ia-share__btn--linkedin" href={linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn</a>
+  <a class="ia-share__btn ia-share__btn--facebook" href={facebookUrl} target="_blank" rel="noopener noreferrer">Facebook</a>
+  <button type="button" class="ia-share__btn ia-share__btn--copy" data-copy-label="Copiar link" data-copied-label="¡Copiado!">Copiar link</button>
+</div>
+
+<style>
+  .ia-share {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+  }
+  .ia-share__btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: inherit;
+    text-decoration: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .ia-share__btn--whatsapp {
+    background: #25d366;
+    border-color: #25d366;
+    color: #06301a;
+  }
+  .ia-share__btn--linkedin {
+    background: #0a66c2;
+    border-color: #0a66c2;
+    color: #fff;
+  }
+  .ia-share__btn--facebook {
+    background: #1877f2;
+    border-color: #1877f2;
+    color: #fff;
+  }
+  .ia-share__btn:hover {
+    filter: brightness(0.92);
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>(".ia-share").forEach((wrap) => {
+    const url = wrap.dataset.copyUrl ?? "";
+    const btn = wrap.querySelector<HTMLButtonElement>(".ia-share__btn--copy");
+    if (!btn) return;
+    const idleLabel = btn.dataset.copyLabel ?? btn.textContent ?? "";
+    const copiedLabel = btn.dataset.copiedLabel ?? idleLabel;
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        btn.textContent = copiedLabel;
+        setTimeout(() => (btn.textContent = idleLabel), 2000);
+      } catch {
+        // Clipboard API denied -- button just won't confirm.
+      }
+    });
+  });
+</script>

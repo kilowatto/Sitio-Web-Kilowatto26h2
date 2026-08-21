@@ -1,0 +1,107 @@
+---
+// Shared shell for every chart in an investigación: title, description, the
+// actual chart (passed as the default slot), and a source note. Reveals on
+// scroll via IntersectionObserver, same trigger-once pattern for every chart
+// on the page (one shared observer, not one per card).
+import BarChart from "./BarChart.astro";
+import TimelineChart from "./TimelineChart.astro";
+import RadarChart from "./RadarChart.astro";
+import ComparisonCards from "./ComparisonCards.astro";
+
+interface Props {
+  chartKey: string;
+  title: string;
+  description?: string | null;
+  sourceNote?: string | null;
+  chartType: "bar" | "timeline" | "radar" | "cards" | "table";
+  data: any;
+}
+
+const { chartKey, title, description, sourceNote, chartType, data } = Astro.props;
+---
+
+<figure class="chart-card" data-chart-card data-chart-key={chartKey} id={`chart-${chartKey}`}>
+  <p class="chart-card__title">{title}</p>
+  {description && <p class="chart-card__desc">{description}</p>}
+  <div class="chart-card__body">
+    {chartType === "bar" && <BarChart data={data} />}
+    {chartType === "timeline" && <TimelineChart data={data} />}
+    {chartType === "radar" && <RadarChart data={data} />}
+    {chartType === "cards" && <ComparisonCards data={data} />}
+  </div>
+  {sourceNote && <figcaption class="chart-card__source">{sourceNote}</figcaption>}
+</figure>
+
+<style>
+  .chart-card {
+    margin: var(--space-4) 0;
+    background: var(--mist);
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    padding: 1.5rem 1.5rem 1.2rem;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .chart-card.in-view {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chart-card {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+  .chart-card__title {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.75rem;
+    color: var(--ember);
+    margin: 0 0 0.3rem;
+  }
+  .chart-card__desc {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    margin: 0 0 1.1rem;
+    max-width: 38rem;
+  }
+  .chart-card__body {
+    width: 100%;
+    overflow-x: auto;
+  }
+  .chart-card__source {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    margin-top: 0.9rem;
+  }
+  .chart-card__source :global(a) {
+    color: var(--ember);
+  }
+</style>
+
+<script>
+  if (!(window as any).__chartCardObserver) {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("in-view");
+            observer.unobserve(entry.target);
+          }
+        }
+      },
+      { threshold: 0.15 }
+    );
+    (window as any).__chartCardObserver = observer;
+    if (!reduce) {
+      document.querySelectorAll("[data-chart-card]").forEach((el) => observer.observe(el));
+    } else {
+      document.querySelectorAll("[data-chart-card]").forEach((el) => el.classList.add("in-view"));
+    }
+  }
+</script>

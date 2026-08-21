@@ -25,3 +25,25 @@ export async function createShortLink(targetUrl: string, brandPostId: number | n
   }
   throw new Error("could not generate a unique short link slug after 5 attempts");
 }
+
+// Same mechanism, for investigación citations -- returns the short_links row id too, since
+// investigacion_sources.short_link_id needs it to join against clicks later.
+export async function createInvestigacionSourceLink(
+  targetUrl: string,
+  investigacionId: number
+): Promise<{ url: string; id: number }> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const slug = randomSlug();
+    try {
+      const res = await env.DB.prepare(
+        "INSERT INTO short_links (slug, target_url, investigacion_id) VALUES (?, ?, ?)"
+      )
+        .bind(slug, targetUrl, investigacionId)
+        .run();
+      return { url: `https://kilowatto.com/r/${slug}`, id: res.meta.last_row_id as number };
+    } catch (err) {
+      continue;
+    }
+  }
+  throw new Error("could not generate a unique short link slug after 5 attempts");
+}

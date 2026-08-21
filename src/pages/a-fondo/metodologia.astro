@@ -1,0 +1,103 @@
+---
+import Site from "../../layouts/Site.astro";
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  headline: "Cómo investigo — la metodología de A fondo",
+  description: "El semáforo de confianza por cita, el proceso de investigación en paralelo, y el estándar de verificación que sigue cada pieza de A fondo.",
+  author: { "@type": "Person", name: "Esteban Rey", alternateName: "Kilowatto", url: "https://kilowatto.com" },
+  publisher: { "@type": "Organization", name: "Kilowatto" },
+  mainEntityOfPage: "https://kilowatto.com/a-fondo/metodologia",
+};
+---
+
+<Site
+  title="Cómo investigo — A fondo — Esteban Rey"
+  description="El semáforo de confianza por cita, el proceso de investigación en paralelo, y el estándar de verificación que sigue cada pieza de A fondo."
+  active="/a-fondo"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow"><a href="/a-fondo">A fondo</a></p>
+      <h1>Cómo investigo</h1>
+      <p class="hero__sub">
+        Esta es la guía general que sigue cada pieza de <a href="/a-fondo">A fondo</a> — el semáforo de confianza,
+        el proceso de investigación, y el estándar de verificación. Cada investigación individual solo lleva una
+        nota corta de cómo se aplicó esto en ese caso particular, con un link de vuelta aquí.
+      </p>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <h2>El semáforo de confianza</h2>
+      <p class="hero__sub">
+        Cada dato citado en una investigación lleva un color junto a la fuente. No mide qué tan importante es el
+        dato — mide qué tan sólida es la evidencia detrás de él.
+      </p>
+      <ul class="facts-list">
+        <li><span class="flag-dot flag-dot--green" aria-hidden="true"></span> <strong>Verde</strong> — fuente primaria (documento judicial, comunicado oficial, registro regulatorio, estudio académico) o un hallazgo corroborado por más de una fuente independiente entre sí.</li>
+        <li><span class="flag-dot flag-dot--yellow" aria-hidden="true"></span> <strong>Amarillo</strong> — una sola fuente secundaria confiable (medio especializado, sitio de reseñas con metodología transparente) que no encontré corroborada en otro lugar de forma independiente.</li>
+        <li><span class="flag-dot flag-dot--red" aria-hidden="true"></span> <strong>Rojo</strong> — un dato que no alcanzó el estándar de verificación de esta guía. En la práctica no aparece citado en el cuerpo del texto — se investiga y se descarta explícitamente, y a veces se menciona esa decisión en la nota de metodología de la pieza.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter chapter--mist">
+    <div class="container">
+      <h2>El proceso de investigación</h2>
+      <p class="hero__sub">
+        Cada pieza se investiga desde varios ángulos en paralelo, no desde un solo punto de vista que después se
+        "balancea" al final. Típicamente eso incluye una línea a favor del tema, una en contra, una neutral
+        (estructura, cifras de mercado, quién es dueño de qué), una técnica, y sub-líneas específicas para los
+        mitos o afirmaciones puntuales que vale la pena confrontar con evidencia.
+      </p>
+      <p class="hero__sub">
+        Cuando el tema gira en torno a un evento único (una noticia, un lanzamiento), la variante es distinta:
+        fondo histórico primero, después la noticia reciente en contexto. Cuando el tema es una industria completa
+        cuyo marketing necesita confrontarse punto por punto, la variante es "investigación profunda con
+        contraparte" — cada afirmación de venta se trata como una hipótesis que necesita una réplica documentada,
+        no como un hecho a repetir.
+      </p>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="container">
+      <h2>Verificación</h2>
+      <p class="hero__sub">
+        Cada dato duro se revisa contra la fuente primaria cuando existe, y se busca activamente contraevidencia o
+        desmentidos antes de asignarle un color del semáforo — no basta con que una fuente lo diga, se busca
+        deliberadamente algo que lo contradiga antes de confiar en él. Un dato sin corroborar que no resiste esa
+        búsqueda se descarta, aunque hubiera sido un buen dato para el argumento.
+      </p>
+      <h2>Las gráficas</h2>
+      <p class="hero__sub">
+        Ninguna gráfica de A fondo está generada por inteligencia artificial — los modelos de imágenes todavía no
+        renderizan texto y números de forma confiable. Cada gráfica es un componente real construido a partir de
+        los datos citados, con su propia fuente indicada debajo.
+      </p>
+    </div>
+  </section>
+</Site>
+
+<style>
+  .flag-dot {
+    display: inline-block;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    margin-right: 0.3rem;
+  }
+  .flag-dot--green {
+    background: #1f8a4c;
+  }
+  .flag-dot--yellow {
+    background: #b8860b;
+  }
+  .flag-dot--red {
+    background: #c0392b;
+  }
+</style>

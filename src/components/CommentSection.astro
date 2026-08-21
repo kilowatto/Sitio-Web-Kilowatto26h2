@@ -6,10 +6,14 @@
 import { env } from "cloudflare:workers";
 
 interface Props {
-  columnId: number;
+  columnId?: number;
+  investigacionId?: number;
   locale?: string;
 }
-const { columnId, locale = "es-MX" } = Astro.props;
+const { columnId, investigacionId, locale = "es-MX" } = Astro.props;
+const entityColumn = investigacionId ? "investigacion_id" : "column_id";
+const entityId = investigacionId ?? columnId;
+const apiBase = investigacionId ? "/api/investigaciones" : "/api/columns";
 
 const L: Record<string, Record<string, string>> = {
   "es-MX": {
@@ -105,14 +109,14 @@ const t = L[locale] ?? L["es-MX"];
 
 const { results: approved } = env?.DB
   ? await env.DB.prepare(
-      "SELECT id, author_name, body, created_at FROM comments WHERE column_id = ? AND status = 'approved' ORDER BY created_at ASC"
+      `SELECT id, author_name, body, created_at FROM comments WHERE ${entityColumn} = ? AND status = 'approved' ORDER BY created_at ASC`
     )
-      .bind(columnId)
+      .bind(entityId)
       .all()
   : { results: [] as any[] };
 ---
 
-<section class="comments" data-column-id={columnId}>
+<section class="comments" data-entity-id={entityId} data-api-base={apiBase}>
   <h2 class="comments__heading">{t.heading}</h2>
 
   {approved.length === 0 ? (
@@ -230,7 +234,8 @@ const { results: approved } = env?.DB
 
 <script define:vars={{ successMsg: t.success, errorMsg: t.error, sendingMsg: t.sending, submitLabel: t.submit }}>
   document.querySelectorAll(".comments").forEach((section) => {
-    const columnId = section.dataset.columnId;
+    const entityId = section.dataset.entityId;
+    const apiBase = section.dataset.apiBase;
     const form = section.querySelector(".comments__form");
     if (!form) return;
     const status = form.querySelector(".comments__status");
@@ -249,7 +254,7 @@ const { results: approved } = env?.DB
       status.textContent = "";
 
       try {
-        const res = await fetch(`/api/columns/${columnId}/comments`, {
+        const res = await fetch(`${apiBase}/${entityId}/comments`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ author_name, body: bodyText, website }),

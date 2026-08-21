@@ -1,0 +1,212 @@
+---
+// Scroll-spy table of contents for a long-form "A fondo" piece. Desktop: a
+// sticky sidebar rail (grows + intensifies color on the active section).
+// Mobile: a horizontal scrollable chip bar stuck under the top of the
+// viewport. Both also show reading progress. Design decided interactively
+// with Esteban 2026-08-20 -- see docs/investigaciones-spec.md.
+interface Props {
+  sections: { id: string; title: string }[];
+  readMinutes: number;
+}
+const { sections, readMinutes } = Astro.props;
+---
+
+{sections.length > 0 && (
+  <>
+    <nav class="toc toc--desktop" aria-label="Índice de la investigación" data-investigacion-toc data-read-minutes={readMinutes}>
+      <p class="toc__progress-label" data-toc-progress-label>0%</p>
+      <div class="toc__progress-rail"><div class="toc__progress-fill" data-toc-progress-fill></div></div>
+      <ol class="toc__list">
+        {sections.map((s) => (
+          <li>
+            <a href={`#${s.id}`} data-toc-link={s.id}>{s.title}</a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+
+    <nav class="toc toc--mobile" aria-label="Índice de la investigación" data-investigacion-toc-mobile>
+      <div class="toc__chips">
+        {sections.map((s) => (
+          <a href={`#${s.id}`} class="toc__chip" data-toc-link-mobile={s.id}>{s.title}</a>
+        ))}
+      </div>
+      <div class="toc__progress-rail toc__progress-rail--mobile"><div class="toc__progress-fill" data-toc-progress-fill-mobile></div></div>
+    </nav>
+  </>
+)}
+
+<style>
+  .toc--desktop {
+    display: none;
+  }
+  @media (min-width: 900px) {
+    .toc--desktop {
+      display: block;
+      position: sticky;
+      top: 2rem;
+      align-self: start;
+      max-height: calc(100vh - 4rem);
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+  }
+  .toc__progress-label {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    margin: 0 0 0.35rem;
+  }
+  .toc__progress-rail {
+    height: 3px;
+    background: var(--line);
+    border-radius: 999px;
+    margin-bottom: 1.1rem;
+    overflow: hidden;
+  }
+  .toc__progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--rhino);
+    border-radius: 999px;
+    transition: width 0.15s linear;
+  }
+  .toc__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    border-inline-start: 2px solid var(--line);
+  }
+  .toc__list a {
+    display: block;
+    text-decoration: none;
+    color: var(--ink-soft);
+    font-size: 0.78rem;
+    line-height: 1.3;
+    padding-inline-start: 0.9rem;
+    margin-inline-start: -2px;
+    border-inline-start: 2px solid transparent;
+    transition: color 0.25s ease, font-size 0.25s ease, border-color 0.25s ease;
+  }
+  .toc__list a.is-active {
+    color: var(--ember);
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-inline-start-color: var(--rhino);
+  }
+
+  .toc--mobile {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    margin: 0 -1rem;
+    padding: 0.6rem 0 0;
+  }
+  @media (min-width: 900px) {
+    .toc--mobile {
+      display: none;
+    }
+  }
+  .toc__chips {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0 1rem 0.6rem;
+    scrollbar-width: none;
+  }
+  .toc__chips::-webkit-scrollbar {
+    display: none;
+  }
+  .toc__chip {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: var(--mist);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    text-decoration: none;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+  .toc__chip.is-active {
+    background: var(--rhino);
+    border-color: var(--rhino);
+    color: #fff;
+  }
+  .toc__progress-rail--mobile {
+    margin: 0;
+    border-radius: 0;
+    height: 2px;
+  }
+</style>
+
+<script>
+  function initInvestigacionToc() {
+    const sections = Array.from(document.querySelectorAll<HTMLElement>("[data-investigacion-body] h2[id]"));
+    if (sections.length === 0) return;
+
+    const desktopLinks = new Map<string, HTMLElement>();
+    document.querySelectorAll<HTMLAnchorElement>("[data-toc-link]").forEach((a) => desktopLinks.set(a.dataset.tocLink!, a));
+    const mobileLinks = new Map<string, HTMLElement>();
+    document.querySelectorAll<HTMLAnchorElement>("[data-toc-link-mobile]").forEach((a) => mobileLinks.set(a.dataset.tocLinkMobile!, a));
+
+    let activeId: string | null = null;
+    function setActive(id: string) {
+      if (id === activeId) return;
+      activeId = id;
+      desktopLinks.forEach((el, key) => el.classList.toggle("is-active", key === id));
+      mobileLinks.forEach((el, key) => {
+        el.classList.toggle("is-active", key === id);
+        if (key === id) el.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+      });
+    }
+
+    // A pure IntersectionObserver only fires while a heading is inside its
+    // trigger band -- scroll past a short section in one jump (or one big
+    // wheel event) and there's a gap where NOTHING intersects, so the active
+    // link freezes on whatever fired last. Checking every heading's position
+    // directly on scroll has no such gap: it always finds the last heading
+    // that crossed the line, however far the scroll moved.
+    const article = document.querySelector<HTMLElement>("[data-investigacion-article]");
+    const fills = document.querySelectorAll<HTMLElement>("[data-toc-progress-fill], [data-toc-progress-fill-mobile]");
+    const label = document.querySelector<HTMLElement>("[data-toc-progress-label]");
+    const THRESHOLD = 140; // px from top of viewport counts as "reached"
+
+    let ticking = false;
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+
+        let current = sections[0];
+        for (const s of sections) {
+          if (s.getBoundingClientRect().top <= THRESHOLD) current = s;
+          else break;
+        }
+        setActive(current.id);
+
+        if (article) {
+          const rect = article.getBoundingClientRect();
+          const total = rect.height - window.innerHeight;
+          const scrolled = Math.min(1, Math.max(0, -rect.top / (total || 1)));
+          fills.forEach((f) => (f.style.width = `${Math.round(scrolled * 100)}%`));
+          if (label) label.textContent = `${Math.round(scrolled * 100)}% leído`;
+        }
+      });
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    onScroll();
+  }
+  if (document.readyState === "complete" || document.readyState === "interactive") initInvestigacionToc();
+  else document.addEventListener("DOMContentLoaded", initInvestigacionToc);
+</script>

@@ -136,8 +136,8 @@ export async function runGenerateColumn(topicId?: number) {
   }
   if (!topic) return { error: "no active topic found" };
 
-  const { voiceSamples, bioFacts, columnVoiceSamples } = await buildVoiceContext(env.DB);
-  const voiceBlock = voicePromptBlock(voiceSamples, bioFacts, columnVoiceSamples);
+  const { voiceSamples, bioFacts, columnVoiceSamples, investigacionSamples } = await buildVoiceContext(env.DB);
+  const voiceBlock = voicePromptBlock(voiceSamples, bioFacts, columnVoiceSamples, investigacionSamples);
   const learningBlock = await retrieveLearningContext(topic.label, topic.description ?? "");
 
   const prompt = `${voiceBlock}

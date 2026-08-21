@@ -1,0 +1,104 @@
+---
+// Vertical event timeline -- a horizontal one doesn't survive translation to
+// longer languages or RTL locales without constant rework, a vertical list
+// does for free (logical CSS properties mirror automatically).
+interface TimelineEvent {
+  year: string | number;
+  label: string;
+  type: "escandalo" | "correccion" | "propiedad" | "legal" | string;
+}
+interface Props {
+  data: { events: TimelineEvent[] };
+}
+
+const { data } = Astro.props;
+const events = data.events ?? [];
+
+const TYPE_LABEL: Record<string, string> = {
+  escandalo: "Escándalo",
+  correccion: "Corrección / regulación",
+  propiedad: "Propiedad",
+  legal: "Legal",
+};
+---
+
+<ol class="timeline">
+  {events.map((e: TimelineEvent, i: number) => (
+    <li class="timeline__item" style={`--d: ${i * 90}ms`} data-type={e.type}>
+      <span class="timeline__dot" title={TYPE_LABEL[e.type] ?? e.type}></span>
+      <span class="timeline__year">{e.year}</span>
+      <span class="timeline__label">{e.label}</span>
+    </li>
+  ))}
+</ol>
+
+<style>
+  .timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .timeline__item {
+    display: grid;
+    grid-template-columns: 1rem 4rem 1fr;
+    align-items: start;
+    gap: 0.8rem;
+    padding-block: 0.55rem;
+    position: relative;
+    opacity: 0;
+    transform: translateX(-8px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    transition-delay: var(--d, 0s);
+  }
+  [dir="rtl"] .timeline__item {
+    transform: translateX(8px);
+  }
+  :global(.chart-card.in-view) .timeline__item {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  .timeline__item:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0.4375rem;
+    top: 1.35rem;
+    bottom: -0.55rem;
+    width: 2px;
+    background: var(--line);
+  }
+  .timeline__dot {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: var(--ink-soft);
+    margin-top: 0.15rem;
+  }
+  .timeline__item[data-type="escandalo"] .timeline__dot {
+    background: #c0392b;
+  }
+  .timeline__item[data-type="correccion"] .timeline__dot {
+    background: #1f8a4c;
+  }
+  .timeline__item[data-type="propiedad"] .timeline__dot {
+    background: #2f7ec9;
+  }
+  .timeline__item[data-type="legal"] .timeline__dot {
+    background: var(--rhino);
+  }
+  .timeline__year {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+  .timeline__label {
+    font-size: 0.9rem;
+    color: var(--ink);
+  }
+  @media (max-width: 480px) {
+    .timeline__item {
+      grid-template-columns: 1rem 3.2rem 1fr;
+    }
+  }
+</style>

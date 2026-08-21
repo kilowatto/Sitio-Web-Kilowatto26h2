@@ -1,0 +1,200 @@
+---
+// Radar/spider chart comparing N series across the same axes. SVG for the
+// polygons (inherently geometric), but axis labels are plain HTML positioned
+// over the SVG by percentage -- SVG <text> doesn't wrap, and these labels are
+// full sentences once translated into some of the 12 locales.
+interface Series {
+  name: string;
+  values: number[];
+  colorVar?: string;
+}
+interface Props {
+  data: {
+    axes: string[];
+    series: Series[];
+    maxValue?: number;
+  };
+}
+
+const { data } = Astro.props;
+const axes: string[] = data.axes ?? [];
+const series: Series[] = data.series ?? [];
+const max = data.maxValue ?? 10;
+const n = axes.length;
+const SIZE = 300;
+const CENTER = SIZE / 2;
+const RADIUS = SIZE * 0.36;
+const LABEL_RADIUS = SIZE * 0.47;
+const PALETTE = ["var(--rhino)", "var(--ember)", "var(--volt)", "#2f7ec9", "#1f8a4c", "#8e5fd6", "#c0392b"];
+
+function point(angleDeg: number, r: number) {
+  const rad = (angleDeg * Math.PI) / 180;
+  return { x: CENTER + r * Math.cos(rad), y: CENTER + r * Math.sin(rad) };
+}
+
+const axisAngles = axes.map((_, i) => -90 + i * (360 / n));
+
+const rings = [0.33, 0.66, 1].map((f) =>
+  axisAngles.map((a) => point(a, RADIUS * f)).map((p) => `${p.x},${p.y}`).join(" ")
+);
+
+const spokes = axisAngles.map((a) => point(a, RADIUS));
+
+const labels = axisAngles.map((a, i) => {
+  const p = point(a, LABEL_RADIUS);
+  return { ...p, text: axes[i], leftPct: (p.x / SIZE) * 100, topPct: (p.y / SIZE) * 100 };
+});
+
+const polygons = series.map((s, si) => {
+  const pts = s.values
+    .map((v, i) => point(axisAngles[i], RADIUS * Math.min(1, v / max)))
+    .map((p) => `${p.x},${p.y}`)
+    .join(" ");
+  return { points: pts, color: s.colorVar ?? PALETTE[si % PALETTE.length], name: s.name };
+});
+---
+
+<div class="radar">
+  <div class="radar__plot">
+    <svg viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label={axes.join(", ")}>
+      {rings.map((r) => (
+        <polygon points={r} class="radar__ring" />
+      ))}
+      {spokes.map((p) => (
+        <line x1={CENTER} y1={CENTER} x2={p.x} y2={p.y} class="radar__spoke" />
+      ))}
+      {polygons.map((poly, i) => (
+        <polygon
+          points={poly.points}
+          class="radar__series"
+          data-series={i}
+          style={`--series-color: ${poly.color}`}
+        />
+      ))}
+    </svg>
+    {labels.map((l) => (
+      <span class="radar__label" style={`left: ${l.leftPct}%; top: ${l.topPct}%`}>{l.text}</span>
+    ))}
+  </div>
+  <ul class="radar__legend">
+    {polygons.map((poly, i) => (
+      <li class="radar__legend-item" data-series={i} style={`--series-color: ${poly.color}`}>
+        <span class="radar__swatch"></span>
+        {poly.name}
+      </li>
+    ))}
+  </ul>
+</div>
+
+<style>
+  .radar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    align-items: center;
+    justify-content: center;
+  }
+  .radar__plot {
+    position: relative;
+    flex: 0 0 auto;
+    width: min(100%, 22rem);
+  }
+  .radar__plot svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+  .radar__ring,
+  .radar__spoke {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 1;
+  }
+  .radar__series {
+    fill: var(--series-color);
+    fill-opacity: 0.16;
+    stroke: var(--series-color);
+    stroke-width: 2;
+    transform-origin: center;
+    transform: scale(0.85);
+    opacity: 0;
+    transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease, fill-opacity 0.2s ease, stroke-opacity 0.2s ease;
+  }
+  :global(.chart-card.in-view) .radar__series {
+    transform: scale(1);
+    opacity: 1;
+  }
+  .radar__plot.has-active .radar__series {
+    opacity: 0.15;
+  }
+  .radar__plot.has-active .radar__series.is-active {
+    opacity: 1;
+    fill-opacity: 0.28;
+  }
+  .radar__label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    font-size: 0.68rem;
+    color: var(--ink-soft);
+    line-height: 1.15;
+    width: 5rem;
+    text-align: center;
+    pointer-events: none;
+  }
+  .radar__legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    flex: 1 1 12rem;
+    min-width: 10rem;
+  }
+  .radar__legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--ink);
+    padding: 0.3rem 0.5rem;
+    border-radius: 0.3rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .radar__legend-item:hover,
+  .radar__legend-item.is-active {
+    background: var(--paper);
+  }
+  .radar__swatch {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: var(--series-color);
+    flex: 0 0 auto;
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>(".radar").forEach((radar) => {
+    if ((radar as any).__wired) return;
+    (radar as any).__wired = true;
+    const plot = radar.querySelector<HTMLElement>(".radar__plot");
+    const items = radar.querySelectorAll<HTMLElement>(".radar__legend-item");
+    const polys = radar.querySelectorAll<SVGPolygonElement>(".radar__series");
+    function setActive(index: number | null) {
+      if (!plot) return;
+      plot.classList.toggle("has-active", index !== null);
+      items.forEach((el) => el.classList.toggle("is-active", Number(el.dataset.series) === index));
+      polys.forEach((el) => el.classList.toggle("is-active", Number(el.dataset.series) === index));
+    }
+    items.forEach((el) => {
+      const idx = Number(el.dataset.series);
+      el.addEventListener("mouseenter", () => setActive(idx));
+      el.addEventListener("mouseleave", () => setActive(null));
+      el.addEventListener("click", () => setActive(el.classList.contains("is-active") ? null : idx));
+    });
+  });
+</script>

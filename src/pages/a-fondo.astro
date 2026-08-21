@@ -1,0 +1,44 @@
+---
+import Site from "../layouts/Site.astro";
+import InvestigacionList from "../components/InvestigacionList.astro";
+import { getInvestigacionesPage } from "../lib/investigaciones-query";
+import { env } from "cloudflare:workers";
+
+const page = env?.DB ? await getInvestigacionesPage(env, 1) : { rows: [], totalPages: 1 };
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  name: "A fondo — Esteban Rey",
+  description: "Investigaciones profundas de Esteban Rey (Kilowatto): decenas de fuentes verificadas, metodología documentada, sin patrocinios.",
+  url: "https://kilowatto.com/a-fondo",
+};
+---
+
+<Site
+  title="A fondo — Esteban Rey"
+  description="Investigaciones profundas de Esteban Rey (Kilowatto): semanas de trabajo, decenas de fuentes verificadas, metodología documentada. Sin patrocinios."
+  active="/a-fondo"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">Investigación seria, sin patrocinios</p>
+      <h1>A fondo</h1>
+      <p class="hero__sub">
+        Piezas largas, con decenas de fuentes verificadas y un semáforo de confianza por cada dato citado. Cada
+        una lleva su propia nota de metodología — y todas comparten la misma{" "}
+        <a href="/a-fondo/metodologia">guía de cómo investigo</a>.
+      </p>
+    </div>
+  </section>
+  <section class="chapter">
+    <div class="container">
+      {page.rows.length === 0 ? (
+        <p class="hero__sub">Todavía no hay investigaciones publicadas.</p>
+      ) : (
+        <InvestigacionList rows={page.rows} currentPage={1} totalPages={page.totalPages} basePath="/a-fondo" />
+      )}
+    </div>
+  </section>
+</Site>

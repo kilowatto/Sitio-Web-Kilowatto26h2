@@ -62,8 +62,8 @@ export async function runGenerate(body: { platform: "x" | "linkedin"; language: 
     return { error: "no active topic found" };
   }
 
-  const { voiceSamples, bioFacts, columnVoiceSamples } = await buildVoiceContext(env.DB);
-  const voiceBlock = voicePromptBlock(voiceSamples, bioFacts, columnVoiceSamples);
+  const { voiceSamples, bioFacts, columnVoiceSamples, investigacionSamples } = await buildVoiceContext(env.DB);
+  const voiceBlock = voicePromptBlock(voiceSamples, bioFacts, columnVoiceSamples, investigacionSamples);
   // Vector-retrieved, not a flat SQL dump — only feedback semantically relevant to THIS
   // topic comes back, instead of the last N rejections/edits regardless of subject.
   const learningBlock = await retrieveLearningContext(topic.label, topic.description ?? "");
