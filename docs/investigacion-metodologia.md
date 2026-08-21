@@ -291,6 +291,16 @@ investigaciones en `pending_approval` con vista previa completa (HTML,
 gráficas, tablas, todo), botones aprobar/rechazar. Rechazar siempre pide
 una razón/feedback, igual que columnas, para que el proceso aprenda.
 
+**✅ DECIDIDO (2026-08-21, imágenes garantizadas):** la pieza de prueba
+("El péndulo se cansó de columpiarse") llegó a `pending_approval` sin
+portada ni ilustraciones por gráfica -- el proceso de ensamblado que la
+armó nunca llamó a `generate-cover`/`generate-chart-image`. Para que esto
+nunca vuelva a pasar sin importar qué proceso produjo la pieza, `approve.ts`
+ahora llama automáticamente a `ensureInvestigacionImages()`
+(`src/lib/investigacion-image.ts`) antes de publicar: rellena una portada
+si falta y una ilustración por cada gráfica sin imagen, sin tocar ninguna
+que ya exista. Ninguna investigación puede quedar publicada sin imágenes.
+
 ## Posts de redes ligados a cada investigación (✅ DECIDIDO, nuevo requisito)
 
 Cada investigación publicada genera un lote de **24 a 48 posts** para

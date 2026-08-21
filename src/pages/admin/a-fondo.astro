@@ -34,8 +34,9 @@ if (authorized && env?.DB) {
           Estas piezas no se generan desde aquí con un botón — Claude las produce en una conversación (8-10 agentes
           de investigación + fact-check adversarial, con tu tema), y aterrizan aquí ya completas para tu revisión.
           Abre la vista previa para verla exactamente como se vería publicada (gráficas, tablas, todo) antes de
-          decidir. Al aprobar, se genera automáticamente un lote de 24-48 posts programados (repartidos en más de un
-          mes) que quedan pendientes de tu aprobación en <a href="/admin/social">/admin/social</a>.
+          decidir. Al aprobar, se rellena automáticamente cualquier imagen que falte (portada + una ilustración por
+          gráfica) y se genera un lote de 24-48 posts programados (repartidos en más de un mes, cada uno con su
+          propia imagen) que quedan pendientes de tu aprobación en <a href="/admin/social">/admin/social</a>.
         </p>
 
         <h2>Pendientes de aprobar ({pending.length})</h2>
@@ -103,10 +104,18 @@ if (authorized && env?.DB) {
                 body: JSON.stringify({ title, subtitle, summary }),
               });
               const data = await res.json().catch(() => ({}));
+              const imgParts = [];
+              if (data.coverGenerated) imgParts.push("portada");
+              if (data.chartsImaged) imgParts.push(`${data.chartsImaged} ilustración(es) de gráfica`);
+              const imgMsg = data.imagesError
+                ? `\n\nOjo: no se pudieron generar algunas imágenes (${data.imagesError}) -- reintenta desde aquí mismo si hace falta.`
+                : imgParts.length
+                  ? `\n\nSe generaron: ${imgParts.join(" + ")}.`
+                  : "";
               if (data.postsError) {
-                alert(`Se publicó, pero el lote de posts no se generó: ${data.postsError}\n\nPuedes reintentarlo llamando a /api/investigaciones/${id}/generate-posts desde el admin de posting.`);
+                alert(`Se publicó, pero el lote de posts no se generó: ${data.postsError}${imgMsg}\n\nPuedes reintentarlo llamando a /api/investigaciones/${id}/generate-posts desde el admin de posting.`);
               } else if (typeof data.postsGenerated === "number") {
-                alert(`Publicado. Se generaron ${data.postsGenerated} posts programados, pendientes de tu aprobación en /admin/social.`);
+                alert(`Publicado. Se generaron ${data.postsGenerated} posts programados, pendientes de tu aprobación en /admin/social.${imgMsg}`);
               }
               location.reload();
             } catch {

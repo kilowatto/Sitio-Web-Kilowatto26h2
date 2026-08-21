@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { runGeneratePosts } from "./generate-posts";
+import { ensureInvestigacionImages } from "../../../../lib/investigacion-image";
 
 export const prerender = false;
 
@@ -36,6 +37,23 @@ export const POST: APIRoute = async ({ params, request }) => {
     .bind(newTitle, newSubtitle, newSummary, newBody, id)
     .run();
 
+  // Best-effort: no published piece should ever go live with no cover and no
+  // chart illustrations -- the 2026-08-21 test piece did exactly that because
+  // the ad-hoc assembly process never called the image endpoints at all.
+  // ensureInvestigacionImages() only fills gaps (never touches an image that
+  // already exists), so this is safe to run on every approve regardless of how
+  // the piece was produced.
+  let coverGenerated = false;
+  let chartsImaged = 0;
+  let imagesError: string | null = null;
+  try {
+    const imagesResult = await ensureInvestigacionImages(env, Number(id));
+    coverGenerated = imagesResult.coverGenerated;
+    chartsImaged = imagesResult.chartsGenerated;
+  } catch (err: any) {
+    imagesError = err?.message ?? "unknown error generating images";
+  }
+
   // Best-effort: a batch of 24-48 scheduled social posts always accompanies a
   // publish per the 2026-08-21 decision, but a generation hiccup must never
   // undo/block the publish itself -- Esteban can always re-trigger this
@@ -50,5 +68,8 @@ export const POST: APIRoute = async ({ params, request }) => {
     postsError = err?.message ?? "unknown error generating posts";
   }
 
-  return new Response(JSON.stringify({ ok: true, postsGenerated, postsError }), { headers: { "content-type": "application/json" } });
+  return new Response(
+    JSON.stringify({ ok: true, coverGenerated, chartsImaged, imagesError, postsGenerated, postsError }),
+    { headers: { "content-type": "application/json" } }
+  );
 };
