@@ -86,6 +86,54 @@ export interface InvestigacionTranslatable {
   methodology_html: string | null;
 }
 
+function countWords(s: string): number {
+  return s.split(/\s+/).filter(Boolean).length;
+}
+
+// Batches sections by cumulative word count (not a single all-at-once call) -- an
+// investigación can run 6000-12000 words, and one giant call reliably truncated the model's
+// output before it finished (confirmed live 2026-08-21: a 9256-word piece's body_html/fields
+// call silently returned nothing at all, because the section-count mismatch fallback discards
+// the WHOLE batch when even one section's translation got cut off). Smaller batches also mean
+// a mismatch only costs that one batch (falls back to the original text for just those
+// sections) instead of the entire piece.
+const MAX_WORDS_PER_BATCH = 700;
+
+async function translateSectionsBatched(env: any, locale: string, sections: string[], contextPrompt: string): Promise<string[]> {
+  const batches: number[][] = [];
+  let current: number[] = [];
+  let currentWords = 0;
+  sections.forEach((s, i) => {
+    const w = countWords(s);
+    if (current.length > 0 && currentWords + w > MAX_WORDS_PER_BATCH) {
+      batches.push(current);
+      current = [];
+      currentWords = 0;
+    }
+    current.push(i);
+    currentWords += w;
+  });
+  if (current.length > 0) batches.push(current);
+
+  const result = new Array<string>(sections.length);
+  for (const batchIndices of batches) {
+    const localSections = batchIndices.map((i) => sections[i]);
+    const inputText = localSections.map((s, i) => `${SECTION_MARKER}${i}\n${s}`).join("\n");
+    const prompt = `${contextPrompt}\n\n${inputText}`;
+    const raw = await callAI(env, prompt, 6000);
+    const parts = raw.split(new RegExp(`${SECTION_MARKER}\\d+\\n?`));
+    const translated = parts.slice(1).map((s) => s.trim());
+
+    if (translated.length !== localSections.length) {
+      console.error(`translateSectionsBatched: section count mismatch (${translated.length} vs ${localSections.length}) for locale ${locale} -- falling back to originals for this batch`);
+      batchIndices.forEach((originalIdx) => (result[originalIdx] = sections[originalIdx]));
+      continue;
+    }
+    batchIndices.forEach((originalIdx, localIdx) => (result[originalIdx] = translated[localIdx] || sections[originalIdx]));
+  }
+  return result;
+}
+
 export async function translateInvestigacionFields(
   env: any,
   locale: string,
@@ -104,19 +152,11 @@ export async function translateInvestigacionFields(
   }
 
   const sections = [row.title, row.subtitle ?? "", row.hook ?? "", row.summary, ...bodyTexts, ...methodologyTexts];
-  const inputText = sections.map((s, i) => `${SECTION_MARKER}${i}\n${s}`).join("\n");
 
   const voice = VOICE_INSTRUCTIONS[locale] ?? `Translate to ${locale}.`;
-  const prompt = `${voice}\n\nTraduce cada sección de este texto -- es una investigación periodística de A Fondo con Kilowatto, escrita por Esteban Rey. El texto está dividido en secciones marcadas con líneas "${SECTION_MARKER}<número>": 0=título, 1=subtítulo, 2=gancho/hook, 3=resumen ejecutivo, y el resto son los encabezados/párrafos del cuerpo y luego de la metodología, en orden. Puede haber tokens literales "@@@CITE_<número>@@@" dentro del texto -- son marcadores de citas y DEBEN aparecer EXACTAMENTE igual, en la misma posición relativa, en tu traducción; nunca los traduzcas ni los elimines. Devuelve EXACTAMENTE el mismo número de secciones, con las mismas líneas marcadoras intactas, cada sección traducida debajo de su marcador. NUNCA traduzcas nombres propios de personas, empresas, instituciones, marcas o productos -- déjalos exactamente igual. No agregues texto adicional ni markdown -- SOLO las secciones marcadas:\n\n${inputText}`;
+  const contextPrompt = `${voice}\n\nTraduce cada sección de este texto -- es un fragmento de una investigación periodística de A Fondo con Kilowatto, escrita por Esteban Rey. El texto está dividido en secciones marcadas con líneas "${SECTION_MARKER}<número>". Puede haber tokens literales "@@@CITE_<número>@@@" dentro del texto -- son marcadores de citas y DEBEN aparecer EXACTAMENTE igual, en la misma posición relativa, en tu traducción; nunca los traduzcas ni los elimines. Devuelve EXACTAMENTE el mismo número de secciones, con las mismas líneas marcadoras intactas, cada sección traducida debajo de su marcador. NUNCA traduzcas nombres propios de personas, empresas, instituciones, marcas o productos -- déjalos exactamente igual. No agregues texto adicional ni markdown -- SOLO las secciones marcadas:`;
 
-  const raw = await callAI(env, prompt, 8000);
-  const parts = raw.split(new RegExp(`${SECTION_MARKER}\\d+\\n?`));
-  const translated = parts.slice(1).map((s) => s.trim());
-
-  if (translated.length !== sections.length) {
-    console.error(`translateInvestigacionFields: section count mismatch (${translated.length} vs ${sections.length}) for locale ${locale}`);
-    return {};
-  }
+  const translated = await translateSectionsBatched(env, locale, sections, contextPrompt);
 
   const [title, subtitle, hook, summary, ...rest] = translated;
   const bodyTranslated = rest.slice(0, bodyTexts.length);
