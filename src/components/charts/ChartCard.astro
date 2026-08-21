@@ -86,6 +86,13 @@ const { chartKey, title, description, sourceNote, chartType, data, imageR2Key } 
     opacity: 0;
     transform: translateY(14px);
     transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    /* Safety net, not the fix itself: RadarChart's axis labels are absolutely
+       positioned by percentage and can reach past the plot's edge on narrow
+       viewports with long label text (confirmed live 2026-08-21, a real ~10px
+       page-level horizontal scroll on mobile). Clipping here contains any
+       chart's overflow at the card boundary -- tables/etc. still scroll fine
+       internally via their own overflow-x:auto wrapper, unaffected by this. */
+    overflow-x: hidden;
   }
   .chart-card.in-view {
     opacity: 1;

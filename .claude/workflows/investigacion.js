@@ -243,7 +243,8 @@ const writerResult = await agent(
     `"radar-comparativo", suggestedType "radar" (esta NO lleva placeholder en el texto, se renderiza aparte). Para las demás, ` +
     `pide al menos 6 gráficas de tipos DISTINTOS entre sí (bar/timeline/cards/table/donut/line/heatmap/scatter/funnel/` +
     `dumbbell/gauge/treemap) más al menos 1 de tipo "table" -- y por cada una, inserta en el bodyHtml, en el lugar exacto ` +
-    `donde debería aparecer, el comentario <!--chart:{chartKey}--> (chartKey único en kebab-case).`,
+    `donde debería aparecer, el comentario <!--chart:{chartKey}--> (chartKey único en kebab-case).\n\n` +
+    (args.redactorGuidance ?? ''),
   { schema: WRITER_SCHEMA, phase: 'Redactar' }
 )
 
@@ -279,30 +280,57 @@ const chartResults = (
 ).filter(Boolean)
 
 phase('Ensamblar')
-const assembled = await agent(
-  `Ensambla el payload final de una investigación de "A Fondo con Kilowatto" y valida el SQL de inserción SIN ejecutarlo ` +
-    `contra ninguna base de datos remota (eso lo hace un humano después de revisar).\n\n` +
-    `1. Construye un objeto JSON con esta forma exacta:\n` +
-    `{ "slug": "${args.slug}", "title": ..., "subtitle": ..., "hook": ..., "summary": ..., "bodyHtml": ..., ` +
-    `"methodologyHtml": ..., "readMinutes": <estimado por palabras/220>, "sources": [{url,label,confidence}, ...], ` +
-    `"charts": [{chartKey,chartType,title,description,sourceNote,data,position}, ...] }\n` +
-    `usando: title/subtitle/hook/summary/bodyHtml/methodologyHtml de este resultado de redacción:\n${JSON.stringify(
-      { title: writerResult.title, subtitle: writerResult.subtitle, hook: writerResult.hook, summary: writerResult.summary, methodologyHtml: writerResult.methodologyHtml, bodyHtml: writerResult.bodyHtml },
-      null,
-      0
-    )}\n` +
-    `"sources" = este array EXACTO, en este orden (el índice de cada uno es el "n" que aparece en los tokens __CITE__n__ ` +
-    `del bodyHtml de arriba, no lo reordenes):\n${JSON.stringify(writerResult.citationsUsed)}\n` +
-    `"charts" = estos resultados, agregando "position" incremental empezando en 0 (el radar puede ir al final):\n${JSON.stringify(chartResults)}\n\n` +
-    `2. Guarda ese JSON en un archivo temporal (usa el directorio scratchpad de esta sesión).\n` +
-    `3. Corre: node scripts/insert-investigacion.mjs <ese archivo> > <ruta seed.sql en el mismo directorio temporal>\n` +
-    `4. Lee el stderr de ese comando -- si imprime líneas "WARNING", corrígelas en el JSON (por ejemplo, un placeholder ` +
-    `<!--chart:key--> faltante, o menos de 6 tipos de gráfica distintos, o falta el radar) y vuelve a correr el script hasta ` +
-    `que no haya warnings, o hasta que confirmes que el warning es aceptable y expliques por qué en tu respuesta.\n` +
-    `5. Devuelve seedSqlPath (ruta absoluta del .sql generado), warnings (array de los que queden, vacío si ninguno), ` +
-    `wordCount, sourceCount, chartTypeCount -- NUNCA ejecutes wrangler d1 execute --remote tú mismo.`,
-  { schema: ASSEMBLE_SCHEMA, phase: 'Ensamblar' }
+// Built here in plain JS (not left to the agent to retype from pieces) specifically to
+// keep the agent's own prompt/response as small as possible -- this payload can be huge
+// for a long piece with many charts, and asking the agent to regenerate it via a tool-call
+// argument is exactly the kind of giant single-turn output that failed live 2026-08-21
+// ("the response stopped arriving"). The agent's only job now is to save this already-
+// final string to a file and run the insert script -- no re-typing of content.
+//
+// The radar-comparativo chart is stripped from bodyHtml defensively (not just told not to
+// appear there) -- the writer was explicitly instructed never to add a placeholder for it
+// and did anyway on the first real run, duplicating that chart on the page.
+const assembledPayload = JSON.stringify(
+  {
+    slug: args.slug,
+    title: writerResult.title,
+    subtitle: writerResult.subtitle,
+    hook: writerResult.hook,
+    summary: writerResult.summary,
+    bodyHtml: writerResult.bodyHtml.replace('<!--chart:radar-comparativo-->', ''),
+    methodologyHtml: writerResult.methodologyHtml,
+    readMinutes: Math.max(3, Math.round(writerResult.bodyHtml.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length / 220)),
+    sources: writerResult.citationsUsed,
+    charts: chartResults.map((c, i) => ({ ...c, position: c.chartKey === 'radar-comparativo' ? 999 : i })),
+  },
+  null,
+  0
 )
+
+let assembled = null
+for (let attempt = 1; attempt <= 2 && !assembled; attempt++) {
+  assembled = await agent(
+    `Ya tienes el payload final de una investigación de "A Fondo con Kilowatto", completo y listo, como un string JSON ` +
+      `abajo -- NO lo reconstruyas, NO lo vuelvas a escribir a mano, solo guárdalo tal cual:\n\n` +
+      `1. Guarda este string EXACTO (es JSON válido) en un archivo nuevo dentro del directorio scratchpad de esta sesión, ` +
+      `por ejemplo con Write directamente:\n${assembledPayload}\n\n` +
+      `2. Corre: node scripts/insert-investigacion.mjs <ese archivo> > <ruta seed.sql en el mismo directorio temporal>\n` +
+      `3. Lee el stderr de ese comando -- si imprime líneas "WARNING" sobre el conteo de tipos de gráfica o el radar, ` +
+      `repórtalas tal cual (no las corrijas regenerando el JSON -- ese contenido ya fue decidido en fases anteriores).\n` +
+      `4. Devuelve seedSqlPath (ruta absoluta del .sql generado), warnings (array de las que haya, vacío si ninguna), ` +
+      `wordCount (cuenta de palabras del bodyHtml sin tags), sourceCount, chartTypeCount -- NUNCA ejecutes ` +
+      `wrangler d1 execute --remote tú mismo.` +
+      (attempt > 1 ? `\n\n(Reintento ${attempt}: el intento anterior no completó su respuesta. Sé breve en tu respuesta final -- el contenido ya está guardado en el archivo, no hace falta repetirlo.)` : ''),
+    { schema: ASSEMBLE_SCHEMA, phase: 'Ensamblar' }
+  )
+}
+if (!assembled) {
+  throw new Error(
+    'La fase Ensamblar falló dos veces seguidas. El payload completo (título, cuerpo, fuentes, gráficas) ya está ' +
+      'listo en memoria de este run -- revisa journal.jsonl de este workflow para recuperarlo manualmente si hace falta, ' +
+      'en vez de volver a correr todo desde el principio.'
+  )
+}
 
 const wordCount = assembled.wordCount ?? writerResult.bodyHtml.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length
 const distinctChartTypes = new Set(chartResults.map((c) => c.chartType))

@@ -198,10 +198,16 @@ const { results: approved } = env?.DB
     resize: vertical;
   }
   .comments__honeypot {
+    /* The old left:-9999px offscreen trick can nudge document.scrollWidth past the
+       viewport in some browsers (confirmed live 2026-08-21, a real if invisible
+       10px horizontal scroll on mobile) -- clipping to a 1px box keeps it just as
+       invisible to bots/screen readers without touching layout bounds at all. */
     position: absolute;
-    left: -9999px;
     width: 1px;
     height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
     opacity: 0;
     pointer-events: none;
   }

@@ -347,6 +347,13 @@ const articleJsonLd = investigacion
   }
   .ia-article :global(p) {
     margin-top: var(--space-2);
+    /* The sign-off block spells out long bare URLs (linkedin.com/in/kilowatto,
+       wikidata.org/wiki/...) as visible link text with no natural wrap point --
+       confirmed live 2026-08-21, a real few-px horizontal overflow on mobile
+       when the font/URL-length combination leaves no room. Wrapping mid-word as
+       a last resort costs nothing on normal prose (it only kicks in when a
+       single unbreakable run is actually too wide). */
+    overflow-wrap: anywhere;
   }
   .ia-article :global(a.cite) {
     text-decoration: none;
