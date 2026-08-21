@@ -62,6 +62,11 @@ export const POST: APIRoute = async ({ params, request }) => {
   // before another real paragraph -- never immediately before an h2/chart placeholder
   // (which would orphan it with nothing to wrap) and never immediately after one (no
   // intro-less image right at the top of a section).
+  // Word count accumulates across section boundaries on purpose -- resetting it at every
+  // h2 was tried first and nearly killed the feature (confirmed live 2026-08-21: most of
+  // this piece's 15 sections are individually under 500 words, so a per-section reset
+  // left only 3 of the intended ~17 images placed). The heading/chart-adjacency guards
+  // below are what actually keep placement sane, not a word-count reset.
   let currentSectionTitle = "";
   let wordsSinceLastImage = 0;
   const insertions: { afterBlockIndex: number; sectionTitle: string }[] = [];
@@ -70,7 +75,6 @@ export const POST: APIRoute = async ({ params, request }) => {
     const block = blocks[i];
     if (/^<h2/.test(block)) {
       currentSectionTitle = stripTags(block);
-      wordsSinceLastImage = 0; // don't let a long prior section's count bleed into a fresh one
       continue;
     }
     wordsSinceLastImage += countWords(block);
@@ -80,8 +84,9 @@ export const POST: APIRoute = async ({ params, request }) => {
     const next = blocks[i + 1];
     const prev = blocks[i - 1];
     const nextIsHeadingOrChart = next && /^(<h2|<!--chart:)/.test(next);
+    const prevWasHeadingOrChart = prev && /^(<h2|<!--chart:)/.test(prev);
     const prevWasImageSpot = prev && insertions.some((ins) => ins.afterBlockIndex === i - 1);
-    if (nextIsHeadingOrChart || prevWasImageSpot) continue;
+    if (nextIsHeadingOrChart || prevWasHeadingOrChart || prevWasImageSpot) continue;
 
     insertions.push({ afterBlockIndex: i, sectionTitle: currentSectionTitle });
     wordsSinceLastImage = 0;
