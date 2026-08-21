@@ -115,22 +115,32 @@ async function translateSectionsBatched(env: any, locale: string, sections: stri
   });
   if (current.length > 0) batches.push(current);
 
+  // Batches run concurrently (capped), not sequentially -- a 9000+ word piece needs a dozen-
+  // plus batches, and awaiting them one at a time pushed a single locale well past 5 minutes
+  // (confirmed live 2026-08-21, the request eventually just hung/timed out). Concurrency 4
+  // matches the cap already used elsewhere in this codebase for bulk AI/image calls.
+  const CONCURRENCY = 4;
   const result = new Array<string>(sections.length);
-  for (const batchIndices of batches) {
-    const localSections = batchIndices.map((i) => sections[i]);
-    const inputText = localSections.map((s, i) => `${SECTION_MARKER}${i}\n${s}`).join("\n");
-    const prompt = `${contextPrompt}\n\n${inputText}`;
-    const raw = await callAI(env, prompt, 6000);
-    const parts = raw.split(new RegExp(`${SECTION_MARKER}\\d+\\n?`));
-    const translated = parts.slice(1).map((s) => s.trim());
+  let next = 0;
+  async function worker() {
+    while (next < batches.length) {
+      const batchIndices = batches[next++];
+      const localSections = batchIndices.map((i) => sections[i]);
+      const inputText = localSections.map((s, i) => `${SECTION_MARKER}${i}\n${s}`).join("\n");
+      const prompt = `${contextPrompt}\n\n${inputText}`;
+      const raw = await callAI(env, prompt, 6000);
+      const parts = raw.split(new RegExp(`${SECTION_MARKER}\\d+\\n?`));
+      const translated = parts.slice(1).map((s) => s.trim());
 
-    if (translated.length !== localSections.length) {
-      console.error(`translateSectionsBatched: section count mismatch (${translated.length} vs ${localSections.length}) for locale ${locale} -- falling back to originals for this batch`);
-      batchIndices.forEach((originalIdx) => (result[originalIdx] = sections[originalIdx]));
-      continue;
+      if (translated.length !== localSections.length) {
+        console.error(`translateSectionsBatched: section count mismatch (${translated.length} vs ${localSections.length}) for locale ${locale} -- falling back to originals for this batch`);
+        batchIndices.forEach((originalIdx) => (result[originalIdx] = sections[originalIdx]));
+        continue;
+      }
+      batchIndices.forEach((originalIdx, localIdx) => (result[originalIdx] = translated[localIdx] || sections[originalIdx]));
     }
-    batchIndices.forEach((originalIdx, localIdx) => (result[originalIdx] = translated[localIdx] || sections[originalIdx]));
   }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, batches.length) }, worker));
   return result;
 }
 
