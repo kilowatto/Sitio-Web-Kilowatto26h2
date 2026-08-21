@@ -31,7 +31,12 @@ function mdInlineToHtml(text) {
     .replace(/>/g, "&gt;")
     .replace(/&lt;br&gt;/g, "<br>")
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>");
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    // Plain markdown links (e.g. the sign-off block's "[@Kilowatto](url)") --
+    // NOT the citation flags, which are exactly "[🟢/🟡/🔴](url)" and get
+    // converted separately by renderCitations() (run on this function's
+    // output, so it needs to still see that literal bracket pattern intact).
+    .replace(/\[(?!🟢\]|🟡\]|🔴\])([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 }
 
 // --- pass 1: pull out title / hook / byline, find section boundaries -------

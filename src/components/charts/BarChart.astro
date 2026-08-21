@@ -60,6 +60,7 @@ const multiSeries = items.some((i: BarItem) => i.values.length > 1);
   }
   .bars__row {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.35rem;
   }
   .bars__label {
@@ -75,12 +76,17 @@ const multiSeries = items.some((i: BarItem) => i.values.length > 1);
   }
   .bars__track {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    /* Single-series rows render exactly 2 children (rail, value) -- 3
+       columns here (confirmed live 2026-08-21) meant the rail landed in
+       the first "auto" track sized to its own near-empty content (~2px,
+       just its border) while the leftover 1fr track went to the value
+       text instead, so every bar was invisible. */
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.6rem;
   }
   .bars--multi .bars__track {
-    grid-template-columns: 5.5rem 1fr auto;
+    grid-template-columns: 5.5rem minmax(0, 1fr) auto;
   }
   .bars__series-name {
     font-family: var(--font-mono);
