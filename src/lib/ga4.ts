@@ -25,7 +25,9 @@ function pemToDer(pem: string): ArrayBuffer {
   const b64 = pem
     .replace(/-----BEGIN PRIVATE KEY-----/, "")
     .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\s+/g, "");
+    // Secrets pasted as a single line often carry literal backslash-n sequences instead
+    // of real newlines (from the JSON key file's \n escapes) -- strip both forms.
+    .replace(/\\r\\n|\\n|\r|\n|\s+/g, "");
   const binary = atob(b64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
