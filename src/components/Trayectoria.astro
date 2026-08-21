@@ -1,4 +1,6 @@
 ---
+import { env } from "cloudflare:workers";
+
 interface Props {
   companies: any[];
   hoyLabel?: string;
@@ -12,6 +14,14 @@ const {
   rtl = false,
 } = Astro.props;
 const posProp = rtl ? "right" : "left";
+
+let photoRows: any[] = [];
+if (env?.DB) {
+  const res = await env.DB.prepare(
+    "SELECT r2_key, taken_date, caption, ai_caption FROM photos WHERE approval_status = 'approved' AND minor_flag = 'clear' AND taken_date IS NOT NULL ORDER BY taken_date"
+  ).all();
+  photoRows = res?.results ?? [];
+}
 
 const now = new Date();
 const HOY = now.getFullYear() + now.getMonth() / 12;
@@ -123,9 +133,25 @@ for (let y = Math.ceil(START_YEAR / TICK_STEP) * TICK_STEP; y < HOY - 0.5; y += 
 }
 if (!ticks.includes(START_YEAR)) ticks.unshift(START_YEAR);
 const hoyTop = px(HOY);
+
+const photos = photoRows
+  .map((p: any) => {
+    const m = /^(\d{4})-(\d{2})/.exec(p.taken_date ?? "");
+    if (!m) return null;
+    const year = parseInt(m[1], 10) + (parseInt(m[2], 10) - 1) / 12;
+    return { r: p.r2_key, y: year, a: p.caption || p.ai_caption || "" };
+  })
+  .filter(Boolean);
 ---
 
 <div class="kw-trayectoria">
+  <div class="kw-photo-bg" id="kw-photo-bg" aria-hidden="true">
+    <div class="kw-photo-layer kw-photo-layer--a"></div>
+    <div class="kw-photo-layer kw-photo-layer--b"></div>
+    <div class="kw-photo-scrim"></div>
+  </div>
+  <script type="application/json" id="kw-photos-data" set:html={JSON.stringify(photos).replace(/</g, "\\u003c")} />
+
   <p class="kw-caption">{caption}</p>
 
   <div class="kw-shell">
@@ -183,8 +209,69 @@ const hoyTop = px(HOY);
   </div>
 </div>
 
-<style define:vars={{ axisColW: `${AXIS_COL_W}px` }}>
+<style define:vars={{ axisColW: `${AXIS_COL_W}px`, scrimDir: rtl ? "left" : "right" }}>
+  .kw-trayectoria {
+    position: relative;
+  }
+
+  .kw-photo-bg {
+    display: none;
+  }
+
+  @media (min-width: 900px) {
+    .kw-photo-bg {
+      display: block;
+      position: absolute;
+      inset: -24px;
+      overflow: hidden;
+      z-index: 0;
+      pointer-events: none;
+    }
+  }
+
+  .kw-photo-layer {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    filter: blur(30px) saturate(1.1);
+    transform: scale(1.15);
+    transition: opacity 1.8s ease;
+  }
+  .kw-photo-layer.is-visible {
+    opacity: 1;
+  }
+  .kw-photo-layer.is-animating {
+    animation: kw-ken-burns 16s ease-in-out forwards;
+  }
+  @keyframes kw-ken-burns {
+    from {
+      transform: scale(1.12) translate(0, 0);
+    }
+    to {
+      transform: scale(1.24) translate(-1.5%, 1.5%);
+    }
+  }
+  .kw-photo-scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to var(--scrimDir),
+      var(--paper) 0%,
+      color-mix(in oklch, var(--paper) 60%, transparent) 40%,
+      color-mix(in oklch, var(--paper) 22%, transparent) 100%
+    );
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kw-photo-bg {
+      display: none !important;
+    }
+  }
+
   .kw-caption {
+    position: relative;
+    z-index: 1;
     color: var(--ink-soft);
     font-size: 0.92rem;
     line-height: 1.5;
@@ -193,6 +280,8 @@ const hoyTop = px(HOY);
   }
 
   .kw-shell {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: flex-start;
     gap: 20px;
@@ -362,6 +451,58 @@ const hoyTop = px(HOY);
     const hoy = parseFloat(axis.dataset.hoy ?? "0");
     const hoyLabel = axis.dataset.hoyLabel ?? "Hoy";
 
+    // Ambient photo backdrop: desktop only, and only when the viewer hasn't
+    // asked for reduced motion (it's a slow crossfade + zoom, purely decorative).
+    const photosDataEl = document.getElementById("kw-photos-data");
+    const allPhotos: { r: string; y: number; a: string }[] = photosDataEl
+      ? JSON.parse(photosDataEl.textContent || "[]")
+      : [];
+    const photoBg = document.getElementById("kw-photo-bg");
+    const layerA = photoBg?.querySelector<HTMLElement>(".kw-photo-layer--a");
+    const layerB = photoBg?.querySelector<HTMLElement>(".kw-photo-layer--b");
+    const photosEnabled =
+      allPhotos.length > 0 &&
+      layerA &&
+      layerB &&
+      window.matchMedia("(min-width: 900px)").matches &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let activeLayer: "a" | "b" = "a";
+    function showPhoto(photo: { r: string; y: number; a: string } | null) {
+      if (!photo || !layerA || !layerB) return;
+      const nextEl = activeLayer === "a" ? layerB : layerA;
+      const prevEl = activeLayer === "a" ? layerA : layerB;
+      nextEl.style.backgroundImage = `url(/media/${photo.r}?w=900)`;
+      nextEl.classList.remove("is-animating");
+      void nextEl.offsetWidth;
+      nextEl.classList.add("is-animating", "is-visible");
+      prevEl.classList.remove("is-visible");
+      activeLayer = activeLayer === "a" ? "b" : "a";
+    }
+
+    function pickPhoto(sweepYear: number, ranges: { start: number; end: number }[]) {
+      if (!allPhotos.length) return null;
+      let pool = allPhotos.filter((p) => ranges.some((r) => p.y >= r.start && p.y <= r.end));
+      if (!pool.length) {
+        const sorted = [...allPhotos].sort((a, b) => Math.abs(a.y - sweepYear) - Math.abs(b.y - sweepYear));
+        pool = sorted.slice(0, Math.min(5, sorted.length));
+      }
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    let lastYearBucket: number | null = null;
+    let lastRanges: { start: number; end: number }[] = [];
+
+    function cyclePhoto() {
+      if (!photosEnabled) return;
+      const sweepYear = lastYearBucket ?? startYear;
+      showPhoto(pickPhoto(sweepYear, lastRanges));
+    }
+
+    if (photosEnabled) {
+      window.setInterval(cyclePhoto, 9000);
+    }
+
     let raf: number | null = null;
 
     function update() {
@@ -388,14 +529,26 @@ const hoyTop = px(HOY);
         bar.classList.toggle("is-revealed", sweepPx >= top);
       }
 
+      const sweepYear = startYear + sweepPx / pxy;
+      const ranges: { start: number; end: number }[] = [];
       for (const row of summaryRows) {
         const top = parseFloat(row.dataset.top ?? "0");
         const bottom = parseFloat(row.dataset.bottom ?? "0");
-        row.classList.toggle("is-active", sweepPx >= top && sweepPx <= bottom);
+        const isActive = sweepPx >= top && sweepPx <= bottom;
+        row.classList.toggle("is-active", isActive);
+        if (isActive) ranges.push({ start: startYear + top / pxy, end: startYear + bottom / pxy });
+      }
+
+      if (photosEnabled) {
+        lastRanges = ranges;
+        const bucket = Math.floor(sweepYear);
+        if (bucket !== lastYearBucket) {
+          lastYearBucket = bucket;
+          showPhoto(pickPhoto(sweepYear, ranges));
+        }
       }
 
       if (yearLabelEl) {
-        const sweepYear = startYear + sweepPx / pxy;
         yearLabelEl.textContent = sweepYear >= hoy - 0.5 ? hoyLabel : String(Math.floor(sweepYear));
       }
     }
