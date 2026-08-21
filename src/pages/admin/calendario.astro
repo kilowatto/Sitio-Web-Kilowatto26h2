@@ -157,10 +157,11 @@ for (const e of events) {
             const wd = addDays(weekStart, w);
             const k = keyOf(wd);
             const count = (eventsByDate[k] || []).length;
-            html += `<button class="week-cell${count ? " has-event" : ""}" data-date="${k}">
+            const isToday = k === keyOf(new Date(new Date().setHours(0, 0, 0, 0)));
+            html += `<button class="week-cell${count ? " has-event" : ""}${isToday ? " is-today" : ""}" data-date="${k}" title="${count} publicación(es)">
               <div class="dow">${DOW[w]}</div>
               <div class="num">${wd.getDate()}</div>
-              <div class="count">${count ? count + (count > 1 ? " posts" : " post") : ""}</div>
+              <div class="count">${count > 0 ? `<span class="count-badge">${count}</span>` : ""}</div>
             </button>`;
           }
           html += "</div>";
@@ -254,6 +255,8 @@ for (const e of events) {
 
 <style>
   .cal-page { max-width: 30rem; }
+  @media (min-width: 640px) { .cal-page { max-width: 42rem; } }
+  @media (min-width: 1024px) { .cal-page { max-width: 56rem; } }
   .cal-page h1 { font-size: 1.4rem; margin: 0 0 1rem; }
   .backlog-banner {
     display: block; font-size: 0.78rem; line-height: 1.4; color: var(--admin-text);
@@ -271,7 +274,7 @@ for (const e of events) {
 
   .day-strip { display: flex; gap: 0.4rem; margin-bottom: 1rem; }
   .day-pill {
-    flex: 1; border: 1px solid var(--admin-border); border-radius: 0.6rem; padding: 0.5rem 0.1rem;
+    min-width: 0; flex: 1; border: 1px solid var(--admin-border); border-radius: 0.6rem; padding: 0.5rem 0.1rem;
     text-align: center; background: var(--admin-surface); color: var(--admin-text); cursor: pointer;
   }
   .day-pill.is-selected { background: var(--rhino); border-color: var(--rhino); color: #fff; }
@@ -279,37 +282,63 @@ for (const e of events) {
   .day-pill .num { display: block; font-weight: 700; font-size: 1.05rem; margin-top: 0.15rem; }
   .day-pill .dot { display: block; width: 4px; height: 4px; border-radius: 999px; background: currentColor; margin: 0.25rem auto 0; opacity: 0; }
   .day-pill .dot.has-event { opacity: 1; }
+  @media (min-width: 640px) {
+    .day-pill { padding: 0.9rem 0.2rem; }
+    .day-pill .num { font-size: 1.3rem; }
+  }
 
   .event-card { border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.75rem 0.9rem; background: var(--admin-surface); margin-bottom: 0.5rem; display: flex; gap: 0.6rem; align-items: flex-start; }
+  @media (min-width: 640px) { .event-card { padding: 1rem 1.1rem; } .event-title { font-size: 0.95rem; } .event-sub { font-size: 0.72rem; } }
   .event-time { font-family: monospace; font-size: 0.78rem; color: var(--rhino); flex: 0 0 3.2rem; }
   .event-title { font-size: 0.85rem; font-weight: 600; }
   .event-sub { font-family: monospace; font-size: 0.66rem; color: var(--admin-text-soft); margin-top: 0.15rem; }
   .empty-day { border: 1px dashed var(--admin-border); border-radius: 0.7rem; padding: 1.1rem; text-align: center; color: var(--admin-text-soft); font-size: 0.85rem; }
 
   .month-title { font-family: monospace; font-size: 0.72rem; color: var(--admin-text-soft); margin: 0 0 0.6rem; text-transform: uppercase; letter-spacing: 0.04em; }
-  .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.35rem; }
-  .week-cell { border: 1px solid var(--admin-border); border-radius: 0.6rem; padding: 0.5rem 0.1rem 0.6rem; text-align: center; background: var(--admin-surface); cursor: pointer; }
-  .week-cell.has-event { border-color: var(--rhino); }
-  .week-cell .dow { font-family: monospace; font-size: 0.56rem; color: var(--admin-text-soft); }
-  .week-cell .num { font-weight: 700; font-size: 1rem; margin: 0.2rem 0; }
-  .week-cell .count { font-family: monospace; font-size: 0.56rem; color: var(--rhino); min-height: 0.8em; }
 
-  .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem; }
-  .month-dow { text-align: center; font-family: monospace; font-size: 0.56rem; color: var(--admin-text-soft); padding-bottom: 0.25rem; }
+  /* min-width: 0 is load-bearing here -- without it, a grid item's default min-width:auto
+     lets its content (e.g. the count badge) force that one column wider than its 1fr share,
+     breaking the uniform 7-column grid. */
+  .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; }
+  .week-cell {
+    min-width: 0; border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.7rem 0.3rem;
+    text-align: center; background: var(--admin-surface); cursor: pointer; display: flex; flex-direction: column;
+    align-items: center; gap: 0.3rem; min-height: 5.5rem;
+  }
+  .week-cell.has-event { border-color: var(--rhino); border-width: 1.5px; }
+  .week-cell.is-today .num { color: var(--rhino); }
+  .week-cell .dow { font-family: monospace; font-size: 0.6rem; color: var(--admin-text-soft); }
+  .week-cell .num { font-weight: 700; font-size: 1.15rem; }
+  .week-cell .count { min-height: 1.2rem; display: flex; align-items: center; justify-content: center; }
+  .count-badge {
+    font-family: monospace; font-size: 0.62rem; font-weight: 700; color: #fff; background: var(--rhino);
+    border-radius: 999px; padding: 0.1rem 0.45rem; white-space: nowrap;
+  }
+
+  @media (min-width: 640px) {
+    .week-grid { gap: 0.7rem; }
+    .week-cell { min-height: 7rem; padding: 0.9rem 0.4rem; }
+    .week-cell .num { font-size: 1.4rem; }
+  }
+
+  .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.3rem; }
+  .month-dow { text-align: center; font-family: monospace; font-size: 0.56rem; color: var(--admin-text-soft); padding-bottom: 0.3rem; }
   .month-cell {
-    aspect-ratio: 1; border-radius: 0.4rem; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; font-size: 0.74rem; background: var(--admin-surface); border: 1px solid transparent;
+    min-width: 0; aspect-ratio: 1; border-radius: 0.5rem; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; font-size: 0.8rem; background: var(--admin-surface); border: 1px solid transparent;
     cursor: pointer; color: var(--admin-text);
   }
   .month-cell.is-blank { background: transparent; cursor: default; }
-  .month-cell.has-event { border-color: var(--rhino); font-weight: 700; }
-  .month-dot { width: 4px; height: 4px; border-radius: 999px; background: var(--rhino); margin-top: 0.15rem; opacity: 0; }
+  .month-cell.has-event { border-color: var(--rhino); border-width: 1.5px; font-weight: 700; }
+  .month-dot { width: 4px; height: 4px; border-radius: 999px; background: var(--rhino); margin-top: 0.2rem; opacity: 0; }
   .month-dot.has-event { opacity: 1; }
+  @media (min-width: 640px) { .month-cell { font-size: 1rem; border-radius: 0.7rem; } }
 
-  .quarter-month { margin-bottom: 1.1rem; }
-  .quarter-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.18rem; }
-  .quarter-cell { aspect-ratio: 1; border-radius: 3px; background: var(--admin-surface-2); }
+  .quarter-month { margin-bottom: 1.25rem; }
+  .quarter-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem; }
+  .quarter-cell { min-width: 0; aspect-ratio: 1; border-radius: 3px; background: var(--admin-surface-2); }
   .quarter-cell.is-blank { background: transparent; }
   .quarter-cell.heat-2 { background: color-mix(in oklch, var(--rhino) 45%, var(--admin-surface-2)); }
   .quarter-cell.heat-3 { background: var(--rhino); }
+  @media (min-width: 1024px) { .quarter-grid { gap: 0.4rem; } }
 </style>
