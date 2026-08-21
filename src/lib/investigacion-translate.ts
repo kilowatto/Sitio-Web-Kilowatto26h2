@@ -251,19 +251,16 @@ export async function translateInvestigacionCharts(
     return strs;
   });
   const flatSections = perChartStrings.flat();
-  const inputText = flatSections.map((s, i) => `${SECTION_MARKER}${i}\n${s}`).join("\n");
 
+  // Same batched-and-concurrent approach as translateInvestigacionFields -- a piece with many
+  // charts (9+ here) plus per-chart data labels can exceed a single call's reliable output
+  // budget just like the body text did. Confirmed live 2026-08-21: es-ES's single combined
+  // charts call silently returned 0 translated charts (a section-count mismatch swallowed the
+  // whole batch) while the batched fields call succeeded fine in the same run.
   const voice = VOICE_INSTRUCTIONS[locale] ?? `Translate to ${locale}.`;
-  const prompt = `${voice}\n\nTraduce cada sección de este texto -- son títulos, descripciones y etiquetas de texto (ejes, series, encabezados de tabla, etc.) de gráficas de datos dentro de una investigación de A Fondo con Kilowatto. Los números y cifras no aparecen aquí (ya se excluyeron), solo texto. El texto está dividido en secciones marcadas con líneas "${SECTION_MARKER}<número>". Devuelve EXACTAMENTE el mismo número de secciones, en el mismo orden, con las mismas líneas marcadoras intactas. Si una sección está vacía, devuélvela vacía debajo de su marcador. NUNCA traduzcas nombres propios de personas, empresas, instituciones, países o productos -- déjalos exactamente igual. No agregues texto adicional ni markdown -- SOLO las secciones marcadas:\n\n${inputText}`;
+  const contextPrompt = `${voice}\n\nTraduce cada sección de este texto -- son títulos, descripciones y etiquetas de texto (ejes, series, encabezados de tabla, etc.) de gráficas de datos dentro de una investigación de A Fondo con Kilowatto. Los números y cifras no aparecen aquí (ya se excluyeron), solo texto. El texto está dividido en secciones marcadas con líneas "${SECTION_MARKER}<número>". Devuelve EXACTAMENTE el mismo número de secciones, en el mismo orden, con las mismas líneas marcadoras intactas. Si una sección está vacía, devuélvela vacía debajo de su marcador. NUNCA traduzcas nombres propios de personas, empresas, instituciones, países o productos -- déjalos exactamente igual. No agregues texto adicional ni markdown -- SOLO las secciones marcadas:`;
 
-  const raw = await callAI(env, prompt, 8000);
-  const parts = raw.split(new RegExp(`${SECTION_MARKER}\\d+\\n?`));
-  const translatedFlat = parts.slice(1).map((s) => s.trim());
-
-  if (translatedFlat.length !== flatSections.length) {
-    console.error(`translateInvestigacionCharts: section count mismatch (${translatedFlat.length} vs ${flatSections.length}) for locale ${locale}`);
-    return {};
-  }
+  const translatedFlat = await translateSectionsBatched(env, locale, flatSections, contextPrompt);
 
   const result: Record<string, { title: string; description: string | null; sourceNote: string | null; data: any }> = {};
   let offset = 0;
