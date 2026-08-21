@@ -7,7 +7,8 @@ export const prerender = false;
 // Temporary: confirms the GA4 service-account JWT + OAuth2 + Data API chain actually works
 // end to end against the real property, before building any dashboard UI on top of it.
 export const GET: APIRoute = async ({ url }) => {
-  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
+  const token = url.searchParams.get("token");
+  if (token !== env.ADMIN_TOKEN && token !== env.SCRATCH_TOKEN) {
     return new Response("unauthorized", { status: 401 });
   }
   try {
