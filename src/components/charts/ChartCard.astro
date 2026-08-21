@@ -15,12 +15,23 @@ interface Props {
   sourceNote?: string | null;
   chartType: "bar" | "timeline" | "radar" | "cards" | "table";
   data: any;
+  imageR2Key?: string | null;
 }
 
-const { chartKey, title, description, sourceNote, chartType, data } = Astro.props;
+const { chartKey, title, description, sourceNote, chartType, data, imageR2Key } = Astro.props;
 ---
 
 <figure class="chart-card" data-chart-card data-chart-key={chartKey} id={`chart-${chartKey}`}>
+  {imageR2Key && (
+    <img
+      src={`/media/${imageR2Key}?w=1200`}
+      srcset={`/media/${imageR2Key}?w=800 800w, /media/${imageR2Key}?w=1400 1400w`}
+      sizes="(min-width: 900px) 46rem, 100vw"
+      alt=""
+      loading="lazy"
+      class="chart-card__image"
+    />
+  )}
   <p class="chart-card__title">{title}</p>
   {description && <p class="chart-card__desc">{description}</p>}
   <div class="chart-card__body">
@@ -46,6 +57,14 @@ const { chartKey, title, description, sourceNote, chartType, data } = Astro.prop
   .chart-card.in-view {
     opacity: 1;
     transform: translateY(0);
+  }
+  .chart-card__image {
+    display: block;
+    width: calc(100% + 3rem);
+    margin: -1.5rem -1.5rem 1.2rem;
+    max-height: 16rem;
+    object-fit: cover;
+    border-radius: 0.6rem 0.6rem 0 0;
   }
   @media (prefers-reduced-motion: reduce) {
     .chart-card {

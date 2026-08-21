@@ -40,6 +40,7 @@ export interface InvestigacionChartRow {
   data_json: string;
   source_note: string | null;
   position: number;
+  image_r2_key: string | null;
 }
 
 // Same "seeded + real" counter as columns (see columns-query.ts) so this new section
