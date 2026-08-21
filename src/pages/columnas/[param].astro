@@ -9,8 +9,10 @@ import ColumnList from "../../components/ColumnList.astro";
 import ScrollBarChart from "../../components/ScrollBarChart.astro";
 import ColumnShare from "../../components/ColumnShare.astro";
 import CommentSection from "../../components/CommentSection.astro";
+import AudioPlayer from "../../components/AudioPlayer.astro";
 import { getColumnsPage, getColumnBySlug, incrementColumnView, displayViewCount, excerptFrom, type ColumnRow } from "../../lib/columns-query";
 import { renderColumnBody } from "../../lib/column-layout";
+import { getAudioAsset } from "../../lib/media-query";
 import { env } from "cloudflare:workers";
 
 const raw = Astro.params.param ?? "";
@@ -69,6 +71,10 @@ const bodyWithImages = column
       illustrationUrl: column.illustration_r2_key ? `/media/${column.illustration_r2_key}` : null,
     })
   : "";
+
+// Narration, when it exists. getAudioAsset only returns rows that are actually playable, so
+// there's no "loading" or broken-player state to handle here.
+const audio = column ? await getAudioAsset("columna", column.id, "es-MX") : null;
 ---
 
 {
@@ -122,6 +128,14 @@ const bodyWithImages = column
             </a>
             ) · {displayViewCount(column).toLocaleString("es-MX")} lecturas
           </p>
+          {audio?.r2_key && (
+            <AudioPlayer
+              audioKey={audio.r2_key}
+              durationSeconds={audio.duration_s}
+              vttKey={audio.transcript_vtt_key}
+              label="Escucha esta columna"
+            />
+          )}
           <div class="column-article" set:html={bodyWithImages} />
           <ColumnShare url={`https://kilowatto.com/columnas/${column.slug}`} title={column.title} subtitle={column.subtitle} />
           <CommentSection columnId={column.id} />

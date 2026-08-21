@@ -1,0 +1,92 @@
+---
+// "Escucha esta columna": narration player shown above the article body.
+//
+// Deliberately NOT injected into body_html. Interleaving it there would mean adding a tag to
+// column-layout.ts's BLOCK_RE (any top-level tag missing from that regex is silently dropped
+// when blocks are rejoined -- confirmed live 2026-07-28) AND teaching
+// investigacion-translate.ts to treat it as opaque. Rendering it as a sibling component
+// sidesteps both silent-failure modes entirely.
+//
+// Synthetic-voice disclosure is part of the component, not optional chrome: Esteban chose a
+// discreet permanent notice per piece (2026-08-21), and YouTube's altered-content policy plus
+// plain honesty both require it wherever this audio appears.
+interface Props {
+  audioKey: string;
+  durationSeconds?: number | null;
+  vttKey?: string | null;
+  label?: string;
+}
+
+const { audioKey, durationSeconds = null, vttKey = null, label = "Escucha esta columna" } = Astro.props;
+
+// Served through /media/video/[...key] -- the one route in the repo that answers Range
+// requests with 206, which is what makes seeking work at all. Plain /media/[...key] buffers
+// and never returns 206, so browsers report seekable = [0,0] and the scrubber is dead.
+const src = `/media/video/${audioKey}`;
+const vttSrc = vttKey ? `/media/video/${vttKey}` : null;
+
+function fmtDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+---
+
+<figure class="kw-audio">
+  <figcaption class="kw-audio__head">
+    <span class="kw-audio__label">{label}</span>
+    {durationSeconds ? <span class="kw-audio__dur">{fmtDuration(durationSeconds)}</span> : null}
+  </figcaption>
+
+  <audio class="kw-audio__el" controls preload="metadata" src={src}>
+    {vttSrc ? <track kind="captions" srclang="es" label="Español" src={vttSrc} default /> : null}
+    Tu navegador no puede reproducir audio.
+    <a href={src} download>Descarga el archivo</a>.
+  </audio>
+
+  <p class="kw-audio__note">
+    Narrado con la voz sintética de Larry. El texto es de Esteban; la voz no es humana.
+  </p>
+</figure>
+
+<style>
+  .kw-audio {
+    margin: 0 0 var(--space-3);
+    padding: var(--space-2);
+    border: 1px solid var(--line);
+    border-radius: 0.8rem;
+    background: var(--mist);
+    max-width: var(--measure);
+  }
+  .kw-audio__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: 0.6rem;
+  }
+  .kw-audio__label {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ember);
+  }
+  .kw-audio__dur {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+  }
+  /* width:100% keeps the native control from overflowing the reading column on narrow
+     viewports -- the default intrinsic width of <audio> is wider than 390px. */
+  .kw-audio__el {
+    width: 100%;
+    display: block;
+  }
+  .kw-audio__note {
+    margin: 0.6rem 0 0;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--ink-soft);
+  }
+</style>
