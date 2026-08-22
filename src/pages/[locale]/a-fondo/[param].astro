@@ -16,12 +16,14 @@ import {
   getInvestigacionBySlugAnyStatus,
   getInvestigacionSources,
   getInvestigacionCharts,
+  getInvestigacionFaqs,
   incrementInvestigacionView,
   displayViewCount,
   excerptFrom,
   type InvestigacionRow,
 } from "../../../lib/investigaciones-query";
 import { splitInvestigacionBody, extractSections, stampSectionIds } from "../../../lib/investigacion-layout";
+import { buildChartDatasetJsonLd } from "../../../lib/investigacion-dataset-schema";
 import { localeFromParam } from "../../../lib/locales";
 import { loadTranslations, t } from "../../../lib/i18n";
 import { env } from "cloudflare:workers";
@@ -85,11 +87,13 @@ if (isNumeric) {
 
 let sources: Awaited<ReturnType<typeof getInvestigacionSources>> = [];
 let charts: Awaited<ReturnType<typeof getInvestigacionCharts>> = [];
+let faqs: Awaited<ReturnType<typeof getInvestigacionFaqs>> = [];
 let sourceLinkSlugs = new Map<number, string>();
 if (investigacion && env?.DB) {
-  [sources, charts] = await Promise.all([
+  [sources, charts, faqs] = await Promise.all([
     getInvestigacionSources(env, investigacion.id),
     getInvestigacionCharts(env, investigacion.id),
+    getInvestigacionFaqs(env, investigacion.id),
   ]);
   // Chart title/description/source_note/data_json translations use a "chart:{key}:{field}"
   // field_key (see src/lib/investigacion-translate.ts) -- applied here the same way t() does
@@ -100,6 +104,12 @@ if (investigacion && env?.DB) {
     description: t(tr, investigacion!.id, `chart:${c.chart_key}:description`, c.description),
     source_note: t(tr, investigacion!.id, `chart:${c.chart_key}:source_note`, c.source_note),
     data_json: (t(tr, investigacion!.id, `chart:${c.chart_key}:data_json`, c.data_json) as string) ?? c.data_json,
+  }));
+  // FAQ question/answer translations use a "faq:{id}:{field}" field_key, same convention.
+  faqs = faqs.map((f) => ({
+    ...f,
+    question: (t(tr, investigacion!.id, `faq:${f.id}:question`, f.question) as string) ?? f.question,
+    answer_html: `<p>${(t(tr, investigacion!.id, `faq:${f.id}:answer`, f.answer_html.replace(/^<p>|<\/p>$/g, "")) as string) ?? f.answer_html}</p>`,
   }));
   const shortLinkIds = sources.map((s) => s.short_link_id).filter((id): id is number => id != null);
   if (shortLinkIds.length > 0) {
@@ -127,6 +137,17 @@ const BYLINE: Record<string, string> = {
 };
 const byline = BYLINE[locale.code] ?? "Por Esteban Rey (";
 
+const FAQ_HEADING: Record<string, string> = {
+  en: "Frequently asked questions",
+  "pt-BR": "Perguntas frequentes",
+  fr: "Questions fréquentes",
+  de: "Häufig gestellte Fragen",
+  ar: "الأسئلة الشائعة",
+  "zh-Hans": "常见问题",
+  ja: "よくある質問",
+};
+const faqHeading = FAQ_HEADING[locale.code] ?? "Preguntas frecuentes";
+
 const articleJsonLd = investigacion
   ? {
       "@context": "https://schema.org",
@@ -142,6 +163,28 @@ const articleJsonLd = investigacion
       citation: sources.slice(0, 30).map((s) => ({ "@type": "CreativeWork", name: s.label, url: s.url })),
     }
   : null;
+
+const faqJsonLd =
+  faqs.length > 0
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: faqs.map((f) => ({
+          "@type": "Question",
+          name: f.question,
+          acceptedAnswer: { "@type": "Answer", text: f.answer_html.replace(/<[^>]+>/g, "") },
+        })),
+      }
+    : null;
+
+const datasetJsonLd = investigacion
+  ? buildChartDatasetJsonLd(
+      charts.map((c) => ({ chartKey: c.chart_key, title: c.title, description: c.description, data: JSON.parse(c.data_json) })),
+      `https://kilowatto.com/${locale.code}/a-fondo/${investigacion.slug}`,
+      investigacion.title,
+      locale.code
+    )
+  : [];
 ---
 
 {
@@ -160,6 +203,8 @@ const articleJsonLd = investigacion
       }
     >
       <script type="application/ld+json" set:html={JSON.stringify(articleJsonLd)} />
+      {faqJsonLd && <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
+      {datasetJsonLd.map((d) => <script type="application/ld+json" set:html={JSON.stringify(d)} />)}
 
       {investigacion.cover_r2_key ? (
         <div class="ia-hero">
@@ -264,6 +309,18 @@ const articleJsonLd = investigacion
                       </li>
                     ))}
                   </ol>
+                </section>
+              )}
+
+              {faqs.length > 0 && (
+                <section class="ia-faq">
+                  <h2>{faqHeading}</h2>
+                  {faqs.map((f) => (
+                    <details class="ia-faq__item">
+                      <summary>{f.question}</summary>
+                      <Fragment set:html={f.answer_html} />
+                    </details>
+                  ))}
                 </section>
               )}
 
@@ -468,6 +525,30 @@ const articleJsonLd = investigacion
     color: var(--ember);
     font-weight: 600;
     text-decoration: none;
+  }
+
+  .ia-faq {
+    margin-top: var(--space-4);
+  }
+  .ia-faq h2 {
+    font-family: var(--font-display);
+  }
+  .ia-faq__item {
+    border-bottom: 1px solid var(--line);
+    padding: 0.9rem 0;
+  }
+  .ia-faq__item summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .ia-faq__item[open] summary {
+    color: var(--ember);
+  }
+  .ia-faq__item :global(p) {
+    margin: 0.6rem 0 0;
+    font-size: 0.95rem;
+    color: var(--ink-soft);
   }
 
   .ia-sources {

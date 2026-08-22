@@ -13,12 +13,14 @@ import {
   getInvestigacionBySlugAnyStatus,
   getInvestigacionSources,
   getInvestigacionCharts,
+  getInvestigacionFaqs,
   incrementInvestigacionView,
   displayViewCount,
   excerptFrom,
   type InvestigacionRow,
 } from "../../lib/investigaciones-query";
 import { splitInvestigacionBody, extractSections, stampSectionIds } from "../../lib/investigacion-layout";
+import { buildChartDatasetJsonLd } from "../../lib/investigacion-dataset-schema";
 import { env } from "cloudflare:workers";
 
 const raw = Astro.params.param ?? "";
@@ -64,11 +66,13 @@ if (isNumeric) {
 
 let sources: Awaited<ReturnType<typeof getInvestigacionSources>> = [];
 let charts: Awaited<ReturnType<typeof getInvestigacionCharts>> = [];
+let faqs: Awaited<ReturnType<typeof getInvestigacionFaqs>> = [];
 let sourceLinkSlugs = new Map<number, string>();
 if (investigacion && env?.DB) {
-  [sources, charts] = await Promise.all([
+  [sources, charts, faqs] = await Promise.all([
     getInvestigacionSources(env, investigacion.id),
     getInvestigacionCharts(env, investigacion.id),
+    getInvestigacionFaqs(env, investigacion.id),
   ]);
   const shortLinkIds = sources.map((s) => s.short_link_id).filter((id): id is number => id != null);
   if (shortLinkIds.length > 0) {
@@ -101,9 +105,35 @@ const articleJsonLd = investigacion
       publisher: { "@type": "Organization", name: "Kilowatto" },
       mainEntityOfPage: `https://kilowatto.com/a-fondo/${investigacion.slug}`,
       image: investigacion.cover_r2_key ? `https://kilowatto.com/media/${investigacion.cover_r2_key}` : undefined,
+      inLanguage: "es",
       citation: sources.slice(0, 30).map((s) => ({ "@type": "CreativeWork", name: s.label, url: s.url })),
     }
   : null;
+
+// FAQPage schema, per the 2026-08-21 GEO decision (docs/investigaciones-spec.md) -- kept in
+// sync with the visible FAQ section below rather than schema-only, since answer engines are
+// more likely to trust/cite structured data that matches what a reader actually sees.
+const faqJsonLd =
+  faqs.length > 0
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: faqs.map((f) => ({
+          "@type": "Question",
+          name: f.question,
+          acceptedAnswer: { "@type": "Answer", text: f.answer_html.replace(/<[^>]+>/g, "") },
+        })),
+      }
+    : null;
+
+const datasetJsonLd = investigacion
+  ? buildChartDatasetJsonLd(
+      charts.map((c) => ({ chartKey: c.chart_key, title: c.title, description: c.description, data: JSON.parse(c.data_json) })),
+      `https://kilowatto.com/a-fondo/${investigacion.slug}`,
+      investigacion.title,
+      "es"
+    )
+  : [];
 ---
 
 {
@@ -122,6 +152,8 @@ const articleJsonLd = investigacion
       }
     >
       <script type="application/ld+json" set:html={JSON.stringify(articleJsonLd)} />
+      {faqJsonLd && <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
+      {datasetJsonLd.map((d) => <script type="application/ld+json" set:html={JSON.stringify(d)} />)}
 
       {investigacion.cover_r2_key ? (
         <div class="ia-hero">
@@ -226,6 +258,18 @@ const articleJsonLd = investigacion
                       </li>
                     ))}
                   </ol>
+                </section>
+              )}
+
+              {faqs.length > 0 && (
+                <section class="ia-faq">
+                  <h2>Preguntas frecuentes</h2>
+                  {faqs.map((f) => (
+                    <details class="ia-faq__item">
+                      <summary>{f.question}</summary>
+                      <Fragment set:html={f.answer_html} />
+                    </details>
+                  ))}
                 </section>
               )}
 
@@ -448,6 +492,30 @@ const articleJsonLd = investigacion
     color: var(--ember);
     font-weight: 600;
     text-decoration: none;
+  }
+
+  .ia-faq {
+    margin-top: var(--space-4);
+  }
+  .ia-faq h2 {
+    font-family: var(--font-display);
+  }
+  .ia-faq__item {
+    border-bottom: 1px solid var(--line);
+    padding: 0.9rem 0;
+  }
+  .ia-faq__item summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .ia-faq__item[open] summary {
+    color: var(--ember);
+  }
+  .ia-faq__item :global(p) {
+    margin: 0.6rem 0 0;
+    font-size: 0.95rem;
+    color: var(--ink-soft);
   }
 
   .ia-sources {

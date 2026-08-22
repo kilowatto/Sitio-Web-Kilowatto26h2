@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { runGeneratePosts } from "./generate-posts";
 import { runGenerateBodyImages } from "./generate-body-images";
+import { runGenerateFaqs } from "../../../../lib/investigacion-faq";
 import { ensureInvestigacionImages } from "../../../../lib/investigacion-image";
 import { runReindex } from "../../reindex";
 
@@ -72,6 +73,20 @@ export const POST: APIRoute = async ({ params, request }) => {
     bodyImagesError = err?.message ?? "unknown error generating body images";
   }
 
+  // Best-effort: every published piece gets an AI-generated FAQ set (grounded in its own
+  // body/sources, see src/lib/investigacion-faq.ts) -- powers both a visible on-page FAQ
+  // section and FAQPage JSON-LD for GEO/AI-Overview citability, per the 2026-08-21 decision.
+  // Runs BEFORE translation below so the workflow's per-locale step also translates the FAQs.
+  let faqsGenerated: number | null = null;
+  let faqsError: string | null = null;
+  try {
+    const faqsResult = await runGenerateFaqs(Number(id));
+    if (faqsResult.error) faqsError = faqsResult.error;
+    else faqsGenerated = faqsResult.count ?? 0;
+  } catch (err: any) {
+    faqsError = err?.message ?? "unknown error generating FAQs";
+  }
+
   // Best-effort: a batch of 24-48 scheduled social posts always accompanies a
   // publish per the 2026-08-21 decision, but a generation hiccup must never
   // undo/block the publish itself -- Esteban can always re-trigger this
@@ -122,6 +137,8 @@ export const POST: APIRoute = async ({ params, request }) => {
       imagesError,
       bodyImagesInserted,
       bodyImagesError,
+      faqsGenerated,
+      faqsError,
       postsGenerated,
       postsError,
       reindexed,

@@ -10,6 +10,7 @@ const authorized = !!token;
 
 let pending: any[] = [];
 let published: any[] = [];
+let faqsByInvestigacion = new Map<number, any[]>();
 
 if (authorized && env?.DB) {
   const [pendingRes, publishedRes] = await Promise.all([
@@ -20,6 +21,21 @@ if (authorized && env?.DB) {
   ]);
   pending = pendingRes.results ?? [];
   published = publishedRes.results ?? [];
+
+  if (published.length > 0) {
+    const ids = published.map((r: any) => r.id);
+    const placeholders = ids.map(() => "?").join(",");
+    const faqsRes = await env.DB.prepare(
+      `SELECT investigacion_id, id, question, answer_html FROM investigacion_faqs WHERE investigacion_id IN (${placeholders}) ORDER BY investigacion_id, position`
+    )
+      .bind(...ids)
+      .all<any>();
+    for (const f of faqsRes.results ?? []) {
+      const list = faqsByInvestigacion.get(f.investigacion_id) ?? [];
+      list.push(f);
+      faqsByInvestigacion.set(f.investigacion_id, list);
+    }
+  }
 }
 ---
 
@@ -85,6 +101,34 @@ if (authorized && env?.DB) {
             </li>
           ))}
         </ul>
+
+        <h2>FAQ por pieza</h2>
+        <p class="hint">
+          Editable a mano -- agrega, quita o reescribe preguntas/respuestas y guarda. "Regenerar con IA" descarta
+          los cambios y vuelve a generar desde cero con el cuerpo actual de la pieza. Guardar NO retraduce
+          automáticamente a los demás idiomas -- si necesitas eso, vuelve a correr la traducción de esa pieza.
+        </p>
+        <div class="faq-pieces">
+          {published.map((r: any) => (
+            <details class="faq-piece" data-faq-piece data-id={r.id}>
+              <summary>{r.title} ({(faqsByInvestigacion.get(r.id) ?? []).length} preguntas)</summary>
+              <div class="faq-rows" data-faq-rows>
+                {(faqsByInvestigacion.get(r.id) ?? []).map((f: any) => (
+                  <div class="faq-row" data-faq-row>
+                    <input type="text" class="faq-row__question" placeholder="Pregunta" value={f.question} />
+                    <textarea class="faq-row__answer" rows={2} placeholder="Respuesta" set:text={f.answer_html.replace(/^<p>|<\/p>$/g, "")} />
+                    <button type="button" class="btn btn--remove" data-action="remove-faq-row">✕</button>
+                  </div>
+                ))}
+              </div>
+              <div class="faq-piece__actions">
+                <button type="button" class="btn btn--preview" data-action="add-faq-row">+ Agregar pregunta</button>
+                <button type="button" class="btn btn--approve" data-action="save-faqs">💾 Guardar</button>
+                <button type="button" class="btn btn--reject" data-action="regenerate-faqs">🔁 Regenerar con IA</button>
+              </div>
+            </details>
+          ))}
+        </div>
       </section>
 
       <script define:vars={{ token }}>
@@ -112,16 +156,104 @@ if (authorized && env?.DB) {
                 : imgParts.length
                   ? `\n\nSe generaron: ${imgParts.join(" + ")}.`
                   : "";
+              const faqMsg = data.faqsError
+                ? `\n\nOjo: el FAQ no se generó (${data.faqsError}) -- reintenta llamando a /api/investigaciones/${id}/generate-faqs.`
+                : typeof data.faqsGenerated === "number"
+                  ? `\n\nSe generaron ${data.faqsGenerated} preguntas frecuentes.`
+                  : "";
               if (data.postsError) {
-                alert(`Se publicó, pero el lote de posts no se generó: ${data.postsError}${imgMsg}\n\nPuedes reintentarlo llamando a /api/investigaciones/${id}/generate-posts desde el admin de posting.`);
+                alert(`Se publicó, pero el lote de posts no se generó: ${data.postsError}${imgMsg}${faqMsg}\n\nPuedes reintentarlo llamando a /api/investigaciones/${id}/generate-posts desde el admin de posting.`);
               } else if (typeof data.postsGenerated === "number") {
-                alert(`Publicado. Se generaron ${data.postsGenerated} posts programados, pendientes de tu aprobación en /admin/social.${imgMsg}`);
+                alert(`Publicado. Se generaron ${data.postsGenerated} posts programados, pendientes de tu aprobación en /admin/social.${imgMsg}${faqMsg}`);
               }
               location.reload();
             } catch {
               alert("Se perdió la conexión al aprobar. Intenta de nuevo.");
               btn.disabled = false;
               btn.textContent = "✅ Aprobar y publicar";
+            }
+          });
+        });
+
+        function makeFaqRow(question, answer) {
+          const row = document.createElement("div");
+          row.className = "faq-row";
+          row.dataset.faqRow = "";
+          row.innerHTML = `
+            <input type="text" class="faq-row__question" placeholder="Pregunta" value="${(question ?? "").replace(/"/g, "&quot;")}" />
+            <textarea class="faq-row__answer" rows="2" placeholder="Respuesta">${answer ?? ""}</textarea>
+            <button type="button" class="btn btn--remove" data-action="remove-faq-row">✕</button>
+          `;
+          return row;
+        }
+
+        document.querySelectorAll("[data-faq-piece]").forEach((piece) => {
+          const id = piece.dataset.id;
+          const rowsEl = piece.querySelector("[data-faq-rows]");
+
+          piece.addEventListener("click", async (e) => {
+            const btn = e.target.closest("button[data-action]");
+            if (!btn) return;
+            const action = btn.dataset.action;
+
+            if (action === "remove-faq-row") {
+              btn.closest("[data-faq-row]").remove();
+              return;
+            }
+
+            if (action === "add-faq-row") {
+              rowsEl.appendChild(makeFaqRow("", ""));
+              return;
+            }
+
+            if (action === "save-faqs") {
+              const faqs = Array.from(rowsEl.querySelectorAll("[data-faq-row]"))
+                .map((row) => ({
+                  question: row.querySelector(".faq-row__question").value.trim(),
+                  answer: row.querySelector(".faq-row__answer").value.trim(),
+                }))
+                .filter((f) => f.question && f.answer);
+              btn.disabled = true;
+              btn.textContent = "Guardando…";
+              try {
+                await fetch(`/api/investigaciones/${id}/faqs?token=${encodeURIComponent(token)}`, {
+                  method: "PUT",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ faqs }),
+                });
+                btn.textContent = "✅ Guardado";
+                setTimeout(() => {
+                  btn.disabled = false;
+                  btn.textContent = "💾 Guardar";
+                }, 1500);
+              } catch {
+                alert("Se perdió la conexión al guardar. Intenta de nuevo.");
+                btn.disabled = false;
+                btn.textContent = "💾 Guardar";
+              }
+            }
+
+            if (action === "regenerate-faqs") {
+              if (!confirm("Esto descarta las preguntas actuales de esta pieza y genera un set nuevo con IA. ¿Continuar?")) return;
+              btn.disabled = true;
+              btn.textContent = "Regenerando…";
+              try {
+                const res = await fetch(`/api/investigaciones/${id}/generate-faqs?token=${encodeURIComponent(token)}`, {
+                  method: "POST",
+                });
+                const data = await res.json().catch(() => ({}));
+                if (data.error) {
+                  alert(`No se pudo regenerar: ${data.error}`);
+                  btn.disabled = false;
+                  btn.textContent = "🔁 Regenerar con IA";
+                } else {
+                  location.reload();
+                }
+              } catch {
+                alert("Se perdió la conexión al regenerar. Intenta de nuevo.");
+                btn.disabled = false;
+                btn.textContent = "🔁 Regenerar con IA";
+              }
             }
           });
         });
@@ -167,6 +299,15 @@ if (authorized && env?.DB) {
         .draft__actions { display: flex; gap: 0.6rem; }
         .flag { background: #fff3cd; color: #664d03; padding: 0.4rem 0.6rem; border-radius: 0.4rem; font-size: 0.85rem; }
         .recent { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+        .faq-pieces { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; }
+        .faq-piece { border: 1px solid var(--line, #ddd); border-radius: 0.6rem; padding: 0.8rem 1rem; }
+        .faq-piece summary { cursor: pointer; font-weight: 600; }
+        .faq-rows { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.8rem; }
+        .faq-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.4rem 0.6rem; align-items: start; }
+        .faq-row__question { grid-column: 1; padding: 0.45rem; border: 1px solid var(--line, #ddd); border-radius: 0.4rem; font-weight: 600; }
+        .faq-row__answer { grid-column: 1; padding: 0.45rem; border: 1px solid var(--line, #ddd); border-radius: 0.4rem; font-size: 0.9rem; resize: vertical; }
+        .faq-row .btn--remove { grid-row: 1 / span 2; background: transparent; color: #b83b09; border: 1px solid var(--line, #ddd); }
+        .faq-piece__actions { display: flex; gap: 0.6rem; margin-top: 0.8rem; flex-wrap: wrap; }
       </style>
     </AdminLayout>
   )

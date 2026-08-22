@@ -282,6 +282,36 @@ export async function translateInvestigacionCharts(
   return result;
 }
 
+export interface FaqTranslatable {
+  id: number;
+  question: string;
+  answer: string;
+}
+
+// One AI call (batched/concurrent like the other two) per locale for ALL of a piece's FAQs
+// combined, mirroring translateInvestigacionCharts -- keeps per-locale AI-call count low.
+export async function translateInvestigacionFaqs(
+  env: any,
+  locale: string,
+  faqs: FaqTranslatable[]
+): Promise<Record<number, { question: string; answer: string }>> {
+  if (faqs.length === 0) return {};
+
+  const sections = faqs.flatMap((f) => [f.question, f.answer]);
+  const voice = VOICE_INSTRUCTIONS[locale] ?? `Translate to ${locale}.`;
+  const contextPrompt = `${voice}\n\nTraduce cada sección de este texto -- son preguntas y respuestas de un FAQ dentro de una investigación de A Fondo con Kilowatto. El texto está dividido en secciones marcadas con líneas "${SECTION_MARKER}<número>". Devuelve EXACTAMENTE el mismo número de secciones, en el mismo orden, con las mismas líneas marcadoras intactas. NUNCA traduzcas nombres propios de personas, empresas, instituciones, países o productos -- déjalos exactamente igual. No agregues texto adicional ni markdown -- SOLO las secciones marcadas:`;
+
+  const translated = await translateSectionsBatched(env, locale, sections, contextPrompt);
+
+  const result: Record<number, { question: string; answer: string }> = {};
+  for (let i = 0; i < faqs.length; i++) {
+    const question = translated[i * 2] || faqs[i].question;
+    const answer = translated[i * 2 + 1] || faqs[i].answer;
+    result[faqs[i].id] = { question, answer };
+  }
+  return result;
+}
+
 export async function upsertInvestigacionTranslation(env: any, investigacionId: number, locale: string, fieldKey: string, value: string) {
   if (!value) return;
   await env.DB.prepare(
@@ -302,9 +332,9 @@ export async function translateInvestigacion(
   env: any,
   locale: string,
   investigacionId: number
-): Promise<{ ok: boolean; chartsTranslated: number }> {
+): Promise<{ ok: boolean; chartsTranslated: number; faqsTranslated: number }> {
   const row = await env.DB.prepare("SELECT * FROM investigaciones WHERE id = ?").bind(investigacionId).first<any>();
-  if (!row) return { ok: false, chartsTranslated: 0 };
+  if (!row) return { ok: false, chartsTranslated: 0, faqsTranslated: 0 };
 
   const fields = await translateInvestigacionFields(env, locale, row);
   if (Object.keys(fields).length > 0) {
@@ -336,5 +366,24 @@ export async function translateInvestigacion(
     chartsTranslated++;
   }
 
-  return { ok: Object.keys(fields).length > 0, chartsTranslated };
+  const faqsRes = await env.DB.prepare(
+    "SELECT id, question, answer_html FROM investigacion_faqs WHERE investigacion_id = ? ORDER BY position"
+  )
+    .bind(investigacionId)
+    .all<any>();
+  const faqs: FaqTranslatable[] = (faqsRes.results ?? []).map((f: any) => ({
+    id: f.id,
+    question: f.question,
+    answer: f.answer_html.replace(/^<p>|<\/p>$/g, ""),
+  }));
+
+  const translatedFaqs = await translateInvestigacionFaqs(env, locale, faqs);
+  let faqsTranslated = 0;
+  for (const [faqId, t] of Object.entries(translatedFaqs)) {
+    await upsertInvestigacionTranslation(env, investigacionId, locale, `faq:${faqId}:question`, t.question);
+    await upsertInvestigacionTranslation(env, investigacionId, locale, `faq:${faqId}:answer`, t.answer);
+    faqsTranslated++;
+  }
+
+  return { ok: Object.keys(fields).length > 0, chartsTranslated, faqsTranslated };
 }

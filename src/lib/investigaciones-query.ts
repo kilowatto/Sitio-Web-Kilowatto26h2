@@ -103,6 +103,23 @@ export async function getInvestigacionCharts(env: any, investigacionId: number):
   return res?.results ?? [];
 }
 
+export interface InvestigacionFaqRow {
+  id: number;
+  investigacion_id: number;
+  position: number;
+  question: string;
+  answer_html: string;
+}
+
+export async function getInvestigacionFaqs(env: any, investigacionId: number): Promise<InvestigacionFaqRow[]> {
+  const res = await env.DB.prepare(
+    "SELECT * FROM investigacion_faqs WHERE investigacion_id = ? ORDER BY position"
+  )
+    .bind(investigacionId)
+    .all<InvestigacionFaqRow>();
+  return res?.results ?? [];
+}
+
 // Same excerpt-at-read-time approach as columns' excerptFrom().
 export function excerptFrom(bodyHtml: string, maxLen = 200): string {
   const text = bodyHtml
