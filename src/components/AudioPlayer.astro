@@ -15,9 +15,16 @@ interface Props {
   durationSeconds?: number | null;
   vttKey?: string | null;
   label?: string;
+  transcriptUrl?: string | null;
 }
 
-const { audioKey, durationSeconds = null, vttKey = null, label = "Escucha esta columna" } = Astro.props;
+const {
+  audioKey,
+  durationSeconds = null,
+  vttKey = null,
+  label = "Escucha esta columna",
+  transcriptUrl = null,
+} = Astro.props;
 
 // Served through /media/video/[...key] -- the one route in the repo that answers Range
 // requests with 206, which is what makes seeking work at all. Plain /media/[...key] buffers
@@ -46,6 +53,12 @@ function fmtDuration(seconds: number): string {
 
   <p class="kw-audio__note">
     Narrado con la voz sintética de Larry. El texto es de Esteban; la voz no es humana.
+    {transcriptUrl ? (
+      <>
+        {" "}
+        <a href={transcriptUrl}>Leer la transcripción</a>.
+      </>
+    ) : null}
   </p>
 </figure>
 

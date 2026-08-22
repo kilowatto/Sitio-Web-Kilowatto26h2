@@ -12,7 +12,7 @@ import CommentSection from "../../components/CommentSection.astro";
 import AudioPlayer from "../../components/AudioPlayer.astro";
 import { getColumnsPage, getColumnBySlug, incrementColumnView, displayViewCount, excerptFrom, type ColumnRow } from "../../lib/columns-query";
 import { renderColumnBody } from "../../lib/column-layout";
-import { getAudioAsset } from "../../lib/media-query";
+import { getAudioAsset, audioObjectJsonLd } from "../../lib/media-query";
 import { env } from "cloudflare:workers";
 
 const raw = Astro.params.param ?? "";
@@ -52,6 +52,14 @@ if (isNumeric) {
   }
 }
 
+const audio = column ? await getAudioAsset("columna", column.id, "es-MX") : null;
+const audioLd = column && audio ? audioObjectJsonLd(audio, {
+  name: column.title,
+  description: column.subtitle,
+  datePublished: column.published_at,
+  transcriptUrl: `https://kilowatto.com/columnas/${column.slug}/transcripcion.txt`,
+}) : null;
+
 const articleJsonLd = column
   ? {
       "@context": "https://schema.org",
@@ -62,6 +70,8 @@ const articleJsonLd = column
       author: { "@type": "Person", name: "Esteban Rey", alternateName: "Kilowatto", url: "https://kilowatto.com" },
       publisher: { "@type": "Organization", name: "Kilowatto" },
       mainEntityOfPage: `https://kilowatto.com/columnas/${column.slug}`,
+      // Marks the narration as a spoken version of THIS article rather than an unrelated file.
+      ...(audioLd ? { audio: audioLd } : {}),
     }
   : null;
 
@@ -72,9 +82,6 @@ const bodyWithImages = column
     })
   : "";
 
-// Narration, when it exists. getAudioAsset only returns rows that are actually playable, so
-// there's no "loading" or broken-player state to handle here.
-const audio = column ? await getAudioAsset("columna", column.id, "es-MX") : null;
 ---
 
 {
@@ -134,6 +141,7 @@ const audio = column ? await getAudioAsset("columna", column.id, "es-MX") : null
               durationSeconds={audio.duration_s}
               vttKey={audio.transcript_vtt_key}
               label="Escucha esta columna"
+              transcriptUrl={`/columnas/${column.slug}/transcripcion.txt`}
             />
           )}
           <div class="column-article" set:html={bodyWithImages} />

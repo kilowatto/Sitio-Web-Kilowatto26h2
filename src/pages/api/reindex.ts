@@ -86,6 +86,43 @@ async function buildChunks(): Promise<Chunk[]> {
     });
   }
 
+  // Larry has to KNOW a narrated version exists, or he'll tell a reader there isn't one. One
+  // chunk per narrated piece, phrased so a question like "¿lo puedo escuchar?" or "¿tienes
+  // audio?" retrieves it, and carrying the real URL so he can hand it over instead of
+  // describing it vaguely.
+  const { results: audioAssets } = await env.DB.prepare(
+    `SELECT ma.entity_type, ma.entity_id, ma.locale, ma.r2_key, ma.duration_s,
+            COALESCE(c.title, i.title) AS title,
+            COALESCE(c.slug, i.slug) AS slug
+       FROM media_assets ma
+       LEFT JOIN columns c        ON ma.entity_type = 'columna'       AND c.id = ma.entity_id
+       LEFT JOIN investigaciones i ON ma.entity_type = 'investigacion' AND i.id = ma.entity_id
+      WHERE ma.kind = 'audio_narration' AND ma.status = 'ready' AND ma.r2_key IS NOT NULL`
+  ).all<any>();
+
+  for (const a of audioAssets ?? []) {
+    if (!a.title || !a.slug) continue;
+    const minutes = a.duration_s ? Math.round(a.duration_s / 60) : null;
+    const kind = a.entity_type === "columna" ? "columna" : "investigación";
+    const pageUrl = a.entity_type === "columna"
+      ? `https://kilowatto.com/columnas/${a.slug}`
+      : `https://kilowatto.com/a-fondo/${a.slug}`;
+    chunks.push({
+      id: `audio:${a.entity_type}:${a.entity_id}:${a.locale}`,
+      text:
+        `La ${kind} "${a.title}" tiene versión en AUDIO narrada, se puede escuchar, ` +
+        `tiene podcast, tiene narración hablada${minutes ? ` de aproximadamente ${minutes} minutos` : ""}. ` +
+        `El reproductor está arriba del texto en ${pageUrl}. ` +
+        `La narración usa la voz sintética de Larry, no es una grabación humana.`,
+      metadata: {
+        entity_type: "audio",
+        entity_id: a.entity_id,
+        slug: a.slug,
+        section: "Versión en audio",
+      },
+    });
+  }
+
   // Same per-H2-section chunking as columns, plus the executive summary as its own chunk --
   // an investigación is long enough (often 6000-9000+ words) that a reader question is much
   // more likely to land on one specific section than the piece as a whole.
