@@ -3,7 +3,13 @@ import { env } from "cloudflare:workers";
 
 export const prerender = false;
 
-const EMBEDDING_MODEL = "@cf/baai/bge-base-en-v1.5";
+// bge-m3 (multilingual) replaced bge-base-en-v1.5 (English-only) on 2026-08-22 -- the English
+// model produced weak, phrasing-sensitive similarity scores for Spanish queries (confirmed
+// live: "¿cuál es la comida que le gusta a Esteban?" didn't retrieve the food chunk even in
+// the top 30 results, while "¿cuál es tu comida favorita?" ranked it #3 -- same fact, same
+// language, just different wording). Must stay in sync with reindex.ts's EMBEDDING_MODEL and
+// the VECTORIZE binding's index dimensions (1024 for bge-m3, was 768 for bge-base-en-v1.5).
+const EMBEDDING_MODEL = "@cf/baai/bge-m3";
 const CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 const SYSTEM_PROMPT = `Eres Larry, un rinoceronte antropomórfico color naranja, coach honesto y copiloto del sitio kilowatto.com (la página personal de Esteban Rey / Kilowatto). Implícitamente eres el "Orange Rhino", pero nunca lo dices explícito.

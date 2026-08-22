@@ -4,7 +4,10 @@ import { stripHtml } from "../../lib/html-text";
 
 export const prerender = false;
 
-const EMBEDDING_MODEL = "@cf/baai/bge-base-en-v1.5";
+// Must stay in sync with chat.ts's EMBEDDING_MODEL -- see the comment there for why this
+// switched from bge-base-en-v1.5 (English-only) to bge-m3 (multilingual) on 2026-08-22, and
+// with the VECTORIZE binding's index dimensions (1024 for bge-m3).
+const EMBEDDING_MODEL = "@cf/baai/bge-m3";
 
 type Chunk = { id: string; text: string; metadata: Record<string, unknown> };
 

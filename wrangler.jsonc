@@ -36,7 +36,7 @@
   "vectorize": [
     {
       "binding": "VECTORIZE",
-      "index_name": "kilowatto-embeddings"
+      "index_name": "kilowatto-embeddings-m3"
     },
     {
       "binding": "BRAND_FEEDBACK",
