@@ -40,12 +40,25 @@ export const KNOWN_WORD_COUNTS: Record<string, number> = {
   "Las Pruebas de Apolo 1: El Oráculo Oculto": 83167,
   "Las Pruebas de Apolo 4: La Tumba del Tirano": 99922,
   "Las Pruebas de Apolo 5: La Torre de Nerón": 94303,
+
+  // Dune — real counts (wordcounters.com / TeachingBooks, checked 2026-08-22)
+  "Dune": 181493,
+  "El Mesías de Dune": 71000, // estimado: fuentes en desacuerdo (60k-82k según cuál), se promedia
+  "Hijos de Dune": 146792,
+
+  // Stephen King, La Torre Oscura — real count (novelwordcount.wordpress.com, revised 2003 ed.)
+  "El Pistolero": 64000,
+
+  // Sin conteo real publicado encontrado — estimado por conteo de páginas de la edición física
+  // (752 páginas × ~375 palabras/página, densidad típica de novela histórica en tapa dura).
+  "Roma soy yo: La verdadera historia de Julio César": 282000,
 };
 
 // Genre-based fallback averages (words) for books with no individual figure available —
 // deliberately conservative, labeled as estimates everywhere they're surfaced.
 const GENRE_AVERAGES: { match: RegExp; words: number }[] = [
   { match: /mitología|fantasía juvenil/i, words: 95000 },
+  { match: /ciencia ficción/i, words: 95000 },
   { match: /clásico infantil/i, words: 45000 },
   { match: /negocios|management|finanzas|emprendimiento|desarrollo profesional|cultura organizacional/i, words: 60000 },
   { match: /memoria|autobiografía|crónica|investigación periodística/i, words: 80000 },
