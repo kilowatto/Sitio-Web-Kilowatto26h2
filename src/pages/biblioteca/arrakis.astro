@@ -69,19 +69,13 @@ const factions = [
         class="ar-hero__img"
         loading="eager"
       />
-      <video
-        class="ar-hero__video"
-        id="ar-hero-video"
-        autoplay
-        muted
-        loop
-        playsinline
-        preload="auto"
-        poster="/media/biblioteca/dune-hero-video-poster.webp?w=1200"
+      <img
+        class="ar-hero__anim"
+        id="ar-hero-anim"
+        data-src="/media/biblioteca/dune-hero-loop-large.webp"
+        alt=""
         aria-hidden="true"
-      >
-        <source src="/media/biblioteca/dune-hero-loop.mp4" type="video/mp4" />
-      </video>
+      />
       <div class="ar-hero__scrim"></div>
       <div class="ar-hero__text container">
         <p class="ar-eyebrow">Biblioteca · Ciencia ficción</p>
@@ -249,7 +243,7 @@ const factions = [
     overflow: hidden;
   }
   .ar-hero__img,
-  .ar-hero__video {
+  .ar-hero__anim {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -257,15 +251,12 @@ const factions = [
     object-fit: cover;
     filter: brightness(0.7) saturate(0.9);
   }
-  .ar-hero__video {
-    /* Sits on top of the poster image, which stays underneath as the fallback for
-       reduced-motion visitors and the instant paint before the video can play. */
-    display: block;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .ar-hero__video {
-      display: none;
-    }
+  /* An animated WebP, not <video> -- some in-app browsers/link-preview webviews refuse to
+     autoplay <video> and show a tap-to-play button instead, but an animated image always
+     plays with zero interaction. Its src is only set by script when motion isn't reduced
+     (see below), so this rule keeps the element invisible/un-fetched until then. */
+  .ar-hero__anim:not([src]) {
+    display: none;
   }
   .ar-hero__scrim {
     position: absolute;
@@ -403,15 +394,12 @@ const factions = [
   const page = document.getElementById("ar-page");
   const glow = document.getElementById("ar-glow");
   const flashLayer = document.getElementById("ar-flash-layer");
-  const heroVideo = document.getElementById("ar-hero-video") as HTMLVideoElement | null;
+  const heroAnim = document.getElementById("ar-hero-anim") as HTMLImageElement | null;
 
-  // CSS already hides the video for reduced-motion visitors; also stop it from decoding/
-  // downloading in the background so it doesn't cost bandwidth or battery for nothing.
-  if (heroVideo && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    heroVideo.pause();
-    heroVideo.removeAttribute("src");
-    heroVideo.querySelectorAll("source").forEach((s) => s.remove());
-    heroVideo.load();
+  // Only fetch the animated WebP for visitors who haven't asked for reduced motion --
+  // without a "src" attribute at all, the <img> never triggers a network request.
+  if (heroAnim && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    heroAnim.src = heroAnim.dataset.src ?? "";
   }
 
   if (page && glow && window.matchMedia("(pointer: fine)").matches) {

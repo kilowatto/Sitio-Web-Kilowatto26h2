@@ -147,18 +147,13 @@ const rhinoWordsJson = JSON.stringify(
       alt=""
       class="lib-portal__img"
     />
-    <video
-      class="lib-portal__img lib-portal__video"
-      autoplay
-      muted
-      loop
-      playsinline
-      preload="auto"
-      poster="/media/biblioteca/dune-box-set.webp?w=700"
+    <img
+      class="lib-portal__img lib-portal__anim"
+      id="lib-arrakis-anim"
+      data-src="/media/biblioteca/dune-hero-loop-card.webp"
+      alt=""
       aria-hidden="true"
-    >
-      <source src="/media/biblioteca/dune-hero-loop.mp4" type="video/mp4" />
-    </video>
+    />
     <div class="lib-portal__scrim"></div>
     <div class="lib-portal__text">
       <h3>Entra al Universo de Arrakis</h3>
@@ -417,15 +412,17 @@ const rhinoWordsJson = JSON.stringify(
   .lib-portal:hover .lib-portal__img {
     transform: scale(1.06);
   }
-  /* The Arrakis card's video sits on top of the box-set photo, which stays underneath as the
-     poster/fallback for reduced-motion visitors and the instant paint before it can play. */
-  .lib-portal__video {
+  /* The Arrakis card's animation sits on top of the box-set photo, which stays underneath as
+     the poster/fallback for reduced-motion visitors and the instant paint before it loads. An
+     animated WebP, not <video> -- some in-app browsers/link-preview webviews refuse to
+     autoplay <video> and show a tap-to-play button instead, but an animated image always
+     plays with zero interaction. Its src is only set by script when motion isn't reduced
+     (see below), so this rule keeps it invisible/un-fetched until then. */
+  .lib-portal__anim {
     z-index: 1;
   }
-  @media (prefers-reduced-motion: reduce) {
-    .lib-portal__video {
-      display: none;
-    }
+  .lib-portal__anim:not([src]) {
+    display: none;
   }
   .lib-portal__scrim {
     position: absolute;
@@ -504,14 +501,11 @@ const rhinoWordsJson = JSON.stringify(
   // `__VITE_PRELOAD__` reference in the shipped bundle (a ReferenceError at runtime, silently
   // swallowed by the try/catch below). Loading the UMD builds as classic scripts sidesteps
   // Vite's import transform entirely.
-  // CSS already hides the Arrakis portal video for reduced-motion visitors; also stop it from
-  // decoding/downloading in the background so it doesn't cost bandwidth or battery for nothing.
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    document.querySelectorAll(".lib-portal__video").forEach((video) => {
-      video.pause();
-      video.removeAttribute("src");
-      video.querySelectorAll("source").forEach((s) => s.remove());
-      video.load();
+  // Only fetch the Arrakis portal's animated WebP for visitors who haven't asked for reduced
+  // motion -- without a "src" attribute at all, the <img> never triggers a network request.
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    document.querySelectorAll(".lib-portal__anim").forEach((img) => {
+      img.src = img.dataset.src;
     });
   }
 
