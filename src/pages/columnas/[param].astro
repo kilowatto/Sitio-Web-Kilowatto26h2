@@ -142,6 +142,10 @@ const bodyWithImages = column
               vttKey={audio.transcript_vtt_key}
               label="Escucha esta columna"
               transcriptUrl={`/columnas/${column.slug}/transcripcion.txt`}
+              cueMap={audio.cue_map_json}
+              entityType="columna"
+              entityId={column.id}
+              bodySelector=".column-article"
             />
           )}
           <div class="column-article" set:html={bodyWithImages} />

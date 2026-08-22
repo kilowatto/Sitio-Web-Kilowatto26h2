@@ -4,16 +4,49 @@
 // Mobile: a horizontal scrollable chip bar stuck under the top of the
 // viewport. Both also show reading progress. Design decided interactively
 // with Esteban 2026-08-20 -- see docs/investigaciones-spec.md.
+import AudioPlayer from "./AudioPlayer.astro";
+
 interface Props {
   sections: { id: string; title: string }[];
   readMinutes: number;
+  /** Narration, when the piece has one. Lives here rather than in the article column so it
+      sits above the reading-progress bar on desktop and at the very top on mobile. */
+  audioKey?: string | null;
+  audioDurationS?: number | null;
+  audioVttKey?: string | null;
+  transcriptUrl?: string | null;
+  audioCueMap?: string | null;
+  entityId?: number | null;
 }
-const { sections, readMinutes } = Astro.props;
+const {
+  sections,
+  readMinutes,
+  audioKey = null,
+  audioDurationS = null,
+  audioVttKey = null,
+  transcriptUrl = null,
+  audioCueMap = null,
+  entityId = null,
+} = Astro.props;
 ---
 
 {sections.length > 0 && (
   <>
     <nav class="toc toc--desktop" aria-label="Índice de la investigación" data-investigacion-toc data-read-minutes={readMinutes}>
+      {audioKey && (
+        <AudioPlayer
+          audioKey={audioKey}
+          durationSeconds={audioDurationS}
+          vttKey={audioVttKey}
+          transcriptUrl={transcriptUrl}
+          label="Escucha esta investigación"
+          compact
+          cueMap={audioCueMap}
+          entityType="investigacion"
+          entityId={entityId}
+          bodySelector=".ia-article"
+        />
+      )}
       <p class="toc__progress-label" data-toc-progress-label>0%</p>
       <div class="toc__progress-rail"><div class="toc__progress-fill" data-toc-progress-fill></div></div>
       <ol class="toc__list">
@@ -26,6 +59,22 @@ const { sections, readMinutes } = Astro.props;
     </nav>
 
     <nav class="toc toc--mobile" aria-label="Índice de la investigación" data-investigacion-toc-mobile>
+      {audioKey && (
+        <div class="toc__audio-mobile">
+          <AudioPlayer
+            audioKey={audioKey}
+            durationSeconds={audioDurationS}
+            vttKey={audioVttKey}
+            transcriptUrl={transcriptUrl}
+            label="Escucha esta investigación"
+            compact
+            cueMap={audioCueMap}
+            entityType="investigacion"
+            entityId={entityId}
+            bodySelector=".ia-article"
+          />
+        </div>
+      )}
       <div class="toc__chips">
         {sections.map((s) => (
           <a href={`#${s.id}`} class="toc__chip" data-toc-link-mobile={s.id}>{s.title}</a>
@@ -37,6 +86,7 @@ const { sections, readMinutes } = Astro.props;
 )}
 
 <style>
+  .toc__audio-mobile { padding: var(--space-1) var(--space-2) 0; }
   .toc--desktop {
     display: none;
   }

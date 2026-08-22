@@ -16,6 +16,16 @@ interface Props {
   vttKey?: string | null;
   label?: string;
   transcriptUrl?: string | null;
+  /** Narrow variant for the investigación TOC rail, where the column is ~250px. */
+  compact?: boolean;
+  /** Enables paragraph highlighting + follow-scroll. [{p,start,end}] over the body's <p>s. */
+  cueMap?: string | null;
+  /** Identifies the piece for listening telemetry. */
+  entityType?: string | null;
+  entityId?: number | null;
+  locale?: string;
+  /** CSS selector for the article body whose <p> elements the cue map indexes. */
+  bodySelector?: string;
 }
 
 const {
@@ -24,6 +34,12 @@ const {
   vttKey = null,
   label = "Escucha esta columna",
   transcriptUrl = null,
+  compact = false,
+  cueMap = null,
+  entityType = null,
+  entityId = null,
+  locale = "es-MX",
+  bodySelector = ".column-article, .ia-article",
 } = Astro.props;
 
 // Served through /media/video/[...key] -- the one route in the repo that answers Range
@@ -39,7 +55,14 @@ function fmtDuration(seconds: number): string {
 }
 ---
 
-<figure class="kw-audio">
+<figure
+  class={`kw-audio${compact ? " kw-audio--compact" : ""}`}
+  data-kw-audio
+  data-entity-type={entityType ?? undefined}
+  data-entity-id={entityId ?? undefined}
+  data-locale={locale}
+  data-body-selector={bodySelector}
+>
   <figcaption class="kw-audio__head">
     <span class="kw-audio__label">{label}</span>
     {durationSeconds ? <span class="kw-audio__dur">{fmtDuration(durationSeconds)}</span> : null}
@@ -51,6 +74,10 @@ function fmtDuration(seconds: number): string {
     <a href={src} download>Descarga el archivo</a>.
   </audio>
 
+  {cueMap ? (
+    <script type="application/json" data-kw-cues set:html={cueMap.replace(/</g, "\\u003c")} />
+  ) : null}
+
   <p class="kw-audio__note">
     Narrado con la voz sintética de Larry. El texto es de Esteban; la voz no es humana.
     {transcriptUrl ? (
@@ -61,6 +88,110 @@ function fmtDuration(seconds: number): string {
     ) : null}
   </p>
 </figure>
+
+<script>
+  // Paragraph sync + follow-scroll + listening telemetry.
+  //
+  // Highlighting is per PARAGRAPH, not per word: the narration follows an adapted script, so
+  // word-level highlighting would drift onto the wrong word inside a paragraph. See
+  // src/lib/cue-map.ts.
+  function initKwAudio(root: HTMLElement) {
+    if (root.dataset.kwInit === "1") return;
+    root.dataset.kwInit = "1";
+
+    const audio = root.querySelector<HTMLAudioElement>(".kw-audio__el");
+    if (!audio) return;
+
+    const entityType = root.dataset.entityType ?? null;
+    const entityId = Number(root.dataset.entityId ?? "0");
+    const locale = root.dataset.locale ?? "es-MX";
+
+    // ---- telemetry ----
+    const sent = new Set<number>();
+    function send(event: string) {
+      if (!entityType || !entityId) return;
+      const payload = JSON.stringify({
+        entityType, entityId, locale, event,
+        position: Math.round(audio!.currentTime),
+        duration: Math.round(audio!.duration || 0),
+        pathname: location.pathname,
+      });
+      // sendBeacon survives page unload, which is exactly when "pause" and the final progress
+      // event fire. fetch() would be cancelled.
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon("/api/audio-event", new Blob([payload], { type: "application/json" }));
+        } else {
+          fetch("/api/audio-event", { method: "POST", body: payload, keepalive: true });
+        }
+      } catch {}
+    }
+
+    audio.addEventListener("play", () => send("play"));
+    audio.addEventListener("pause", () => { if (!audio.ended) send("pause"); });
+    audio.addEventListener("ended", () => send("ended"));
+    audio.addEventListener("ratechange", () => send("ratechange"));
+    // A "seeked" right after a pure play/pause isn't a real seek; only report a jump.
+    let lastTime = 0;
+    audio.addEventListener("timeupdate", () => { lastTime = audio.currentTime; });
+    audio.addEventListener("seeked", () => {
+      if (Math.abs(audio.currentTime - lastTime) > 2) send("seek");
+    });
+
+    // ---- paragraph sync ----
+    const cueEl = root.querySelector<HTMLScriptElement>("[data-kw-cues]");
+    let cues: { p: number; start: number; end: number }[] = [];
+    try { cues = JSON.parse(cueEl?.textContent || "[]"); } catch { cues = []; }
+
+    const body = document.querySelector<HTMLElement>(root.dataset.bodySelector || ".column-article");
+    const paras = body ? Array.from(body.querySelectorAll<HTMLElement>("p")) : [];
+
+    // Follow-scroll is opt-in per session and yields to the reader: once they scroll
+    // themselves, stop yanking the page around until playback is restarted.
+    let follow = true;
+    let activeIdx = -1;
+    let programmaticScroll = false;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    window.addEventListener("scroll", () => { if (!programmaticScroll) follow = false; }, { passive: true });
+    audio.addEventListener("play", () => { follow = true; });
+
+    audio.addEventListener("timeupdate", () => {
+      // progress milestones, once each
+      const d = audio.duration || 0;
+      if (d > 0) {
+        const pct = Math.floor((audio.currentTime / d) * 100);
+        for (const m of [25, 50, 75]) {
+          if (pct >= m && !sent.has(m)) { sent.add(m); send("progress"); }
+        }
+      }
+
+      if (cues.length === 0 || paras.length === 0) return;
+      const t = audio.currentTime;
+      const cue = cues.find((c) => t >= c.start && t <= c.end);
+      const idx = cue ? cue.p : -1;
+      if (idx === activeIdx) return;
+
+      if (activeIdx >= 0 && paras[activeIdx]) paras[activeIdx].classList.remove("kw-audio-active");
+      activeIdx = idx;
+      if (idx < 0 || !paras[idx]) return;
+      paras[idx].classList.add("kw-audio-active");
+
+      if (follow) {
+        const rect = paras[idx].getBoundingClientRect();
+        // Only scroll when the paragraph is actually out of a comfortable reading band --
+        // otherwise the page twitches on every cue change.
+        if (rect.top < 80 || rect.bottom > window.innerHeight - 80) {
+          programmaticScroll = true;
+          paras[idx].scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+          setTimeout(() => { programmaticScroll = false; }, 800);
+        }
+      }
+    });
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-kw-audio]").forEach(initKwAudio);
+</script>
 
 <style>
   .kw-audio {
@@ -102,4 +233,34 @@ function fmtDuration(seconds: number): string {
     line-height: 1.4;
     color: var(--ink-soft);
   }
+
+  /* The highlighted paragraph is in the article body, not inside this component, so the rule
+     has to be global -- a scoped selector gets a [data-astro-cid-*] attribute the article's
+     <p> elements don't carry, and would silently match nothing. */
+  :global(p.kw-audio-active) {
+    background: color-mix(in srgb, var(--volt) 22%, transparent);
+    box-shadow: -0.6rem 0 0 color-mix(in srgb, var(--volt) 22%, transparent),
+      0.6rem 0 0 color-mix(in srgb, var(--volt) 22%, transparent);
+    border-radius: 2px;
+    transition: background 0.25s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :global(p.kw-audio-active) { transition: none; }
+  }
+
+  /* Sidebar rail variant: no card chrome competing with the TOC, and the disclosure
+     shrinks to a single line so it doesn't push the section list down the page. */
+  .kw-audio--compact {
+    max-width: none;
+    margin-bottom: var(--space-2);
+    padding: 0 0 var(--space-2);
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+  }
+  .kw-audio--compact .kw-audio__head { margin-bottom: 0.45rem; }
+  .kw-audio--compact .kw-audio__label { font-size: 0.62rem; }
+  .kw-audio--compact .kw-audio__el { height: 2.2rem; }
+  .kw-audio--compact .kw-audio__note { font-size: 0.62rem; margin-top: 0.4rem; }
 </style>

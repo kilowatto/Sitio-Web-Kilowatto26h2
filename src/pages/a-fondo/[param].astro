@@ -4,6 +4,7 @@
 import Site from "../../layouts/Site.astro";
 import InvestigacionList from "../../components/InvestigacionList.astro";
 import InvestigacionToc from "../../components/InvestigacionToc.astro";
+import { getAudioAsset, audioObjectJsonLd } from "../../lib/media-query";
 import InvestigacionShare from "../../components/InvestigacionShare.astro";
 import CommentSection from "../../components/CommentSection.astro";
 import ChartCard from "../../components/charts/ChartCard.astro";
@@ -92,6 +93,7 @@ const chartByKey = new Map(charts.map((c) => [c.chart_key, c]));
 // straight into body_html at import time; the newer JSON-payload pipeline never did.
 const stampedBodyHtml = investigacion ? stampSectionIds(investigacion.body_html) : "";
 const segments = investigacion ? splitInvestigacionBody(stampedBodyHtml) : [];
+const audio = investigacion ? await getAudioAsset("investigacion", investigacion.id, "es-MX") : null;
 const sections = investigacion ? extractSections(stampedBodyHtml) : [];
 
 const articleJsonLd = investigacion
@@ -200,7 +202,15 @@ const datasetJsonLd = investigacion
           </div>
 
           <div class="ia-layout">
-            <InvestigacionToc sections={sections} readMinutes={investigacion.read_minutes ?? 10} />
+            <InvestigacionToc
+              sections={sections}
+              readMinutes={investigacion.read_minutes ?? 10}
+              audioKey={audio?.r2_key ?? null}
+              audioDurationS={audio?.duration_s ?? null}
+              audioVttKey={audio?.transcript_vtt_key ?? null}
+              audioCueMap={audio?.cue_map_json ?? null}
+              entityId={investigacion.id}
+            />
 
             <article class="ia-article" data-investigacion-article data-investigacion-body>
               {segments.map((seg) => (

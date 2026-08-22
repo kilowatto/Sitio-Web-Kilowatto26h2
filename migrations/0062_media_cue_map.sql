@@ -1,0 +1,11 @@
+-- Paragraph-level sync between the narration and the article text.
+--
+-- Word-level karaoke over the article is not reliable here: Esteban chose an ADAPTED script
+-- over literal reading, so the audio merges sentences and adds connectors. Measured on
+-- investigación 2, roughly 90% of words survive but sentence boundaries move -- enough to put
+-- a word-level highlight on the wrong word within a paragraph. Paragraph granularity is the
+-- level that actually holds.
+--
+-- Shape: [{"p": 3, "start": 12.4, "end": 28.9}, ...] where `p` is the zero-based index of the
+-- <p> element inside the rendered article body.
+ALTER TABLE media_assets ADD COLUMN cue_map_json TEXT;

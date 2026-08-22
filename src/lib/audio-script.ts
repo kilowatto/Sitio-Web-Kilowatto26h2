@@ -124,6 +124,12 @@ function buildSections(bodyHtml: string, charts: Map<string, ChartRow>): Section
   const sections: Section[] = [];
   const parts = withCharts.split(/(?=<h2)/g);
   for (const part of parts) {
+    // The sign-off block is page furniture -- name, social handles, Wikidata link. Read aloud
+    // it becomes "...se puede encontrar en LinkedIn y Wikidata, y también en la red social X
+    // con el nombre de usuario Kilowatto", which is both odd to hear and billed by the
+    // character. Identified by the same Wikidata marker the translator and the body-image
+    // placer already key on.
+    if (part.includes("wikidata.org/wiki/Q140672978")) continue;
     const headingMatch = part.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
     const heading = headingMatch ? stripTags(headingMatch[1]) : null;
     const body = headingMatch ? part.slice(headingMatch[0].length) : part;

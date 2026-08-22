@@ -63,6 +63,10 @@
       "dataset": "kilowatto_brand_posts"
     },
     {
+      "binding": "AUDIO_ANALYTICS",
+      "dataset": "kilowatto_audio_events"
+    },
+    {
       "binding": "PAGE_ANALYTICS",
       "dataset": "kilowatto_page_views"
     }

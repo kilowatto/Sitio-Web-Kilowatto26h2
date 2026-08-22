@@ -9,6 +9,7 @@ export interface MediaAsset {
   transcript_vtt_key: string | null;
   duration_s: number | null;
   status: string;
+  cue_map_json: string | null;
 }
 
 export const SITE = "https://kilowatto.com";
@@ -72,7 +73,7 @@ export async function getAudioAsset(
 ): Promise<MediaAsset | null> {
   try {
     const row = await env.DB.prepare(
-      `SELECT id, kind, locale, r2_key, transcript_vtt_key, duration_s, status
+      `SELECT id, kind, locale, r2_key, transcript_vtt_key, duration_s, status, cue_map_json
        FROM media_assets
        WHERE entity_type = ? AND entity_id = ? AND locale = ? AND kind = 'audio_narration'
          AND status = 'ready' AND r2_key IS NOT NULL`
