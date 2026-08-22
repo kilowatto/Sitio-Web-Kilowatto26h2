@@ -37,6 +37,7 @@ const pjExtra = bySeries("Percy Jackson — complementario");
 const heroes = bySeries("Los Héroes del Olimpo");
 const magnus = bySeries("Magnus Chase y los Dioses de Asgard");
 const apolo = bySeries("Las Pruebas de Apolo");
+const kane = bySeries("Las Crónicas de Kane");
 
 // Thematic backdrop per pantheon for the wishlist "cover" placeholders — pure CSS/unicode
 // glyph watermarks, no external art needed, no real (copyrighted) cover art hotlinked.
@@ -168,9 +169,9 @@ const MYTH_GLOSSARY = [
   {
     id: "kane",
     pantheon: "Egipcio",
-    series: "Las Crónicas de Kane (pendientes en la lista de deseos)",
+    series: "Las Crónicas de Kane",
     intro:
-      "Carter y Sadie Kane, hermanos que descubren ser anfitriones de dioses egipcios, se enfrentan al despertar de la serpiente del caos. Un panteón que Esteban todavía no tiene en papel — por eso viven en la sección de \"me faltan\" más abajo.",
+      "Carter y Sadie Kane, hermanos que descubren ser anfitriones de dioses egipcios, se enfrentan al despertar de la serpiente del caos.",
     gods: [
       { book: "Ra", real: "Dios del sol, antiguo rey de los dioses, mostrado anciano y adormilado en la serie." },
       { book: "Isis", real: "Diosa de la magia y la maternidad, esposa de Osiris." },
@@ -246,8 +247,7 @@ const MYTH_GLOSSARY = [
         <p class="pj-section__sub">
           Empieza con Percy Jackson descubriendo que es hijo de Poseidón, y termina con Magnus Chase esquivando el
           fin del mundo nórdico. Esta colección junta {owned.length} libros que Esteban ya tiene y {missing.length}{" "}
-          que todavía le faltan — Las Crónicas de Kane, sobre mitología egipcia, están completas en la lista de
-          deseos.
+          que todavía le faltan.
         </p>
       </div>
     </section>
@@ -379,6 +379,34 @@ const MYTH_GLOSSARY = [
         </div>
       </div>
     </section>
+
+    {kane.length > 0 && (
+      <section class="pj-section">
+        <div class="container">
+          <p class="pj-eyebrow">Egipcio</p>
+          <h2>Las Crónicas de Kane</h2>
+          <p class="pj-section__sub">Carter y Sadie Kane, hermanos que descubren ser anfitriones de dioses egipcios, se enfrentan al despertar de la serpiente del caos.</p>
+          <div class="pj-grid">
+            {kane.map((b) => (
+              <div class="pj-card" data-riptide>
+                <span class="pj-card__order">{b.reading_order}</span>
+                <div class="pj-card__mist">
+                  <img
+                    src={`/media/${b.cover_r2_key}?w=300`}
+                    srcset={`/media/${b.cover_r2_key}?w=300 300w, /media/${b.cover_r2_key}?w=500 500w`}
+                    sizes="200px"
+                    alt=""
+                    class="pj-card__img"
+                    loading="lazy"
+                  />
+                </div>
+                <p class="pj-card__title">{shortTitle(b)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
 
     <section class="pj-section pj-section--wishlist">
       <div class="container">
