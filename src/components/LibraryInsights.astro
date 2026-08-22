@@ -129,6 +129,21 @@ const rhinoWordsJson = JSON.stringify(
       <p>Desenfunda tu pluma →</p>
     </div>
   </a>
+
+  <a href="/biblioteca/arrakis" class="lib-card lib-portal lib-portal--arrakis">
+    <img
+      src="/media/biblioteca/dune-box-set.webp?w=700"
+      srcset="/media/biblioteca/dune-box-set.webp?w=700 700w, /media/biblioteca/dune-box-set.webp?w=1200 1200w"
+      sizes="(max-width: 720px) 100vw, 50vw"
+      alt=""
+      class="lib-portal__img"
+    />
+    <div class="lib-portal__scrim"></div>
+    <div class="lib-portal__text">
+      <h3>Entra al Universo de Arrakis</h3>
+      <p>El desierto aguarda →</p>
+    </div>
+  </a>
 </aside>
 
 <style>
@@ -409,6 +424,16 @@ const rhinoWordsJson = JSON.stringify(
   }
   .lib-portal--riordan p {
     color: #3ee0c8;
+  }
+  /* The Arrakis portal -- desert-night rust/sand, echoing the box set's own cover treatment. */
+  .lib-portal--arrakis .lib-portal__scrim {
+    background: linear-gradient(180deg, rgba(21, 11, 6, 0.1) 0%, rgba(21, 11, 6, 0.88) 85%);
+  }
+  .lib-portal--arrakis h3 {
+    color: #f6ecd8;
+  }
+  .lib-portal--arrakis p {
+    color: #3ecbe0;
   }
   .lib-portal p {
     margin: 0.2rem 0 0;

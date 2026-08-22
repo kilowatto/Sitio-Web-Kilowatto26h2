@@ -1,0 +1,402 @@
+---
+// Dedicated themed sub-page for Esteban's Dune shelf -- same pattern as
+// /biblioteca/harry-potter.astro and /biblioteca/riordanverse.astro (its own immersive
+// treatment instead of the site's normal light theme), with its own visual language: desert
+// night (rust/sand/black) with a spice-blue glow, echoing the "eyes of Ibad" from the books.
+// All 3 books are ALSO real rows in the shared `books` table, so they still show up in the
+// normal /biblioteca list/search -- this page is purely a richer display.
+import Site from "../../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+interface DuneBook {
+  id: number;
+  title: string;
+  reading_order: number | null;
+  cover_r2_key: string | null;
+}
+
+let books: DuneBook[] = [];
+if (env?.DB) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, title, reading_order, cover_r2_key FROM books WHERE series = 'Las Crónicas de Dune' ORDER BY reading_order ASC`
+  ).all<DuneBook>();
+  books = results ?? [];
+}
+
+const SYNOPSES: Record<string, string> = {
+  Dune: "En el planeta desértico Arrakis, único lugar del universo donde se produce la especia que hace posible los viajes interestelares, el joven Paul Atreides ve caer a su familia en una trampa mortal — y encuentra entre los fremen del desierto el camino hacia algo mucho más grande que la venganza.",
+  "El Mesías de Dune": "Doce años después, Paul gobierna como emperador y profeta — pero el poder absoluto tiene un precio que ni él puede prever del todo, y una conspiración se teje a su alrededor desde dentro de su propio imperio.",
+  "Hijos de Dune": "Los gemelos de Paul, Leto II y Ghanima, apenas niños, deben sobrevivir a las ambiciones de su tía Alia y decidir qué hacer con el peso de un futuro que ambos pueden ver con una claridad aterradora.",
+};
+
+const glossary = [
+  { name: "Paul Atreides / Muad'Dib", role: "El duque exiliado que los fremen del desierto llegan a ver como su profeta esperado — y que carga con las visiones de todos los futuros posibles que eso desata." },
+  { name: "Lady Jessica", role: "Concubina del duque Leto Atreides y madre de Paul, entrenada como Bene Gesserit — su desobediencia a la hermandad, al tener un hijo en vez de una hija, es el origen de todo lo que sigue." },
+  { name: "Duque Leto Atreides", role: "Cabeza de la Casa Atreides, trasladada a Arrakis por orden imperial hacia una trampa que él mismo sospecha, pero no puede evitar." },
+  { name: "Barón Vladimir Harkonnen", role: "Cabeza de la Casa Harkonnen, enemigos hereditarios de los Atreides — orquesta la caída de Leto en Arrakis." },
+  { name: "Chani", role: "Guerrera fremen, hija del planetólogo imperial Liet-Kynes, y compañera de Paul." },
+  { name: "Stilgar", role: "Naib (líder) del sietch fremen que acoge a Paul y Jessica en el desierto." },
+  { name: "Alia", role: "Hermana menor de Paul, despierta a la conciencia plena desde antes de nacer por la especia que su madre consumió estando embarazada." },
+  { name: "Leto II y Ghanima", role: "Los gemelos de Paul y Chani, protagonistas de Hijos de Dune, ya conscientes desde la cuna por la misma razón que su tía Alia." },
+  { name: "Duncan Idaho", role: "Maestro espadachín leal a los Atreides durante generaciones de la saga, mucho más allá de esta primera trilogía." },
+];
+
+const factions = [
+  { name: "Casa Atreides", desc: "La casa noble de Paul, gobernante de Caladan antes de ser trasladada a Arrakis — su lema: \"El poder no se equilibra, se resiste con más poder.\"" },
+  { name: "Casa Harkonnen", desc: "Enemigos hereditarios de los Atreides, gobernaron Arrakis con crueldad antes de la llegada de Leto." },
+  { name: "Fremen", desc: "El pueblo del desierto de Arrakis, adaptado por generaciones a sobrevivir sin desperdiciar una sola gota de agua." },
+  { name: "Bene Gesserit", desc: "Hermandad de entrenamiento físico y mental casi sobrehumano, con un plan de crianza selectiva que se extiende por milenios." },
+  { name: "Cofradía Espacial", desc: "Monopolio absoluto de los viajes interestelares — y por lo tanto, absolutamente dependiente de la especia de Arrakis." },
+  { name: "CHOAM", desc: "El consorcio económico que controla el comercio de todo el Imperio, empezando por la especia misma." },
+];
+---
+
+<Site
+  title="El Universo de Arrakis — Esteban Rey"
+  description="Las Crónicas de Dune de Esteban Rey: Dune, El Mesías de Dune e Hijos de Dune, de Frank Herbert."
+  active="/biblioteca"
+>
+  <div class="ar-page" id="ar-page">
+    <div class="ar-glow" id="ar-glow"></div>
+    <div class="ar-flash-layer" id="ar-flash-layer"></div>
+
+    <section class="ar-hero">
+      <img
+        src="/media/biblioteca/dune-hero-panorama.webp?w=2000"
+        srcset="/media/biblioteca/dune-hero-panorama.webp?w=1200 1200w, /media/biblioteca/dune-hero-panorama.webp?w=2000 2000w"
+        sizes="100vw"
+        alt=""
+        class="ar-hero__img"
+        loading="eager"
+      />
+      <div class="ar-hero__scrim"></div>
+      <div class="ar-hero__text container">
+        <p class="ar-eyebrow">Biblioteca · Ciencia ficción</p>
+        <h1>El Universo de Arrakis</h1>
+        <p class="ar-hero__sub">
+          Las primeras tres novelas de Dune, de Frank Herbert — un solo planeta desértico, una sola especia, y un
+          imperio que depende por completo de ambos.
+        </p>
+      </div>
+    </section>
+
+    <section class="ar-section">
+      <div class="container">
+        <p class="ar-eyebrow">Sobre esta colección</p>
+        <h2>Un desierto, una especia, un imperio entero pendiendo de los dos</h2>
+        <p class="ar-section__sub">
+          Las Crónicas de Dune reúne las primeras tres novelas de Frank Herbert en una sola caja: la trilogía
+          original que arrancó toda la saga. Esteban tiene los {books.length} libros, comprados juntos por
+          $1,199.00 MXN.
+        </p>
+      </div>
+    </section>
+
+    {books.map((b) => (
+      <section class="ar-section ar-section--alt">
+        <div class="container ar-book">
+          <div class="ar-book__cover">
+            {b.cover_r2_key && (
+              <img
+                src={`/media/${b.cover_r2_key}?w=400`}
+                srcset={`/media/${b.cover_r2_key}?w=400 400w, /media/${b.cover_r2_key}?w=700 700w`}
+                sizes="280px"
+                alt={`Portada de ${b.title}`}
+                loading="lazy"
+              />
+            )}
+          </div>
+          <div class="ar-book__text">
+            <p class="ar-eyebrow">Libro {b.reading_order}</p>
+            <h2>{b.title}</h2>
+            <p>{SYNOPSES[b.title] ?? ""}</p>
+          </div>
+        </div>
+      </section>
+    ))}
+
+    <section class="ar-section">
+      <div class="container">
+        <p class="ar-eyebrow">Para ir a internet menos</p>
+        <h2>Quién es quién en Arrakis</h2>
+        <dl class="ar-glossary">
+          {glossary.map((g) => (
+            <div class="ar-glossary__entry">
+              <dt>{g.name}</dt>
+              <dd>{g.role}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </section>
+
+    <section class="ar-section ar-section--alt">
+      <div class="container">
+        <p class="ar-eyebrow">Casas y facciones</p>
+        <h2>El tablero completo del Imperio</h2>
+        <div class="ar-faction-grid">
+          {factions.map((f) => (
+            <div class="ar-faction-card">
+              <p class="ar-faction-card__name">{f.name}</p>
+              <p class="ar-faction-card__desc">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  </div>
+</Site>
+
+<style>
+  .ar-page {
+    --ar-bg-deep: #150b06;
+    --ar-bg-mid: #2b160a;
+    --ar-spice-blue: #3ecbe0;
+    --ar-sand: #e0a959;
+    --ar-rust: #c8672e;
+    background: linear-gradient(180deg, var(--ar-bg-deep) 0%, var(--ar-bg-mid) 100%);
+    color: #f0e4d4;
+    margin: calc(-1 * var(--space-3)) 0 0;
+    padding-bottom: var(--space-5);
+    position: relative;
+    overflow: hidden;
+  }
+  @media (pointer: fine) {
+    .ar-page {
+      cursor: none;
+    }
+  }
+
+  /* Ambient spice-glow following the cursor -- same base mechanic as the Harry
+     Potter/Riordanverse pages' glow, recolored, without their fuller gesture system: this
+     page's interaction is deliberately simpler (a click ripple only). */
+  .ar-glow {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 26rem;
+    height: 26rem;
+    margin-left: -13rem;
+    margin-top: -13rem;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(62, 203, 224, 0.16) 0%, rgba(224, 169, 89, 0.06) 45%, transparent 70%);
+    mix-blend-mode: screen;
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    will-change: transform;
+  }
+  .ar-page.ar-active .ar-glow {
+    opacity: 1;
+  }
+
+  .ar-flash-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 150;
+  }
+  :global(.ar-ripple) {
+    position: absolute;
+    width: 3rem;
+    height: 3rem;
+    margin-left: -1.5rem;
+    margin-top: -1.5rem;
+    border-radius: 50%;
+    border: 1px solid rgba(62, 203, 224, 0.7);
+    box-shadow: 0 0 20px 4px rgba(62, 203, 224, 0.35);
+    animation: ar-ripple-burst 0.9s ease-out forwards;
+  }
+  @keyframes ar-ripple-burst {
+    0% {
+      opacity: 1;
+      transform: scale(0.3);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(3.2);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :global(.ar-ripple) {
+      animation: none;
+      opacity: 0;
+    }
+  }
+  @media (pointer: coarse) {
+    .ar-glow {
+      display: none;
+    }
+  }
+
+  .ar-hero {
+    position: relative;
+    height: clamp(14rem, 30vw, 24rem);
+    overflow: hidden;
+  }
+  .ar-hero__img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(0.7) saturate(0.9);
+  }
+  .ar-hero__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(21, 11, 6, 0.75) 0%,
+      rgba(21, 11, 6, 0.15) 35%,
+      rgba(21, 11, 6, 0.55) 70%,
+      var(--ar-bg-deep) 100%
+    );
+  }
+  .ar-hero__text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding-bottom: var(--space-3);
+  }
+  .ar-eyebrow {
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    color: var(--ar-rust);
+    margin: 0 0 0.4rem;
+  }
+  .ar-hero__text h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    margin: 0 0 0.5rem;
+    color: #f6ecd8;
+    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
+  }
+  .ar-hero__sub {
+    max-width: 36rem;
+    color: #d9c3a8;
+    margin: 0;
+  }
+
+  .ar-section {
+    padding: var(--space-4) 0;
+    position: relative;
+  }
+  .ar-section--alt {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .ar-section h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    margin: 0 0 0.4rem;
+    color: #f6ecd8;
+  }
+  .ar-section__sub {
+    color: #c9b49a;
+    margin: 0;
+    max-width: 40rem;
+  }
+
+  .ar-book {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    align-items: start;
+  }
+  .ar-book__cover {
+    max-width: 14rem;
+  }
+  .ar-book__cover img {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+  }
+  .ar-book__text p {
+    color: #d9c3a8;
+    max-width: 38rem;
+    margin: 0.6rem 0 0;
+  }
+  @media (min-width: 720px) {
+    .ar-book {
+      grid-template-columns: 14rem 1fr;
+    }
+  }
+
+  .ar-glossary {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+    gap: 1rem 1.5rem;
+  }
+  .ar-glossary__entry {
+    border-top: 1px dashed rgba(255, 255, 255, 0.14);
+    padding-top: 0.5rem;
+  }
+  .ar-glossary__entry dt {
+    font-weight: 700;
+    color: var(--ar-sand);
+    font-size: 0.95rem;
+  }
+  .ar-glossary__entry dd {
+    margin: 0.2rem 0 0;
+    font-size: 0.86rem;
+    color: #d9c3a8;
+    line-height: 1.4;
+  }
+
+  .ar-faction-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 1rem;
+  }
+  .ar-faction-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(62, 203, 224, 0.18);
+    border-radius: 0.6rem;
+    padding: 0.9rem 1rem;
+  }
+  .ar-faction-card__name {
+    margin: 0 0 0.3rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--ar-spice-blue);
+  }
+  .ar-faction-card__desc {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #d9c3a8;
+    line-height: 1.4;
+  }
+</style>
+
+<script>
+  const page = document.getElementById("ar-page");
+  const glow = document.getElementById("ar-glow");
+  const flashLayer = document.getElementById("ar-flash-layer");
+
+  if (page && glow && window.matchMedia("(pointer: fine)").matches) {
+    page.addEventListener("pointerenter", () => page.classList.add("ar-active"));
+    page.addEventListener("pointerleave", () => page.classList.remove("ar-active"));
+    page.addEventListener("pointermove", (e) => {
+      glow.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+    });
+  }
+
+  // A small spice-blue ripple on click -- deliberately simpler than the gesture systems on
+  // the Harry Potter/Riordanverse pages, matching this page's quieter, single-effect scope.
+  document.addEventListener("click", (e) => {
+    if (!flashLayer) return;
+    const ripple = document.createElement("div");
+    ripple.className = "ar-ripple";
+    ripple.style.left = `${e.clientX}px`;
+    ripple.style.top = `${e.clientY}px`;
+    flashLayer.appendChild(ripple);
+    ripple.addEventListener("animationend", () => ripple.remove());
+  });
+</script>
