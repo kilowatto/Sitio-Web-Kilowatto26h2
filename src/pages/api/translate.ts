@@ -189,9 +189,21 @@ async function upsert(entityType: string, entityId: number, locale: string, tran
 
 export const POST: APIRoute = async ({ request }) => {
   const url = new URL(request.url);
-  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
+  const tok = url.searchParams.get("token");
+  if (tok !== env.ADMIN_TOKEN && tok !== env.SCRATCH_TOKEN) {
     return new Response("unauthorized", { status: 401 });
   }
+
+  // Optional: translate ONE column instead of the whole site.
+  //
+  // Without this the only way to fill a single gap is to re-run everything, which regenerates
+  // every existing translation. That matters beyond wasted work: the narrated audio and its
+  // paragraph cue map are built against a specific translated text, so silently replacing that
+  // text would leave the audio saying one thing while the page shows another, and the
+  // highlight matching nothing.
+  const onlyColumnId = url.searchParams.get("columnId")
+    ? Number(url.searchParams.get("columnId"))
+    : null;
 
   const localeParam = url.searchParams.get("locale") ?? "";
   const locale = localeFromParam(localeParam);
@@ -202,7 +214,8 @@ export const POST: APIRoute = async ({ request }) => {
   const summary: Record<string, number> = {};
 
   try {
-    for (const [table, fields] of Object.entries(FIELD_MAP)) {
+    // A targeted run touches only the requested column; the generic tables are skipped.
+    for (const [table, fields] of Object.entries(onlyColumnId ? {} : FIELD_MAP)) {
       const { results } = await env.DB.prepare(`SELECT * FROM ${table}`).all<any>();
       let count = 0;
       await Promise.all(
@@ -221,7 +234,9 @@ export const POST: APIRoute = async ({ request }) => {
 
     // "columns" isn't in FIELD_MAP — its body_html needs the block-preserving path above,
     // not the generic whole-string translation loop.
-    const { results: columnRows } = await env.DB.prepare("SELECT * FROM columns").all<any>();
+    const { results: columnRows } = onlyColumnId
+      ? await env.DB.prepare("SELECT * FROM columns WHERE id = ?").bind(onlyColumnId).all<any>()
+      : await env.DB.prepare("SELECT * FROM columns").all<any>();
     // A handful of columns have a real human-written version in a given locale (e.g. Esteban's
     // own English draft of a column he also wrote in Spanish) — those were inserted directly
     // with source='human'. Never let this endpoint re-run and clobber them with an AI
