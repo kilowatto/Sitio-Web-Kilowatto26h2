@@ -3,7 +3,7 @@
 > Estado vivo del proyecto. Plan original y las 26 decisiones: acordadas con Esteban el
 > 2026-08-21/22. Este archivo es la fuente de verdad — actualízalo al cerrar cada fase.
 >
-> Última actualización: 2026-08-22
+> Última actualización: 2026-08-22 (cierre de Fase 1b)
 
 ## Por qué
 
@@ -19,7 +19,7 @@ Referencia visual: [este video](https://www.youtube.com/watch?v=0swxMbThNug) (Lo
 | Fase | Estado | Qué falta |
 |---|---|---|
 | 1 · Audio en español | ✅ **Terminada** | — |
-| 1b · Audio en inglés | ❌ Sin empezar | ~178k caracteres (~$18); no cabe en el crédito actual |
+| 1b · Audio en inglés | ✅ **Terminada** | — |
 | 2 · Gráficas interactivas | ❌ Sin empezar | Isla `client:visible` sobre los 14 SVG existentes |
 | 3 · Clips cortos 60-90s | ❌ Sin empezar | Remotion + Containers + publicación a X/LinkedIn |
 | 4 · Videocolumna con Larry | ⏳ Riesgo resuelto, sin construir | Cara final, character bible, LoRA, pipeline |
@@ -31,8 +31,18 @@ Podcast en Apple/Spotify (Esteban eligió sitio primero), los otros 10 locales, 
 
 ## Fase 1 — Audio narrado ✅
 
-**23 piezas** (20 columnas + 3 investigaciones), **3.9 horas**, todas con sincronía de párrafo.
-Solo `es-MX`.
+**46 piezas en total, 7.2 horas**, todas con sincronía de párrafo y reproductor en su ruta.
+
+| | Piezas | Horas | Cobertura de sincronía |
+|---|---|---|---|
+| `es-MX` | 23 | 3.9 h | 95% promedio |
+| `en` | 23 | 3.3 h | 75% promedio (min 49%) |
+
+La cobertura en inglés es menor y la razón es estructural: en español el guion y el artículo
+comparten idioma y ~90% de las palabras, así que las anclas casan casi directo. En inglés hay
+dos reescrituras encima (traducción, luego adaptación) y las anclas se despegan más. El efecto
+es más huecos en el resaltado, nunca resaltar el párrafo equivocado. Bajar el umbral subiría la
+cobertura a costa de emparejar mal — no se hizo a propósito.
 
 ### Piezas y dónde viven
 
@@ -96,7 +106,19 @@ Estas se descubrieron rompiendo cosas. No las revierta nadie sin releer el porqu
     oyente que llega al minuto 7 como 1,000 segundos de una escucha de 400. Se toma el máximo
     por sesión (`blob8`). El id no es de usuario y no se persiste.
 
-11. **El bloque de firma no se narra.** Leído en voz alta quedaba "…se puede encontrar en
+11. **Localización: el guion se lee de `translations`, y el prompt va en el idioma destino.**
+    Dos fallas encadenadas, ambas silenciosas. Primero `buildAudioScript()` leía `body_html` de
+    la tabla de contenido, que siempre está en español — habría narrado español con voz inglesa.
+    Y aun arreglado eso, el prompt estaba escrito en español pidiendo salida "en inglés": el
+    modelo respondía en español, y **la pieza abría en inglés** porque título y subtítulo no
+    pasan por el modelo. Se revertía a partir del primer párrafo. Lo mismo aplica a
+    `build-cues`, que comparaba narración inglesa contra párrafos españoles.
+
+12. **`/api/translate?columnId=N`** existe porque el endpoint completo regenera todas las
+    traducciones, y el audio y sus cues están construidos contra un texto específico:
+    reemplazarlo deja el audio diciendo una cosa y la página mostrando otra.
+
+13. **El bloque de firma no se narra.** Leído en voz alta quedaba "…se puede encontrar en
     LinkedIn y Wikidata, y también en la red social X…". Se identifica por el marcador de
     Wikidata, igual que ya hacen el traductor y el colocador de imágenes.
 
@@ -161,5 +183,7 @@ acepta audio de ElevenLabs vía `audio_asset_id`. Synthesia y D-ID quedan descar
 | Columna (~6k chars) | ~$0.60, ~6 min de audio |
 | Investigación (~25k chars) | ~$2.50, ~28 min |
 | Backfill completo español | ~$22 |
+| Backfill completo inglés | ~$24 |
+| El inglés dura ~10% menos que el español al mismo texto | — |
 | Render HeyGen | ~$0.05/segundo (~$3/min) |
 | API de X | ~$3/mes a 1-2 clips por semana |
