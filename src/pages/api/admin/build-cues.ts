@@ -38,6 +38,7 @@ export const POST: APIRoute = async ({ url }) => {
 
   const onlyType = url.searchParams.get("type");
   const onlyId = url.searchParams.get("id") ? Number(url.searchParams.get("id")) : null;
+  const onlyLocale = url.searchParams.get("locale");
 
   let sql = `SELECT id, entity_type, entity_id, locale, r2_key, script_text
                FROM media_assets
@@ -46,6 +47,7 @@ export const POST: APIRoute = async ({ url }) => {
   const binds: any[] = [];
   if (onlyType) { sql += " AND entity_type = ?"; binds.push(onlyType); }
   if (onlyId) { sql += " AND entity_id = ?"; binds.push(onlyId); }
+  if (onlyLocale) { sql += " AND locale = ?"; binds.push(onlyLocale); }
   if (url.searchParams.get("force") !== "1") sql += " AND cue_map_json IS NULL";
 
   const rows = await env.DB.prepare(sql).bind(...binds).all<any>();
@@ -54,11 +56,28 @@ export const POST: APIRoute = async ({ url }) => {
   for (const row of rows.results ?? []) {
     try {
       const table = row.entity_type === "columna" ? "columns" : "investigaciones";
-      const article = await env.DB.prepare(`SELECT body_html FROM ${table} WHERE id = ?`)
-        .bind(row.entity_id)
-        .first<{ body_html: string }>();
-      if (!article?.body_html) {
-        results.push({ id: row.id, error: "artículo no encontrado" });
+      let bodyHtml: string | null = null;
+
+      if (row.locale === "es-MX") {
+        const article = await env.DB.prepare(`SELECT body_html FROM ${table} WHERE id = ?`)
+          .bind(row.entity_id)
+          .first<{ body_html: string }>();
+        bodyHtml = article?.body_html ?? null;
+      } else {
+        // The cue map indexes the paragraphs the READER sees, and on a non-canonical locale
+        // that is the translated body. Using the Spanish body here would compare English
+        // narration against Spanish paragraphs and match nothing -- a silent 0% coverage.
+        const t = await env.DB.prepare(
+          `SELECT value FROM translations
+            WHERE entity_type = ? AND entity_id = ? AND locale = ? AND field_key = 'body_html'`
+        )
+          .bind(table, row.entity_id, row.locale)
+          .first<{ value: string }>();
+        bodyHtml = t?.value ?? null;
+      }
+
+      if (!bodyHtml) {
+        results.push({ id: row.id, error: `sin body_html para locale ${row.locale}` });
         continue;
       }
 
@@ -75,7 +94,7 @@ export const POST: APIRoute = async ({ url }) => {
         continue;
       }
 
-      const paras = articleParagraphs(article.body_html);
+      const paras = articleParagraphs(bodyHtml);
       const cues = buildCueMap(row.script_text, words, paras);
 
       await env.DB.prepare(`UPDATE media_assets SET cue_map_json = ?, updated_at = datetime('now') WHERE id = ?`)
@@ -85,6 +104,7 @@ export const POST: APIRoute = async ({ url }) => {
       results.push({
         id: row.id,
         entity: `${row.entity_type}:${row.entity_id}`,
+        locale: row.locale,
         paragraphs: paras.length,
         cues: cues.length,
         chunked: bigFile,

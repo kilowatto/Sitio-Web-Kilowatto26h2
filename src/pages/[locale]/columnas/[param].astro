@@ -9,6 +9,8 @@ import ScrollBarChart from "../../../components/ScrollBarChart.astro";
 import ColumnShare from "../../../components/ColumnShare.astro";
 import CommentSection from "../../../components/CommentSection.astro";
 import { localeFromParam } from "../../../lib/locales";
+import AudioPlayer from "../../../components/AudioPlayer.astro";
+import { getAudioAsset, audioObjectJsonLd } from "../../../lib/media-query";
 import { loadTranslations, t } from "../../../lib/i18n";
 import { getColumnsPage, getColumnBySlug, incrementColumnView, displayViewCount, excerptFrom, type ColumnRow } from "../../../lib/columns-query";
 import { renderColumnBody } from "../../../lib/column-layout";
@@ -79,6 +81,13 @@ const BYLINE: Record<string, string> = {
   "zh-Hans": "作者：Esteban Rey（",
   ja: "著者：Esteban Rey（",
 };
+const audio = column ? await getAudioAsset("columna", column.id, locale.code) : null;
+const audioLd = column && audio ? audioObjectJsonLd(audio, {
+  name: column.title,
+  description: column.subtitle,
+  datePublished: column.published_at,
+}) : null;
+
 const byline = BYLINE[locale.code] ?? "Por Esteban Rey (";
 
 const READS_LABEL: Record<string, string> = {
@@ -104,6 +113,7 @@ const articleJsonLd = column
       author: { "@type": "Person", name: "Esteban Rey", alternateName: "Kilowatto", url: "https://kilowatto.com" },
       publisher: { "@type": "Organization", name: "Kilowatto" },
       mainEntityOfPage: `https://kilowatto.com/${locale.code}/columnas/${column.slug}`,
+      ...(audioLd ? { audio: audioLd } : {}),
     }
   : null;
 
@@ -187,6 +197,19 @@ const bodyWithImages = column
             </a>
             ) · {readsCount} {readsLabel}
           </p>
+          {audio?.r2_key && (
+            <AudioPlayer
+              audioKey={audio.r2_key}
+              durationSeconds={audio.duration_s}
+              vttKey={audio.transcript_vtt_key}
+              label={locale.code.startsWith("en") ? "Listen to this column" : "Escucha esta columna"}
+              cueMap={audio.cue_map_json}
+              entityType="columna"
+              entityId={column.id}
+              locale={locale.code}
+              bodySelector=".column-article"
+            />
+          )}
           <div class="column-article" set:html={bodyWithImages} />
           <ColumnShare
             url={`https://kilowatto.com/${locale.code}/columnas/${column.slug}`}

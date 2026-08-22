@@ -7,6 +7,7 @@
 import Site from "../../../layouts/Site.astro";
 import InvestigacionList from "../../../components/InvestigacionList.astro";
 import InvestigacionToc from "../../../components/InvestigacionToc.astro";
+import { getAudioAsset, audioObjectJsonLd } from "../../../lib/media-query";
 import InvestigacionShare from "../../../components/InvestigacionShare.astro";
 import CommentSection from "../../../components/CommentSection.astro";
 import ChartCard from "../../../components/charts/ChartCard.astro";
@@ -135,6 +136,13 @@ const BYLINE: Record<string, string> = {
   "zh-Hans": "作者：Esteban Rey（",
   ja: "著者：Esteban Rey（",
 };
+const audio = investigacion ? await getAudioAsset("investigacion", investigacion.id, locale.code) : null;
+const audioLd = investigacion && audio ? audioObjectJsonLd(audio, {
+  name: investigacion.title,
+  description: investigacion.subtitle ?? investigacion.summary,
+  datePublished: investigacion.published_at,
+}) : null;
+
 const byline = BYLINE[locale.code] ?? "Por Esteban Rey (";
 
 const FAQ_HEADING: Record<string, string> = {
@@ -159,6 +167,7 @@ const articleJsonLd = investigacion
       author: { "@type": "Person", name: "Esteban Rey", alternateName: "Kilowatto", url: "https://kilowatto.com" },
       publisher: { "@type": "Organization", name: "Kilowatto" },
       mainEntityOfPage: `https://kilowatto.com/${locale.code}/a-fondo/${investigacion.slug}`,
+      ...(audioLd ? { audio: audioLd } : {}),
       image: investigacion.cover_r2_key ? `https://kilowatto.com/media/${investigacion.cover_r2_key}` : undefined,
       citation: sources.slice(0, 30).map((s) => ({ "@type": "CreativeWork", name: s.label, url: s.url })),
     }
@@ -251,7 +260,15 @@ const datasetJsonLd = investigacion
           </div>
 
           <div class="ia-layout">
-            <InvestigacionToc sections={sections} readMinutes={investigacion.read_minutes ?? 10} />
+            <InvestigacionToc
+              sections={sections}
+              readMinutes={investigacion.read_minutes ?? 10}
+              audioKey={audio?.r2_key ?? null}
+              audioDurationS={audio?.duration_s ?? null}
+              audioVttKey={audio?.transcript_vtt_key ?? null}
+              audioCueMap={audio?.cue_map_json ?? null}
+              entityId={investigacion.id}
+            />
 
             <article class="ia-article" data-investigacion-article data-investigacion-body>
               {segments.map((seg) => (
