@@ -91,7 +91,12 @@ export async function assignSmartSchedule(
     .all<{ day: string; n: number }>();
   const dayCounts = new Map<string, number>((existing.results ?? []).map((r) => [r.day, r.n]));
 
-  for (let dayOffset = 1; dayOffset <= 60; dayOffset++) {
+  // 400 days: at DAILY_LIMIT.linkedin=1 this comfortably outlasts any realistic
+  // approved-post backlog. A 60-day bound previously caused a real bug -- once the
+  // backlog filled all 60 future days, every call in a batch exhausted the loop and
+  // fell through to the identical "tomorrow" fallback below, clustering every post
+  // in the batch onto the same instant instead of spreading them out.
+  for (let dayOffset = 1; dayOffset <= 400; dayOffset++) {
     const day = new Date(Date.now() + dayOffset * 86_400_000);
     const dayKey = day.toISOString().slice(0, 10);
     const used = (dayCounts.get(dayKey) ?? 0) + (reserved.get(dayKey) ?? 0);
@@ -109,6 +114,9 @@ export async function assignSmartSchedule(
     return fmt(slot);
   }
 
-  // Extremely unlikely (60 days fully booked at the daily cap) -- fall back to "soon."
-  return fmt(new Date(Date.now() + 24 * 60 * 60 * 1000));
+  // Extremely unlikely (400 days fully booked at the daily cap) -- fall back to
+  // "soon," still spread out via `reserved` so a caller looping this doesn't cluster.
+  const fallbackDay = 401 + (reserved.get("__overflow") ?? 0);
+  reserved.set("__overflow", (reserved.get("__overflow") ?? 0) + 1);
+  return fmt(new Date(Date.now() + fallbackDay * 24 * 60 * 60 * 1000));
 }
