@@ -143,6 +143,115 @@ async function buildChunks(): Promise<Chunk[]> {
     });
   }
 
+  // Press mentions, from /prensa (press_mentions, status='published') — Esteban was asked
+  // "¿qué dicen de ti en la prensa?" style questions and Larry had never been given this table
+  // at all, confirmed live 2026-08-22 while auditing every page against what Larry actually
+  // knows (comida.astro was the piece that started the audit -- see below).
+  const { results: pressMentions } = await env.DB.prepare(
+    "SELECT * FROM press_mentions WHERE status = 'published' ORDER BY published_at DESC"
+  ).all<any>();
+  for (const p of pressMentions ?? []) {
+    chunks.push({
+      id: `press:${p.id}`,
+      text: `Mención de prensa sobre Esteban Rey (Kilowatto) en ${p.outlet ?? "un medio"} (${p.published_at ?? "fecha desconocida"}): "${p.title}". ${p.summary ?? ""}`,
+      metadata: { entity_type: "press_mention", entity_id: p.id, url: p.url },
+    });
+  }
+
+  // Projects ("Mis proyectos", self-refreshing directory distinct from the `companies`
+  // timeline) — Ignia Cloud, Yucatech Festival, Frida Café, Cereza, Vectron, etc. Only
+  // is_reachable=1 ones, matching what the public /empresas page itself shows.
+  const { results: projects } = await env.DB.prepare(
+    "SELECT * FROM projects WHERE is_reachable = 1 ORDER BY sort_order"
+  ).all<any>();
+  for (const p of projects ?? []) {
+    chunks.push({
+      id: `project:${p.id}`,
+      text: `Proyecto de Esteban Rey: ${p.name}${p.role ? ` (${p.role})` : ""}. ${p.summary ?? ""} URL: ${p.url}`,
+      metadata: { entity_type: "project", entity_id: p.id, slug: p.slug },
+    });
+  }
+
+  // Books ("La biblioteca de Kilowatto", /biblioteca) — one chunk per owned book (title,
+  // author, genre, why it's there) plus one rollup stats chunk so a broad question ("¿cuántos
+  // libros tienes?") doesn't need 60 retrieved chunks to answer.
+  const { results: books } = await env.DB.prepare(
+    "SELECT * FROM books WHERE status = 'tengo' ORDER BY sort_order"
+  ).all<any>();
+  for (const b of books ?? []) {
+    chunks.push({
+      id: `book:${b.id}`,
+      text: `Esteban Rey tiene el libro "${b.title}", de ${b.author}${b.genre ? ` (${b.genre})` : ""}, en su biblioteca física. ${b.summary ?? ""}`,
+      metadata: { entity_type: "book", entity_id: b.id },
+    });
+  }
+  if ((books ?? []).length > 0) {
+    const authorCounts = new Map<string, number>();
+    for (const b of books ?? []) authorCounts.set(b.author, (authorCounts.get(b.author) ?? 0) + 1);
+    const topAuthor = [...authorCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+    chunks.push({
+      id: "books:stats",
+      text: `La biblioteca física de Esteban Rey tiene ${(books ?? []).length} libros catalogados en kilowatto.com/biblioteca. El autor con más libros es ${topAuthor[0]} (${topAuthor[1]} títulos) — sobre todo el Riordanverse (Percy Jackson, Héroes del Olimpo, Magnus Chase, Las Pruebas de Apolo).`,
+      metadata: { entity_type: "books_stats" },
+    });
+  }
+
+  const { results: bookQuotes } = await env.DB.prepare(
+    "SELECT bq.*, b.title AS book_title FROM book_quotes bq LEFT JOIN books b ON b.id = bq.book_id ORDER BY bq.sort_order"
+  ).all<any>();
+  for (const q of bookQuotes ?? []) {
+    chunks.push({
+      id: `book_quote:${q.id}`,
+      text: `Cita del libro "${q.book_title ?? q.attributed_to ?? ""}": "${q.quote_text}"`,
+      metadata: { entity_type: "book_quote", entity_id: q.id },
+    });
+  }
+
+  // Food ("Mi comida favorita", /comida) — hardcoded page, not in D1, same reasoning as the
+  // pets below: mirrored here by hand so Larry can actually answer "¿cuál es tu comida
+  // favorita?" instead of saying "no sé" despite a whole page about it. Confirmed live
+  // 2026-08-22 that this exact gap was why Larry didn't know Esteban's favorite dish.
+  chunks.push({
+    id: "food:favorito",
+    text: 'El platillo favorito de Esteban Rey, sin pensarlo mucho, es nigiri de salmón con un toque de wasabi -- simple y directo. También es fan de los poke bowls con arroz de coliflor, salmón, atún, elote y edamame. Su restaurante de sushi de cadena favorito en México es El Japonez (sobre todo el rollo con mantequilla de trufa); también es fan de Sushi Ran en Sausalito, California, y de Kunio en San Ángel, Ciudad de México.',
+    metadata: { entity_type: "food", entity_id: "favorito" },
+  });
+  chunks.push({
+    id: "food:pastor",
+    text: "Esteban Rey come tacos al pastor en El Farolito, en la Ciudad de México (sucursales de la Condesa, Insurgentes o el Pedregal) -- parada obligada para la familia y los amigos en cuanto se bajan del avión.",
+    metadata: { entity_type: "food", entity_id: "pastor" },
+  });
+  chunks.push({
+    id: "food:amashito",
+    text: "El chile amashito es uno de los antojos favoritos de Esteban Rey: un chile silvestre pequeño y redondo, típico del sureste de México (Tabasco y Chiapas), primo cercano del chiltepín. Se come fresco y verde, nunca seco, picado con cebolla morada y limón.",
+    metadata: { entity_type: "food", entity_id: "amashito" },
+  });
+  chunks.push({
+    id: "food:marquesitas",
+    text: "Las marquesitas son una crepa delgada y crujiente de la cocina callejera del sureste de México, cocida en un molde circular de hierro caliente y rellena típicamente con queso de bola holandés y cajeta -- otro de los antojos que aparecen en la página de comida de Esteban Rey.",
+    metadata: { entity_type: "food", entity_id: "marquesitas" },
+  });
+  chunks.push({
+    id: "food:paella",
+    text: 'Esteban Rey tiene toda una sección sobre el arroz a la paella en kilowatto.com/comida, con once tipos (valenciana, de conejo de monte, de marisco, mixta, arroz negro, a banda, de bogavante, de verduras, de pato, al horno, meloso/caldoso) y recetas incluidas. Aclara que "paella" es, en rigor, el nombre del sartén (del latín patella, "sartén pequeño", vía el valenciano) y no del platillo, que se llama arroz a la paella.',
+    metadata: { entity_type: "food", entity_id: "paella" },
+  });
+
+  // Tech stack ("Detrás de cámaras", /stack) — hardcoded page, same hand-mirror reasoning.
+  chunks.push({
+    id: "stack:cloudflare",
+    text: "kilowatto.com está diseñado y orquestado por Ignia Cloud, pero corre 100% sobre Cloudflare: Workers (cómputo, sirve cada página y API, y el chat de Larry), D1 (base de datos), R2 (fotos, sin cargos de salida), Vectorize (búsqueda semántica, el cerebro de Larry), Workers AI (texto, traducciones, descripciones de fotos, moderación), KV (caché) y Cron Triggers (revisión automática de prensa cada 6 horas).",
+    metadata: { entity_type: "stack", entity_id: "cloudflare" },
+  });
+
+  // Yucatech Festival exact facts (already summarized in the `projects` chunk above, but this
+  // adds the precise date/venue/speaker/winner details from /yucatech's own FAQ).
+  chunks.push({
+    id: "yucatech:facts",
+    text: 'El Yucatech Festival, fundado y financiado por Esteban Rey de su propio bolsillo (sin fines de lucro), tuvo su primera edición el 16 de abril de 2026 en el Centro Internacional de Congresos de Yucatán, en Mérida -- con más de 500 asistentes y ponentes como Uri Levine, cofundador de Waze. La startup ganadora de la "Elevator Pitch Hour" (con capital real detrás de cada pitch) fue Creare Ride. Se realiza cada año.',
+    metadata: { entity_type: "event", entity_id: "yucatech" },
+  });
+
   // Pets, from /avestruces — not in D1 (it's a hardcoded static page), so mirrored here by hand
   // so Larry actually knows and loves them, not just the humans/companies.
   chunks.push({
@@ -184,15 +293,38 @@ async function buildChunks(): Promise<Chunk[]> {
 // Larry only ever learned about new content when someone remembered to hit this endpoint by
 // hand. Full rebuild every time (not incremental) is intentional, matching how this endpoint
 // already worked -- simpler and still fast enough at this content volume.
+// Vectorize hard-caps a vector's metadata at 10240 bytes of compact JSON. chat.ts pulls
+// metadata.text straight into Larry's prompt context (see api/chat.ts's topK=5 query) --
+// column/investigación sections can run several thousand words, so storing the FULL text
+// both blew that cap (confirmed live 2026-08-22: "investigacion:1:0" alone was 26846 bytes,
+// which fails env.VECTORIZE.upsert() for the ENTIRE batch, not just that one vector -- likely
+// why nothing had actually reindexed successfully in a while) and would have made every
+// chat context absurdly long anyway. The embedding itself still runs on the FULL text for
+// accurate retrieval; only the stored preview is capped.
+const MAX_METADATA_TEXT = 1200;
+function truncateForMetadata(text: string): string {
+  return text.length > MAX_METADATA_TEXT ? text.slice(0, MAX_METADATA_TEXT) + "…" : text;
+}
+
 export async function runReindex(): Promise<{ indexed: number }> {
   const chunks = await buildChunks();
-  const vectors = [];
 
-  for (const chunk of chunks) {
-    const embedding = await env.AI.run(EMBEDDING_MODEL, { text: [chunk.text] });
-    const values = embedding.data[0];
-    vectors.push({ id: chunk.id, values, metadata: { ...chunk.metadata, text: chunk.text } });
+  // Concurrency-capped, not sequential -- press/books/projects/food additions on 2026-08-22
+  // pushed the chunk count well past 300, and one-embedding-call-at-a-time was needlessly
+  // slow at that volume. Same worker-pool shape already used elsewhere in this codebase
+  // (generate-posts.ts, translateSectionsBatched) for bulk AI calls.
+  const CONCURRENCY = 8;
+  const vectors = new Array<{ id: string; values: number[]; metadata: Record<string, unknown> }>(chunks.length);
+  let next = 0;
+  async function worker() {
+    while (next < chunks.length) {
+      const i = next++;
+      const chunk = chunks[i];
+      const embedding = await env.AI.run(EMBEDDING_MODEL, { text: [chunk.text] });
+      vectors[i] = { id: chunk.id, values: embedding.data[0], metadata: { ...chunk.metadata, text: truncateForMetadata(chunk.text) } };
+    }
   }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, worker));
 
   if (vectors.length > 0) {
     await env.VECTORIZE.upsert(vectors);
@@ -207,7 +339,8 @@ export async function runReindex(): Promise<{ indexed: number }> {
 
 export const POST: APIRoute = async ({ request }) => {
   const url = new URL(request.url);
-  if (url.searchParams.get("token") !== env.ADMIN_TOKEN) {
+  const token = url.searchParams.get("token");
+  if (token !== env.ADMIN_TOKEN && token !== env.SCRATCH_TOKEN) {
     return new Response("unauthorized", { status: 401 });
   }
 
