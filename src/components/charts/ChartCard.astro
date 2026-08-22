@@ -16,6 +16,7 @@ import FunnelChart from "./FunnelChart.astro";
 import DumbbellChart from "./DumbbellChart.astro";
 import GaugeChart from "./GaugeChart.astro";
 import TreemapChart from "./TreemapChart.astro";
+import { chartToTable } from "../../lib/chart-table";
 
 export type ChartType =
   | "bar"
@@ -43,6 +44,10 @@ interface Props {
 }
 
 const { chartKey, title, description, sourceNote, chartType, data, imageR2Key } = Astro.props;
+
+// The accessible alternative to the chart, rendered server-side from the same data. Null for
+// chart types that aren't tabular (cards) or whose data didn't parse.
+const table = chartToTable(chartType, data);
 ---
 
 <figure class="chart-card" data-chart-card data-chart-key={chartKey} id={`chart-${chartKey}`}>
@@ -73,8 +78,34 @@ const { chartKey, title, description, sourceNote, chartType, data, imageR2Key } 
     {chartType === "gauge" && <GaugeChart data={data} />}
     {chartType === "treemap" && <TreemapChart data={data} />}
   </div>
+  {table && (
+    <details class="chart-card__data">
+      <summary>Ver los datos</summary>
+      <div class="chart-card__data-scroll">
+        <table>
+          <caption class="visually-hidden">{title}</caption>
+          <thead>
+            <tr>{table.headers.map((h) => <th scope="col">{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {table.rows.map((row) => (
+              <tr>
+                {row.map((cell, i) => (i === 0 ? <th scope="row">{cell}</th> : <td>{cell}</td>))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  )}
   {sourceNote && <figcaption class="chart-card__source">{sourceNote}</figcaption>}
 </figure>
+
+<noscript>
+  <style>
+    .chart-card { opacity: 1 !important; transform: none !important; }
+  </style>
+</noscript>
 
 <style>
   .chart-card {
@@ -98,6 +129,69 @@ const { chartKey, title, description, sourceNote, chartType, data, imageR2Key } 
     opacity: 1;
     transform: translateY(0);
   }
+  /* Without JS the IntersectionObserver never adds .in-view, so every chart stays at
+     opacity:0 -- invisible, along with its data table. Confirmed live 2026-08-22: 8 of 8 cards
+     invisible with scripting off, which is what an RSS reader, a text browser and most
+     crawlers see. `scripting: none` covers those; the <noscript> block covers browsers that
+     don't support the media query but do have JS switched off. The reveal is an enhancement,
+     never a precondition for the content existing. */
+  @media (scripting: none) {
+    .chart-card {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  /* The data table. Open/closed is native <details> -- no JS, so it works in an RSS reader
+     and with scripting off, which is the whole point of having it. */
+  .chart-card__data {
+    margin-top: 1rem;
+    border-top: 1px solid var(--line);
+    padding-top: 0.75rem;
+  }
+  .chart-card__data > summary {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ember);
+    cursor: pointer;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.75rem;
+  }
+  .chart-card__data > summary::-webkit-details-marker { display: none; }
+  .chart-card__data > summary::before {
+    content: "▸";
+    transition: transform 0.15s;
+  }
+  .chart-card__data[open] > summary::before { transform: rotate(90deg); }
+  .chart-card__data-scroll { overflow-x: auto; margin-top: 0.5rem; }
+  .chart-card__data table {
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    width: 100%;
+  }
+  .chart-card__data th,
+  .chart-card__data td {
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .chart-card__data thead th {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .chart-card__data tbody th { font-weight: 600; }
+  .chart-card__data td { font-variant-numeric: tabular-nums; }
+  @media (prefers-reduced-motion: reduce) {
+    .chart-card__data > summary::before { transition: none; }
+  }
+
   .chart-card__image {
     display: block;
     width: calc(100% + 3rem);

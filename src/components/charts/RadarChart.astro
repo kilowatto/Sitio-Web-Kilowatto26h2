@@ -97,7 +97,13 @@ const polygons = series.map((s, si) => {
   .radar__plot {
     position: relative;
     flex: 0 0 auto;
-    width: min(100%, 22rem);
+    /* The 5rem gutter is the actual fix for the label overflow, not ChartCard's
+       overflow-x:hidden (which only hid it). Labels are absolutely positioned by percentage
+       within this box and are 5rem wide with translate(-50%), so one anchored at the left or
+       right extreme reaches 2.5rem past the plot edge. Shrinking the plot by that much on each
+       side gives them somewhere to go, so nothing overflows and nothing gets clipped.
+       Confirmed live 2026-08-21 as a real ~10px page-level horizontal scroll on mobile. */
+    width: min(100% - 5rem, 22rem);
   }
   .radar__plot svg {
     width: 100%;
@@ -143,15 +149,13 @@ const polygons = series.map((s, si) => {
     pointer-events: none;
   }
   @media (max-width: 480px) {
-    /* A label anchored near the plot's horizontal extremes reaches half its own
-       width past that edge (fixed width, independent of text length) -- on a
-       narrow plot a long axis label can reach past the chart-card boundary.
-       ChartCard's overflow-x:hidden already guarantees it can never leak to the
-       page, but shrinking the box here means less of a long label gets clipped. */
+    /* Narrower labels on small screens so the gutter above can be smaller too, leaving more
+       width for the plot itself. */
     .radar__label {
       width: 4rem;
       font-size: 0.62rem;
     }
+    .radar__plot { width: min(100% - 4rem, 22rem); }
   }
   .radar__legend {
     list-style: none;

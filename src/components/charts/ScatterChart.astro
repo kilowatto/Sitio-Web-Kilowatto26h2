@@ -37,6 +37,10 @@ function yAt(y: number) {
     {data.xLabel && <text x={W - PAD / 2} y={H - PAD + 24} class="scatter__axis-label" text-anchor="end">{data.xLabel}</text>}
     {points.map((p, i) => (
       <g class="scatter__point" style={`--d: ${i * 80}ms`}>
+        {/* The label is drawn, the coordinates are not. <title> is the SVG-native tooltip and
+            is also what a screen reader announces for the shape -- the heatmap already does
+            this. The full numbers stay available to everyone in the card's data table. */}
+        <title>{`${p.label}: ${data.xLabel ?? "x"} ${p.x}, ${data.yLabel ?? "y"} ${p.y}`}</title>
         <circle cx={xAt(p.x)} cy={yAt(p.y)} r="7" />
         <text x={xAt(p.x)} y={yAt(p.y) - 12} text-anchor="middle" class="scatter__label">{p.label}</text>
       </g>
