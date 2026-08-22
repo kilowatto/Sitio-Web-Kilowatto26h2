@@ -190,9 +190,38 @@ function withBreaths(text: string): string {
     .join(` ${br(PAUSE_BETWEEN_PARAGRAPHS)} `);
 }
 
+// The prompt is written in the TARGET language, not in Spanish with a "reply in English"
+// instruction. That distinction is not cosmetic: with Spanish instructions and English source
+// text, llama-3.3 returned SPANISH prose -- the title and standfirst came through in English
+// (those bypass the model) while every adapted section silently reverted. Models follow the
+// language they are addressed in.
 function prompt(locale: string, title: string, heading: string | null, text: string): string {
-  const language = locale.startsWith("en") ? "inglés" : "español";
-  return `Vas a adaptar un fragmento de un artículo para que sea NARRADO en voz alta en ${language}.
+  const rules = [
+    "Do not change, round, invent or omit any figure, percentage, date or proper noun. Copy them exactly.",
+    "Do not add information that is not in the text.",
+    "Turn bulleted lists into flowing spoken prose.",
+    "Remove visual references (\"as the table shows\", \"the figure below\") and state the information in words instead.",
+    "Remove URLs and parenthetical citations; if the source matters, mention it naturally in prose.",
+    "Keep the analytical, direct tone of the original. Do not add greetings, sign-offs or filler.",
+    "Return ONLY the adapted text, with no commentary or headings.",
+  ];
+
+  if (locale.startsWith("en")) {
+    return `You are adapting an excerpt of an article so it can be NARRATED ALOUD in English.
+
+Article: "${title}"
+${heading ? `Section: "${heading}"` : ""}
+
+ABSOLUTE RULES:
+${rules.map((r, i) => `${i + 1}. ${r}`).join("\n")}
+
+Write your answer in ENGLISH.
+
+Text to adapt:
+${text}`;
+  }
+
+  return `Vas a adaptar un fragmento de un artículo para que sea NARRADO en voz alta en español.
 
 Artículo: "${title}"
 ${heading ? `Sección: "${heading}"` : ""}
@@ -205,6 +234,8 @@ REGLAS ABSOLUTAS:
 5. Elimina URLs y citas entre paréntesis; si la fuente importa, menciónala en prosa natural.
 6. Mantén el tono analítico y directo del original. No agregues saludos, despedidas ni frases de relleno.
 7. Devuelve ÚNICAMENTE el texto adaptado, sin comentarios ni encabezados.
+
+Escribe tu respuesta en ESPAÑOL.
 
 Texto a adaptar:
 ${text}`;
@@ -230,6 +261,27 @@ export async function buildAudioScript(
     .first<{ title: string; subtitle: string | null; body_html: string }>();
   if (!row) throw new Error(`${entityType} ${entityId} not found`);
 
+  // Non-canonical locales read from the `translations` EAV table, not from the content table --
+  // otherwise an English narration would be the SPANISH text read with an English voice, which
+  // is a silent and expensive failure (you only find out by listening to the finished audio).
+  // Falls back per-field, so a partially translated piece still narrates rather than erroring.
+  if (locale !== "es-MX") {
+    const translated = await env.DB.prepare(
+      `SELECT field_key, value FROM translations
+        WHERE entity_type = ? AND entity_id = ? AND locale = ?`
+    )
+      .bind(table, entityId, locale)
+      .all<{ field_key: string; value: string }>();
+
+    const byKey = new Map((translated.results ?? []).map((t) => [t.field_key, t.value]));
+    if (!byKey.get("body_html")) {
+      throw new Error(`no hay traducción de body_html a ${locale} para ${entityType} ${entityId}`);
+    }
+    row.title = byKey.get("title") ?? row.title;
+    row.subtitle = byKey.get("subtitle") ?? row.subtitle;
+    row.body_html = byKey.get("body_html")!;
+  }
+
   const charts = new Map<string, ChartRow>();
   if (entityType === "investigacion") {
     const chartRows = await env.DB.prepare(
@@ -239,6 +291,24 @@ export async function buildAudioScript(
       .bind(entityId)
       .all<ChartRow>();
     for (const chart of chartRows.results ?? []) charts.set(chart.chart_key, chart);
+
+    if (locale !== "es-MX" && charts.size > 0) {
+      const t = await env.DB.prepare(
+        `SELECT field_key, value FROM translations
+          WHERE entity_type = 'investigaciones' AND entity_id = ? AND locale = ?
+            AND field_key LIKE 'chart:%'`
+      )
+        .bind(entityId, locale)
+        .all<{ field_key: string; value: string }>();
+      for (const rowT of t.results ?? []) {
+        const [, key, field] = rowT.field_key.split(":");
+        const chart = charts.get(key);
+        if (!chart) continue;
+        if (field === "title") chart.title = rowT.value;
+        else if (field === "description") chart.description = rowT.value;
+        else if (field === "data_json") chart.data_json = rowT.value;
+      }
+    }
   }
 
   const sections = buildSections(row.body_html, charts);
