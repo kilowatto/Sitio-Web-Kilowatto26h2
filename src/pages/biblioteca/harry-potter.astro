@@ -30,7 +30,18 @@ if (env?.DB) {
   const all = results ?? [];
   lbBox = all.filter((b) => b.series.includes("Letras de Bolsillo"));
   salamandra = all.filter((b) => b.series === "Harry Potter — edición Salamandra");
-  special = all.filter((b) => b.series.includes("especiales") || b.series.includes("ilustrada"));
+  // Catches "objetos de colección" (e.g. Destroza el Horrocrux) and "libros de texto de
+  // Hogwarts" (e.g. Animales Fantásticos y Dónde Encontrarlos) too -- anything that isn't one
+  // of the 7 core novels in either physical edition, but is still real Wizarding World material
+  // Esteban owns. Confirmed live 2026-08-22: both of those were silently missing from this page
+  // (present in the `all` query but matching none of the three buckets) until this filter grew.
+  special = all.filter(
+    (b) =>
+      b.series.includes("especiales") ||
+      b.series.includes("ilustrada") ||
+      b.series.includes("objetos de colección") ||
+      b.series.includes("libros de texto de Hogwarts")
+  );
 }
 ---
 
