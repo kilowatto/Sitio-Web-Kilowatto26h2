@@ -62,13 +62,26 @@ const factions = [
 
     <section class="ar-hero">
       <img
-        src="/media/biblioteca/dune-hero-panorama.webp?w=2000"
-        srcset="/media/biblioteca/dune-hero-panorama.webp?w=1200 1200w, /media/biblioteca/dune-hero-panorama.webp?w=2000 2000w"
+        src="/media/biblioteca/dune-hero-video-poster.webp?w=2000"
+        srcset="/media/biblioteca/dune-hero-video-poster.webp?w=1200 1200w, /media/biblioteca/dune-hero-video-poster.webp?w=2000 2000w"
         sizes="100vw"
         alt=""
         class="ar-hero__img"
         loading="eager"
       />
+      <video
+        class="ar-hero__video"
+        id="ar-hero-video"
+        autoplay
+        muted
+        loop
+        playsinline
+        preload="auto"
+        poster="/media/biblioteca/dune-hero-video-poster.webp?w=1200"
+        aria-hidden="true"
+      >
+        <source src="/media/biblioteca/dune-hero-loop.mp4" type="video/mp4" />
+      </video>
       <div class="ar-hero__scrim"></div>
       <div class="ar-hero__text container">
         <p class="ar-eyebrow">Biblioteca · Ciencia ficción</p>
@@ -232,16 +245,27 @@ const factions = [
 
   .ar-hero {
     position: relative;
-    height: clamp(14rem, 30vw, 24rem);
+    height: clamp(16rem, 34vw, 26rem);
     overflow: hidden;
   }
-  .ar-hero__img {
+  .ar-hero__img,
+  .ar-hero__video {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
     filter: brightness(0.7) saturate(0.9);
+  }
+  .ar-hero__video {
+    /* Sits on top of the poster image, which stays underneath as the fallback for
+       reduced-motion visitors and the instant paint before the video can play. */
+    display: block;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ar-hero__video {
+      display: none;
+    }
   }
   .ar-hero__scrim {
     position: absolute;
@@ -379,6 +403,16 @@ const factions = [
   const page = document.getElementById("ar-page");
   const glow = document.getElementById("ar-glow");
   const flashLayer = document.getElementById("ar-flash-layer");
+  const heroVideo = document.getElementById("ar-hero-video") as HTMLVideoElement | null;
+
+  // CSS already hides the video for reduced-motion visitors; also stop it from decoding/
+  // downloading in the background so it doesn't cost bandwidth or battery for nothing.
+  if (heroVideo && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    heroVideo.pause();
+    heroVideo.removeAttribute("src");
+    heroVideo.querySelectorAll("source").forEach((s) => s.remove());
+    heroVideo.load();
+  }
 
   if (page && glow && window.matchMedia("(pointer: fine)").matches) {
     page.addEventListener("pointerenter", () => page.classList.add("ar-active"));
