@@ -33,8 +33,17 @@ function rhinoLabel(author: string): string {
   return rest.length ? `${first} +` : author;
 }
 
+// The rhino silhouette is a small, irregular area -- echarts-wordcloud silently drops any
+// word it can't place inside it (drawOutOfBound: false), and with ~30 distinct authors now
+// (most owning just 1 book) that long tail crowds out real multi-book authors from ever
+// getting placed at all -- confirmed live 2026-08-22: Frank Herbert (3 books, 4th by count)
+// didn't render at all while several 1-book authors did, since placement inside the tight
+// silhouette isn't strictly priority-ordered. Capping the word-cloud data to authors with 2+
+// books keeps the shape legible and guarantees every author who actually matters gets shown --
+// the full unfiltered list still renders below in "Por autor" regardless of this cap.
+const rhinoAuthors = authorCloud.filter(([, count]) => count >= 2);
 const rhinoWordsJson = JSON.stringify(
-  authorCloud.map(([author, count]) => ({
+  rhinoAuthors.map(([author, count]) => ({
     word: rhinoLabel(author),
     count,
     href: `/biblioteca?autor=${encodeURIComponent(author)}`,
