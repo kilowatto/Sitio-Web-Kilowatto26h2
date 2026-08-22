@@ -14,7 +14,7 @@ export const prerender = false;
 // Schema for kilowatto_audio_events (Analytics Engine is append-only and schemaless, so the
 // column meanings live here and must not be reordered -- existing rows would be reinterpreted):
 //   blob1 entityType   blob2 entityId   blob3 locale   blob4 event   blob5 country
-//   blob6 device       blob7 pathname
+//   blob6 device       blob7 pathname   blob8 sessionId
 //   double1 positionSeconds   double2 durationSeconds   double3 percentOfDuration
 //   index1 "{entityType}:{entityId}"
 const VALID_EVENTS = new Set(["play", "pause", "seek", "progress", "ended", "ratechange"]);
@@ -39,6 +39,7 @@ export const POST: APIRoute = async ({ request }) => {
       position?: number;
       duration?: number;
       pathname?: string;
+      sessionId?: string;
     }>();
 
     const entityType = String(body?.entityType ?? "");
@@ -63,6 +64,7 @@ export const POST: APIRoute = async ({ request }) => {
         String(cf.country ?? ""),
         deviceOf(request.headers.get("user-agent") ?? ""),
         String(body?.pathname ?? "").slice(0, 200),
+        String(body?.sessionId ?? "").slice(0, 40),
       ],
       doubles: [position, duration, percent],
       indexes: [`${entityType}:${entityId}`],

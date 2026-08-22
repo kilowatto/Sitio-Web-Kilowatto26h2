@@ -107,11 +107,17 @@ function fmtDuration(seconds: number): string {
     const locale = root.dataset.locale ?? "es-MX";
 
     // ---- telemetry ----
+    // A per-load random id. Without it "hours listened" is uncomputable: summing the position
+    // of every event counts one listener who reached 7:00 as 0 + 100 + 200 + 300 + 400
+    // seconds. With it, the total is the sum of each session's FURTHEST position.
+    // Not a user id and not persisted -- it dies with the page, and nothing links two visits.
+    const sessionId = (crypto.randomUUID?.() ?? String(Math.random())).slice(0, 18);
     const sent = new Set<number>();
     function send(event: string) {
       if (!entityType || !entityId) return;
       const payload = JSON.stringify({
         entityType, entityId, locale, event,
+        sessionId,
         position: Math.round(audio!.currentTime),
         duration: Math.round(audio!.duration || 0),
         pathname: location.pathname,

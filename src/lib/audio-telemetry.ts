@@ -5,7 +5,7 @@ import { queryPageViews } from "./cf-analytics";
 //
 // Column meanings are fixed by that writer and must not be reordered:
 //   blob1 entityType  blob2 entityId  blob3 locale  blob4 event  blob5 country
-//   blob6 device      blob7 pathname
+//   blob6 device      blob7 pathname  blob8 sessionId
 //   double1 position  double2 duration  double3 percent
 //
 // Every function returns null on failure so an admin page degrades to "no data" instead of
@@ -25,7 +25,7 @@ export async function getAudioTotals(days = 30): Promise<AudioTotals | null> {
       `SELECT
          SUM(IF(blob4 = 'play', 1, 0)) AS plays,
          SUM(IF(blob4 = 'ended', 1, 0)) AS completions,
-         COUNT(*) AS events
+         COUNT() AS events
        FROM kilowatto_audio_events
        WHERE timestamp > NOW() - INTERVAL '${days}' DAY`
     );
@@ -92,7 +92,7 @@ export async function getDropOffCurve(days = 30, entityId?: number): Promise<Dro
   try {
     const filter = entityId ? `AND blob2 = '${String(entityId).replace(/'/g, "")}'` : "";
     const res = await queryPageViews(
-      `SELECT toUInt32(floor(double3 / 10)) AS decile, COUNT(*) AS reached
+      `SELECT toUInt32(floor(double3 / 10)) AS decile, COUNT() AS reached
        FROM kilowatto_audio_events
        WHERE timestamp > NOW() - INTERVAL '${days}' DAY
          AND double3 > 0 ${filter}
@@ -118,13 +118,40 @@ export interface AudioEventCount {
 export async function getAudioEventBreakdown(days = 30): Promise<AudioEventCount[] | null> {
   try {
     const res = await queryPageViews(
-      `SELECT blob4 AS event, COUNT(*) AS count
+      `SELECT blob4 AS event, COUNT() AS count
        FROM kilowatto_audio_events
        WHERE timestamp > NOW() - INTERVAL '${days}' DAY
        GROUP BY event
        ORDER BY count DESC`
     );
     return (res.data ?? []).map((r: any) => ({ event: String(r.event), count: Number(r.count) }));
+  } catch {
+    return null;
+  }
+}
+
+// Total seconds actually listened.
+//
+// Naively summing double1 across events massively overcounts: one listener who reaches 7:00
+// emits play(0) + progress(100) + progress(200) + progress(300) + ended(400), which sums to
+// 1000 seconds for a 400-second listen. The real figure is the sum of each SESSION's furthest
+// position, which is why blob8 exists.
+//
+// Sessions before blob8 was added carry an empty id; those are excluded rather than lumped
+// together, because collapsing them into one "session" would undercount just as badly as the
+// naive sum overcounts.
+export async function getSecondsListened(days = 30): Promise<number | null> {
+  try {
+    const res = await queryPageViews(
+      `SELECT SUM(furthest) AS total FROM (
+         SELECT blob8 AS session, MAX(double1) AS furthest
+         FROM kilowatto_audio_events
+         WHERE timestamp > NOW() - INTERVAL '${days}' DAY AND blob8 != ''
+         GROUP BY session
+       )`
+    );
+    const total = Number((res.data?.[0] as any)?.total ?? 0);
+    return Number.isFinite(total) ? total : null;
   } catch {
     return null;
   }

@@ -24,6 +24,16 @@ export const GET: APIRoute = async ({ url }) => {
       data = await getSiteDailyTotals(7);
     } else if (which === "pages") {
       data = await getTopPages(30, 5);
+    } else if (which === "listened") {
+      // Verifies Analytics Engine accepts a subquery before the dashboard depends on it.
+      data = await queryPageViews(
+        `SELECT SUM(furthest) AS total, COUNT() AS sessions FROM (
+           SELECT blob8 AS session, MAX(double1) AS furthest
+           FROM kilowatto_audio_events
+           WHERE blob8 != ''
+           GROUP BY session
+         )`
+      );
     } else if (which === "audio") {
       data = await queryPageViews(
         `SELECT blob1 AS tipo, blob2 AS id, blob4 AS evento, count() AS n

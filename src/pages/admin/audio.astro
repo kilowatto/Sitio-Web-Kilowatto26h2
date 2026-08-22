@@ -8,6 +8,7 @@ import {
   getAudioByPiece,
   getDropOffCurve,
   getAudioEventBreakdown,
+  getSecondsListened,
 } from "../../lib/audio-telemetry";
 
 export const prerender = false;
@@ -21,14 +22,16 @@ let totals: Awaited<ReturnType<typeof getAudioTotals>> = null;
 let byPiece: Awaited<ReturnType<typeof getAudioByPiece>> = null;
 let dropOff: Awaited<ReturnType<typeof getDropOffCurve>> = null;
 let events: Awaited<ReturnType<typeof getAudioEventBreakdown>> = null;
+let secondsListened: number | null = null;
 let catalog: any[] = [];
 
 if (authorized) {
-  [totals, byPiece, dropOff, events, catalog] = await Promise.all([
+  [totals, byPiece, dropOff, events, secondsListened, catalog] = await Promise.all([
     getAudioTotals(DAYS),
     getAudioByPiece(DAYS),
     getDropOffCurve(DAYS),
     getAudioEventBreakdown(DAYS),
+    getSecondsListened(DAYS),
     env.DB.prepare(
       `SELECT ma.entity_type, ma.entity_id, ma.duration_s, ma.cue_map_json,
               COALESCE(c.title, i.title) AS title,
@@ -52,7 +55,15 @@ for (const c of catalog) {
   });
 }
 
-const totalMinutes = Math.round(catalog.reduce((s: number, c: any) => s + (c.duration_s ?? 0), 0) / 60);
+const totalSeconds = catalog.reduce((s: number, c: any) => s + (c.duration_s ?? 0), 0);
+
+// One decimal below 10 hours, whole hours above: "1.4 h" is useful, "127.3 h" is noise.
+function fmtHours(seconds: number): string {
+  const h = seconds / 3600;
+  if (h === 0) return "0";
+  if (h < 1) return `${Math.round(seconds / 60)} min`;
+  return h < 10 ? `${h.toFixed(1)} h` : `${Math.round(h)} h`;
+}
 const withCues = catalog.filter((c: any) => c.cue_map_json).length;
 
 const maxDrop = dropOff ? Math.max(...dropOff.map((d) => d.reached), 1) : 1;
@@ -76,12 +87,19 @@ function urlFor(key: string): string {
 
         <section class="kpis">
           <div class="kpi"><div class="v">{catalog.length}</div><div class="l">Piezas narradas</div></div>
-          <div class="kpi"><div class="v">{totalMinutes}</div><div class="l">Minutos de audio</div></div>
+          <div class="kpi"><div class="v">{fmtHours(totalSeconds)}</div><div class="l">Horas de catálogo</div></div>
+          <div class="kpi"><div class="v">{secondsListened === null ? "—" : fmtHours(secondsListened)}</div><div class="l">Horas escuchadas</div></div>
           <div class="kpi"><div class="v">{totals ? totals.plays.toLocaleString("es-MX") : "—"}</div><div class="l">Reproducciones</div></div>
           <div class="kpi"><div class="v">{totals ? totals.completions.toLocaleString("es-MX") : "—"}</div><div class="l">Completadas</div></div>
           <div class="kpi"><div class="v">{totals ? totals.completionRate + "%" : "—"}</div><div class="l">Tasa de término</div></div>
           <div class="kpi"><div class="v">{withCues}/{catalog.length}</div><div class="l">Con sincronía</div></div>
         </section>
+
+        <p class="caveat">
+          "Horas escuchadas" suma la posición más avanzada de cada sesión, no la suma de sus
+          eventos. Solo cuenta escuchas posteriores al 22 de agosto de 2026, que es cuando
+          empezamos a identificar sesiones.
+        </p>
 
         <section class="card">
           <h2>¿Hasta dónde llegan?</h2>
@@ -175,11 +193,12 @@ function urlFor(key: string): string {
   .lead { font-size: 0.82rem; color: var(--admin-text-soft); margin: 0 0 1.25rem; }
 
   .kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; margin-bottom: 1.25rem; }
-  @media (min-width: 700px) { .kpis { grid-template-columns: repeat(6, 1fr); } }
+  @media (min-width: 700px) { .kpis { grid-template-columns: repeat(7, 1fr); } }
   .kpi { border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.8rem 0.7rem; background: var(--admin-surface); }
   .kpi .v { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
   .kpi .l { font-size: 0.62rem; color: var(--admin-text-soft); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 0.15rem; }
 
+  .caveat { font-size: 0.7rem; color: var(--admin-text-soft); line-height: 1.45; margin: -0.6rem 0 1.1rem; }
   .card { border: 1px solid var(--admin-border); border-radius: 0.8rem; padding: 1rem; background: var(--admin-surface); margin-bottom: 1rem; }
   .card h2 { font-size: 0.85rem; margin: 0 0 0.3rem; }
   .note { font-size: 0.7rem; color: var(--admin-text-soft); margin: 0 0 0.8rem; line-height: 1.4; }
