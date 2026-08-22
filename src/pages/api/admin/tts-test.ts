@@ -32,7 +32,9 @@ export const POST: APIRoute = async ({ url, request }) => {
     return new Response("unauthorized", { status: 401 });
   }
 
-  const body = await request.json<{ text?: string; align?: boolean }>().catch(() => ({}) as any);
+  const body = await request
+    .json<{ text?: string; align?: boolean; chain?: boolean; voiceSettings?: Record<string, number | boolean> }>()
+    .catch(() => ({}) as any);
   const text =
     body?.text ??
     "Hola, soy Larry. Esta es una prueba de narración para kilowatto punto com. " +
@@ -40,9 +42,17 @@ export const POST: APIRoute = async ({ url, request }) => {
 
   try {
     const started = Date.now();
-    const result = await synthesizeScript(text);
+    const result = await synthesizeScript(text, (body?.voiceSettings ?? {}) as any, body?.chain !== false);
     const hash = await scriptHash(text);
-    const destKey = `media/audio/test/${hash.slice(0, 16)}.mp3`;
+    // The settings must be part of the stitched key too, not just the per-chunk cache key --
+    // otherwise two A/B variants of the same text write to the SAME object and the second
+    // silently overwrites the first, making the comparison meaningless.
+    const chainTag = body?.chain === false ? "nochain" : "chain";
+    const settingsTag = Object.entries(body?.voiceSettings ?? {})
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}${v}`)
+      .join("-") || "default";
+    const destKey = `media/audio/test/${hash.slice(0, 12)}-${settingsTag}-${chainTag}.mp3`;
     const bytes = await concatChunksToR2(result.chunks, destKey);
 
     let vttKey: string | null = null;
@@ -71,7 +81,8 @@ export const POST: APIRoute = async ({ url, request }) => {
           estimatedCostUsd: Number(((result.charactersBilled / 1000) * 0.1).toFixed(4)),
           audioKey: destKey,
           audioBytes: bytes,
-          playUrl: `/media/video/${destKey}`,
+          playUrl: `https://kilowatto.com/media/video/${destKey}`,
+          settingsUsed: body?.voiceSettings ?? "default",
           vttKey,
           alignedWords: wordCount,
           lowConfidenceWords: lowConfidence,

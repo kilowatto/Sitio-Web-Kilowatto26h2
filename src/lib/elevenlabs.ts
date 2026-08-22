@@ -18,17 +18,38 @@ const OUTPUT_FORMAT = "mp3_44100_192"; // 192 kbps requires Creator tier or abov
 // + identical settings + identical seed => byte-similar output, which is what makes the R2
 // cache key below meaningful.
 const VOICE_SETTINGS = {
-  stability: 0.55, // consistency across chunks matters more than expressiveness for narration
+  // 0.40, not the 0.55 this started at. Chosen by ear in an A/B against the same text
+  // (2026-08-22): 0.55 was consistent but read flat. The tradeoff is real — lower stability
+  // means more expressive range but more variance between chunks — so if a long article ever
+  // drifts in tone mid-piece, this is the first dial to look at.
+  stability: 0.4,
   similarity_boost: 0.75,
-  style: 0, // non-zero adds latency and drifts between chunks
+  // style stayed at 0: the 0.35 variant was noticeably overacted for narration, and non-zero
+  // style also adds latency and drifts between chunks.
+  style: 0,
   speed: 1.0,
   use_speaker_boost: true,
 };
+
+export type VoiceSettings = Partial<typeof VOICE_SETTINGS>;
 const SEED = 20260821;
 
-// ~2000 chars is well under multilingual_v2's 10k limit. Smaller chunks fail less often and,
-// more importantly, cost less to retry: editing one paragraph re-bills one chunk.
-const TARGET_CHUNK_CHARS = 2000;
+// 9000, close to multilingual_v2's 10k ceiling, with headroom for the <break> tags the script
+// builder injects.
+//
+// This started at 2000 to make edits cheap: a small chunk means editing one paragraph re-bills
+// only that chunk. That reasoning was sound in isolation and wrong overall, because chunk
+// boundaries turned out to be where the audio quality actually goes. Chaining chunks kept the
+// cadence but compounded a loss of energy across the article ("mientras más lo escuchas... se
+// aburre"); not chaining held the energy but broke the cadence at every seam. Both symptoms
+// come from having seams at all.
+//
+// At 9000 a typical column (~6k characters) is a SINGLE request: no seams, no chaining, no
+// tradeoff. A long investigación (~27k) drops from ~14 chunks to 3. The cost is that an edit
+// re-bills a larger unit -- roughly $0.60 instead of $0.20 for a column -- which is a small
+// price for narration that holds up over six minutes, and articles are rarely edited after
+// publishing anyway.
+const TARGET_CHUNK_CHARS = 9000;
 
 export interface AudioChunk {
   index: number;
@@ -156,9 +177,26 @@ async function sha256Hex(input: string): Promise<string> {
 
 // Every input that changes the audio must be in the cache key, or we'd serve stale audio
 // after a settings change.
-async function chunkCacheKey(text: string): Promise<string> {
+async function chunkCacheKey(
+  text: string,
+  settings: typeof VOICE_SETTINGS,
+  previousRequestIds: string[]
+): Promise<string> {
   const hash = await sha256Hex(
-    JSON.stringify({ text, model: MODEL_ID, voice: voiceId(), settings: VOICE_SETTINGS, format: OUTPUT_FORMAT, seed: SEED })
+    JSON.stringify({
+      text,
+      model: MODEL_ID,
+      voice: voiceId(),
+      settings,
+      format: OUTPUT_FORMAT,
+      seed: SEED,
+      // Chaining changes the audio, so it has to change the key -- otherwise a run with
+      // chaining OFF is served the previously cached chained audio and any comparison between
+      // the two is silently meaningless. Keyed on the MODE, not on the request ids themselves:
+      // those are different on every run, so including them would mean chunk 2 onward never
+      // hits cache again, defeating the whole point of caching per paragraph.
+      chained: previousRequestIds.length > 0,
+    })
   );
   return `media/audio/chunks/${hash}.mp3`;
 }
@@ -190,9 +228,10 @@ async function dictionaryLocators(): Promise<{ pronunciation_dictionary_id: stri
 async function synthesizeChunk(
   text: string,
   index: number,
-  previousRequestIds: string[]
+  previousRequestIds: string[],
+  settings: typeof VOICE_SETTINGS
 ): Promise<AudioChunk> {
-  const r2Key = await chunkCacheKey(text);
+  const r2Key = await chunkCacheKey(text, settings, previousRequestIds);
 
   const existing = await env.MEDIA.head(r2Key);
   if (existing) {
@@ -203,7 +242,7 @@ async function synthesizeChunk(
   const body: Record<string, unknown> = {
     text,
     model_id: MODEL_ID,
-    voice_settings: VOICE_SETTINGS,
+    voice_settings: settings,
     seed: SEED,
   };
   if (previousRequestIds.length > 0) body.previous_request_ids = previousRequestIds.slice(-3);
@@ -249,14 +288,24 @@ export interface NarrationResult {
 
 // Synthesizes a whole script, chunk by chunk, sequentially -- sequential is required, not a
 // simplification: each chunk feeds its request_id to the next one for prosody continuity.
-export async function synthesizeScript(script: string): Promise<NarrationResult> {
+// `chainProsody` conditions each chunk on the previous ones so tone carries across chunk
+// boundaries. That is a genuine tradeoff, not a free win: because every chunk inherits the
+// last one's delivery, a slight loss of energy compounds down the article. Esteban heard
+// exactly that on the first full narration -- fine at the start, noticeably bored by minute
+// two -- so this is switchable and the default is settled by ear, not by theory.
+export async function synthesizeScript(
+  script: string,
+  overrides: VoiceSettings = {},
+  chainProsody = true
+): Promise<NarrationResult> {
+  const settings = { ...VOICE_SETTINGS, ...overrides };
   const chunks = chunkScript(script);
   const out: AudioChunk[] = [];
   const requestIds: string[] = [];
   let charactersBilled = 0;
 
   for (let i = 0; i < chunks.length; i++) {
-    const chunk = await synthesizeChunk(chunks[i], i, requestIds);
+    const chunk = await synthesizeChunk(chunks[i], i, chainProsody ? requestIds : [], settings);
     out.push(chunk);
     if (chunk.requestId) requestIds.push(chunk.requestId);
     if (!chunk.cached) charactersBilled += chunks[i].length;

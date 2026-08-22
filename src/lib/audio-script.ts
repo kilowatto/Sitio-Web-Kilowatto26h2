@@ -160,6 +160,30 @@ export function findInventedNumbers(source: string, adapted: string): string[] {
   return [...new Set(invented)];
 }
 
+// Pause lengths, in seconds, tuned by ear (2026-08-22). Esteban's note was that the narration
+// "se escucha súper plano, sin pausas" and specifically that the title ran straight into what
+// follows -- a paragraph break on the page is silent to a listener unless something marks it.
+// <break> is honored by eleven_multilingual_v2; this was verified in an A/B before relying on it.
+const PAUSE_AFTER_TITLE = 1.2;
+const PAUSE_AFTER_SUBTITLE = 1.5;
+const PAUSE_AFTER_HEADING = 0.8;
+const PAUSE_BETWEEN_PARAGRAPHS = 0.6;
+
+function br(seconds: number): string {
+  return `<break time="${seconds}s" />`;
+}
+
+// Turns blank-line paragraph breaks into audible breaths. Note these tags are part of the text
+// sent to ElevenLabs and therefore billable -- roughly 22 characters each, so a long article
+// with 50 paragraphs adds ~1k characters (~$0.11). Cheap for what it buys.
+function withBreaths(text: string): string {
+  return text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .join(` ${br(PAUSE_BETWEEN_PARAGRAPHS)} `);
+}
+
 function prompt(locale: string, title: string, heading: string | null, text: string): string {
   const language = locale.startsWith("en") ? "inglés" : "español";
   return `Vas a adaptar un fragmento de un artículo para que sea NARRADO en voz alta en ${language}.
@@ -216,8 +240,14 @@ export async function buildAudioScript(
   const adapted: string[] = [];
 
   // Spoken intro: the title and standfirst orient a listener who has no page in front of them.
-  const intro = [row.title, row.subtitle].filter(Boolean).join(". ");
-  adapted.push(intro.endsWith(".") ? intro : `${intro}.`);
+  // They get their own beats -- run together they read as one long run-on sentence, which is
+  // exactly what sounded wrong in the first real narration.
+  const title = row.title.trim().replace(/\.$/, "");
+  const introParts = [`${title}.`, br(PAUSE_AFTER_TITLE)];
+  if (row.subtitle?.trim()) {
+    introParts.push(`${row.subtitle.trim().replace(/\.$/, "")}.`, br(PAUSE_AFTER_SUBTITLE));
+  }
+  adapted.push(introParts.join(" "));
 
   for (const section of sections) {
     const out = await llm(prompt(locale, row.title, section.heading, section.text));
@@ -233,11 +263,17 @@ export async function buildAudioScript(
       warnings.push(
         `sección "${section.heading ?? "(sin título)"}": cifras inventadas ${invented.join(", ")} — se usó el texto original`
       );
-      adapted.push(section.heading ? `${section.heading}. ${section.text}` : section.text);
+      adapted.push(
+        section.heading
+          ? `${section.heading}. ${br(PAUSE_AFTER_HEADING)} ${withBreaths(section.text)}`
+          : withBreaths(section.text)
+      );
       continue;
     }
 
-    adapted.push(section.heading ? `${section.heading}. ${out}` : out);
+    adapted.push(
+      section.heading ? `${section.heading}. ${br(PAUSE_AFTER_HEADING)} ${withBreaths(out)}` : withBreaths(out)
+    );
   }
 
   return { script: adapted.join("\n\n"), sections: sections.length, warnings };
