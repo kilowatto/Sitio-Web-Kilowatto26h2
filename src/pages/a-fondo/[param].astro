@@ -94,6 +94,12 @@ const chartByKey = new Map(charts.map((c) => [c.chart_key, c]));
 const stampedBodyHtml = investigacion ? stampSectionIds(investigacion.body_html) : "";
 const segments = investigacion ? splitInvestigacionBody(stampedBodyHtml) : [];
 const audio = investigacion ? await getAudioAsset("investigacion", investigacion.id, "es-MX") : null;
+const audioLd = investigacion && audio ? audioObjectJsonLd(audio, {
+  name: investigacion.title,
+  description: investigacion.subtitle ?? investigacion.summary,
+  datePublished: investigacion.published_at,
+  transcriptUrl: `https://kilowatto.com/a-fondo/${investigacion.slug}/transcripcion.txt`,
+}) : null;
 const sections = investigacion ? extractSections(stampedBodyHtml) : [];
 
 const articleJsonLd = investigacion
@@ -106,6 +112,8 @@ const articleJsonLd = investigacion
       author: { "@type": "Person", name: "Esteban Rey", alternateName: "Kilowatto", url: "https://kilowatto.com" },
       publisher: { "@type": "Organization", name: "Kilowatto" },
       mainEntityOfPage: `https://kilowatto.com/a-fondo/${investigacion.slug}`,
+      // Marks the narration as a spoken version of THIS piece.
+      ...(audioLd ? { audio: audioLd } : {}),
       image: investigacion.cover_r2_key ? `https://kilowatto.com/media/${investigacion.cover_r2_key}` : undefined,
       inLanguage: "es",
       citation: sources.slice(0, 30).map((s) => ({ "@type": "CreativeWork", name: s.label, url: s.url })),
@@ -209,6 +217,7 @@ const datasetJsonLd = investigacion
               audioDurationS={audio?.duration_s ?? null}
               audioVttKey={audio?.transcript_vtt_key ?? null}
               audioCueMap={audio?.cue_map_json ?? null}
+              transcriptUrl={`/a-fondo/${investigacion.slug}/transcripcion.txt`}
               entityId={investigacion.id}
             />
 

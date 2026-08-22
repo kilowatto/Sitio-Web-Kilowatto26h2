@@ -380,6 +380,57 @@ export async function alignAudio(audioKey: string, script: string): Promise<Alig
   }
 }
 
+
+// Reconstructs the R2 keys of the per-chunk MP3s that make up a script's narration.
+//
+// Nothing needs to be stored for this: chunkScript() is deterministic, and the cache key is a
+// hash of (text, model, voice, settings, format, seed, chained) where `chained` is simply
+// whether this is the first chunk. So given the stored script alone, the individual pieces can
+// be located again -- which is what makes long-audio alignment possible without ever holding
+// the full file in memory.
+export async function chunkKeysForScript(script: string): Promise<{ text: string; r2Key: string }[]> {
+  const chunks = chunkScript(script);
+  const out: { text: string; r2Key: string }[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    // Mirrors synthesizeScript: chunk 0 has no predecessor, the rest are chained.
+    const key = await chunkCacheKey(chunks[i], VOICE_SETTINGS, i === 0 ? [] : ["chained"]);
+    out.push({ text: chunks[i], r2Key: key });
+  }
+  return out;
+}
+
+// Word-level alignment for audio too large to buffer.
+//
+// alignAudio() reads the whole MP3 into memory, which is fine for a 6-minute column (~9 MB) and
+// fatal for a 64-minute investigación (~90 MB) against a 128 MB isolate shared with concurrent
+// requests. This aligns each chunk against its own text and shifts the timings by the running
+// duration, so peak memory is one chunk (~14 MB) no matter how long the piece is.
+export async function alignLongAudio(script: string): Promise<AlignedWord[] | null> {
+  try {
+    const pieces = await chunkKeysForScript(script);
+    if (pieces.length === 0) return null;
+
+    const all: AlignedWord[] = [];
+    let offset = 0;
+
+    for (const piece of pieces) {
+      const head = await env.MEDIA.head(piece.r2Key);
+      if (!head) return null; // a missing chunk means the reconstruction is wrong; don't guess
+      const words = await alignAudio(piece.r2Key, piece.text);
+      if (words) {
+        for (const w of words) all.push({ ...w, start: w.start + offset, end: w.end + offset });
+      }
+      // 192 kbps CBR, so bytes map linearly to seconds. Accumulated from the actual stored
+      // sizes rather than from the alignment, whose last word can end before the audio does.
+      offset += head.size / (192000 / 8);
+    }
+
+    return all.length > 0 ? all : null;
+  } catch {
+    return null;
+  }
+}
+
 function vttTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);

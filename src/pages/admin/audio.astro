@@ -1,0 +1,209 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import AdminLogin from "../../components/AdminLogin.astro";
+import { env } from "cloudflare:workers";
+import { checkAdminAuth } from "../../lib/admin-auth";
+import {
+  getAudioTotals,
+  getAudioByPiece,
+  getDropOffCurve,
+  getAudioEventBreakdown,
+} from "../../lib/audio-telemetry";
+
+export const prerender = false;
+
+const token = await checkAdminAuth(Astro, env);
+const authorized = !!token;
+
+const DAYS = 30;
+
+let totals: Awaited<ReturnType<typeof getAudioTotals>> = null;
+let byPiece: Awaited<ReturnType<typeof getAudioByPiece>> = null;
+let dropOff: Awaited<ReturnType<typeof getDropOffCurve>> = null;
+let events: Awaited<ReturnType<typeof getAudioEventBreakdown>> = null;
+let catalog: any[] = [];
+
+if (authorized) {
+  [totals, byPiece, dropOff, events, catalog] = await Promise.all([
+    getAudioTotals(DAYS),
+    getAudioByPiece(DAYS),
+    getDropOffCurve(DAYS),
+    getAudioEventBreakdown(DAYS),
+    env.DB.prepare(
+      `SELECT ma.entity_type, ma.entity_id, ma.duration_s, ma.cue_map_json,
+              COALESCE(c.title, i.title) AS title,
+              COALESCE(c.slug, i.slug) AS slug
+         FROM media_assets ma
+         LEFT JOIN columns c         ON ma.entity_type = 'columna'       AND c.id = ma.entity_id
+         LEFT JOIN investigaciones i ON ma.entity_type = 'investigacion' AND i.id = ma.entity_id
+        WHERE ma.kind = 'audio_narration' AND ma.status = 'ready'
+        ORDER BY ma.entity_type, ma.entity_id`
+    ).all().then((r) => r.results ?? []),
+  ]);
+}
+
+// Title lookup so the per-piece table shows names instead of "columna:22".
+const titleOf = new Map<string, { title: string; slug: string; type: string }>();
+for (const c of catalog) {
+  titleOf.set(`${c.entity_type}:${c.entity_id}`, {
+    title: c.title ?? `#${c.entity_id}`,
+    slug: c.slug ?? "",
+    type: c.entity_type,
+  });
+}
+
+const totalMinutes = Math.round(catalog.reduce((s: number, c: any) => s + (c.duration_s ?? 0), 0) / 60);
+const withCues = catalog.filter((c: any) => c.cue_map_json).length;
+
+const maxDrop = dropOff ? Math.max(...dropOff.map((d) => d.reached), 1) : 1;
+const maxPlays = byPiece && byPiece.length ? Math.max(...byPiece.map((p) => p.plays), 1) : 1;
+
+function urlFor(key: string): string {
+  const t = titleOf.get(key);
+  if (!t?.slug) return "#";
+  return t.type === "columna" ? `/columnas/${t.slug}` : `/a-fondo/${t.slug}`;
+}
+---
+
+{
+  !authorized ? (
+    <AdminLogin />
+  ) : (
+    <AdminLayout title="Audio — Admin" active="/admin/audio">
+      <div class="au">
+        <h1>Audio narrado</h1>
+        <p class="lead">Escuchas reales de las últimas {DAYS} días, más el estado del catálogo.</p>
+
+        <section class="kpis">
+          <div class="kpi"><div class="v">{catalog.length}</div><div class="l">Piezas narradas</div></div>
+          <div class="kpi"><div class="v">{totalMinutes}</div><div class="l">Minutos de audio</div></div>
+          <div class="kpi"><div class="v">{totals ? totals.plays.toLocaleString("es-MX") : "—"}</div><div class="l">Reproducciones</div></div>
+          <div class="kpi"><div class="v">{totals ? totals.completions.toLocaleString("es-MX") : "—"}</div><div class="l">Completadas</div></div>
+          <div class="kpi"><div class="v">{totals ? totals.completionRate + "%" : "—"}</div><div class="l">Tasa de término</div></div>
+          <div class="kpi"><div class="v">{withCues}/{catalog.length}</div><div class="l">Con sincronía</div></div>
+        </section>
+
+        <section class="card">
+          <h2>¿Hasta dónde llegan?</h2>
+          <p class="note">
+            Cada barra es un décimo de la pieza. Una caída fuerte entre dos barras marca el punto
+            donde la gente abandona.
+          </p>
+          {!dropOff || dropOff.every((d) => d.reached === 0) ? (
+            <p class="empty">Aún no hay escuchas registradas.</p>
+          ) : (
+            <div class="drop">
+              {dropOff.map((d) => (
+                <div class="drop-col" title={`${d.decile * 10}–${d.decile * 10 + 10}%: ${d.reached} eventos`}>
+                  <div class="drop-bar" style={`height:${Math.max(3, Math.round((d.reached / maxDrop) * 100))}%`} />
+                  <span class="drop-lbl">{d.decile * 10}%</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section class="card">
+          <h2>Por pieza</h2>
+          {!byPiece || byPiece.length === 0 ? (
+            <p class="empty">Aún no hay escuchas registradas.</p>
+          ) : (
+            <table class="tbl">
+              <thead>
+                <tr><th>Pieza</th><th class="n">Plays</th><th class="n">Terminadas</th><th>Tasa</th></tr>
+              </thead>
+              <tbody>
+                {byPiece.map((p) => {
+                  const key = `${p.entityType}:${p.entityId}`;
+                  const meta = titleOf.get(key);
+                  return (
+                    <tr>
+                      <td><a href={urlFor(key)}>{meta?.title ?? key}</a></td>
+                      <td class="n mono">{p.plays}</td>
+                      <td class="n mono">{p.completions}</td>
+                      <td>
+                        <div class="rate">
+                          <div class="rate-track"><div class="rate-fill" style={`width:${p.completionRate}%`} /></div>
+                          <span class="mono">{p.completionRate}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        <section class="card">
+          <h2>Interacciones</h2>
+          {!events || events.length === 0 ? (
+            <p class="empty">Aún no hay eventos.</p>
+          ) : (
+            <ul class="ev">
+              {events.map((e) => (
+                <li><span>{e.event}</span><b class="mono">{e.count.toLocaleString("es-MX")}</b></li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section class="card">
+          <h2>Catálogo</h2>
+          <table class="tbl">
+            <thead><tr><th>Pieza</th><th>Tipo</th><th class="n">Min</th><th>Sincronía</th></tr></thead>
+            <tbody>
+              {catalog.map((c: any) => (
+                <tr>
+                  <td><a href={c.entity_type === "columna" ? `/columnas/${c.slug}` : `/a-fondo/${c.slug}`}>{c.title}</a></td>
+                  <td class="dim">{c.entity_type}</td>
+                  <td class="n mono">{Math.round((c.duration_s ?? 0) / 60)}</td>
+                  <td>{c.cue_map_json ? <span class="ok">sí</span> : <span class="no">no</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </AdminLayout>
+  )
+}
+
+<style>
+  .au { max-width: 60rem; }
+  .au h1 { font-size: 1.5rem; letter-spacing: -0.02em; margin: 0 0 0.2rem; }
+  .lead { font-size: 0.82rem; color: var(--admin-text-soft); margin: 0 0 1.25rem; }
+
+  .kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; margin-bottom: 1.25rem; }
+  @media (min-width: 700px) { .kpis { grid-template-columns: repeat(6, 1fr); } }
+  .kpi { border: 1px solid var(--admin-border); border-radius: 0.7rem; padding: 0.8rem 0.7rem; background: var(--admin-surface); }
+  .kpi .v { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .kpi .l { font-size: 0.62rem; color: var(--admin-text-soft); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 0.15rem; }
+
+  .card { border: 1px solid var(--admin-border); border-radius: 0.8rem; padding: 1rem; background: var(--admin-surface); margin-bottom: 1rem; }
+  .card h2 { font-size: 0.85rem; margin: 0 0 0.3rem; }
+  .note { font-size: 0.7rem; color: var(--admin-text-soft); margin: 0 0 0.8rem; line-height: 1.4; }
+  .empty { font-size: 0.85rem; color: var(--admin-text-soft); margin: 0; }
+  .mono { font-variant-numeric: tabular-nums; }
+
+  .drop { display: flex; align-items: flex-end; gap: 0.35rem; height: 8rem; padding-bottom: 1.1rem; }
+  .drop-col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; }
+  .drop-bar { width: 100%; background: var(--rhino); border-radius: 3px 3px 0 0; }
+  .drop-lbl { position: absolute; bottom: -1.05rem; font-size: 0.55rem; color: var(--admin-text-soft); font-variant-numeric: tabular-nums; }
+
+  .tbl { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .tbl th { text-align: left; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--admin-text-soft); font-weight: 600; padding: 0 0.5rem 0.4rem; border-bottom: 1px solid var(--admin-border); }
+  .tbl td { padding: 0.5rem; border-top: 1px solid var(--admin-border); vertical-align: middle; }
+  .tbl a { color: inherit; }
+  .tbl .n { text-align: right; }
+  .dim { color: var(--admin-text-soft); font-size: 0.74rem; }
+  .ok { color: var(--rhino); font-weight: 600; }
+  .no { color: var(--admin-text-soft); }
+
+  .rate { display: flex; align-items: center; gap: 0.5rem; }
+  .rate-track { flex: 1; min-width: 3rem; height: 0.4rem; border-radius: 999px; background: var(--admin-surface-2); overflow: hidden; }
+  .rate-fill { height: 100%; background: var(--rhino); border-radius: 999px; }
+
+  .ev { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .ev li { display: flex; align-items: baseline; gap: 0.4rem; border: 1px solid var(--admin-border); border-radius: 999px; padding: 0.25rem 0.7rem; font-size: 0.76rem; }
+</style>

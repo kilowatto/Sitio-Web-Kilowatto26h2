@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { alignAudio } from "../../../lib/elevenlabs";
+import { alignAudio, alignLongAudio } from "../../../lib/elevenlabs";
 import { buildCueMap } from "../../../lib/cue-map";
 
 export const prerender = false;
@@ -62,7 +62,14 @@ export const POST: APIRoute = async ({ url }) => {
         continue;
       }
 
-      const words = await alignAudio(row.r2_key, row.script_text);
+      // Long pieces are aligned chunk by chunk: alignAudio() buffers the whole MP3, which is
+      // fine for a 6-minute column (~9 MB) and fatal for a 64-minute investigación (~90 MB)
+      // in a 128 MB isolate. The threshold is deliberately conservative.
+      const head = await env.MEDIA.head(row.r2_key);
+      const bigFile = (head?.size ?? 0) > 20_000_000;
+      const words = bigFile
+        ? await alignLongAudio(row.script_text)
+        : await alignAudio(row.r2_key, row.script_text);
       if (!words || words.length === 0) {
         results.push({ id: row.id, error: "alineación falló" });
         continue;
@@ -80,6 +87,7 @@ export const POST: APIRoute = async ({ url }) => {
         entity: `${row.entity_type}:${row.entity_id}`,
         paragraphs: paras.length,
         cues: cues.length,
+        chunked: bigFile,
         // Coverage is the honest quality signal: a low number means the matcher rejected most
         // paragraphs rather than guessing, and the highlight will have gaps.
         coverage: paras.length ? Math.round((cues.length / paras.length) * 100) + "%" : "n/a",

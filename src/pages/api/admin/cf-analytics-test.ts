@@ -24,6 +24,14 @@ export const GET: APIRoute = async ({ url }) => {
       data = await getSiteDailyTotals(7);
     } else if (which === "pages") {
       data = await getTopPages(30, 5);
+    } else if (which === "audio") {
+      data = await queryPageViews(
+        `SELECT blob1 AS tipo, blob2 AS id, blob4 AS evento, count() AS n
+         FROM kilowatto_audio_events
+         WHERE timestamp > NOW() - INTERVAL '1' DAY
+         GROUP BY tipo, id, evento
+         ORDER BY n DESC`
+      );
     } else {
       data = await queryPageViews(
         `SELECT blob1 AS pathname, blob2 AS country, blob6 AS device, blob7 AS browser, count() AS views
