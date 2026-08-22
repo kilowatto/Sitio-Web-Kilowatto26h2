@@ -25,6 +25,20 @@ const BASE_LARRY =
   "neutral seamless backdrop. Absolutely no text, no letters, no numbers, no signage anywhere " +
   "in the image. High detail, sharp focus, professional character photography.";
 
+// The geometry + wardrobe that passed detection in round 2, factored out so the round-3 angle
+// sweep varies ONLY the head angle. Holding everything else constant is the point: otherwise a
+// failure can't be attributed to the angle rather than to some incidental prompt drift.
+const LARRY_V2_BODY =
+  `${BASE_LARRY} Tight head-and-shoulders portrait. ` +
+  "GEOMETRY: short broad muzzle, NOT a long animal snout; wide human-proportioned mouth with " +
+  "visible upper and lower lips at the FRONT of the face; large warm eyes with visible whites " +
+  "and eyelids at human placement and spacing. " +
+  "CHARACTER: thin wire-rimmed eyeglasses and a solid BRIGHT ORANGE hoodie. One modest horn " +
+  "low on the muzzle, never crossing or occluding the eyes. " +
+  "FRAMING: the ENTIRE head is inside the frame with clear headroom above it, both ears fully " +
+  "visible and not cropped. Warm, approachable, friendly expression, mouth slightly parted as " +
+  "if speaking. ";
+
 // Ordered from "closest to the current look" to "most human facial geometry", so the result
 // tells us how far Larry has to move from the existing design rather than just yes/no.
 const VARIANTS: Record<string, string> = {
@@ -68,6 +82,23 @@ const VARIANTS: Record<string, string> = {
     "visible whites, thin wire-rimmed eyeglasses, solid bright orange hoodie. " +
     "Small horn low on the muzzle, clear of the eyes. Whole head within frame with headroom, " +
     "both ears visible. Genuinely likeable and warm.",
+
+  // Round 3. Dead-on frontal reads stiff and slightly confrontational -- Esteban wants Larry
+  // angled, not staring down the lens. But frontal framing is exactly what got the face
+  // detected in the first place, so the angle can't just be dialled up on taste. These sweep
+  // the angle over the geometry that passed, to find empirically where detection breaks.
+  // Everything else is held constant so the angle is the only variable.
+  angle_15: `${LARRY_V2_BODY} His head is turned only SLIGHTLY off-axis, about 15 degrees, ` +
+    "a gentle natural angle. Both eyes still clearly visible, both sides of the mouth still " +
+    "visible. He looks slightly past the camera rather than straight down the lens.",
+
+  angle_30: `${LARRY_V2_BODY} Classic three-quarter portrait angle, head turned about 30 degrees. ` +
+    "Both eyes still visible, the far eye slightly foreshortened. The full mouth line stays " +
+    "visible. He looks off to the side, not at the camera.",
+
+  angle_45: `${LARRY_V2_BODY} Head turned about 45 degrees away from camera, a strong ` +
+    "three-quarter profile approaching true profile. Far eye partially occluded by the muzzle. " +
+    "He gazes off-frame.",
 };
 
 // Gemini returns PNG; HeyGen's URL intake insists on JPEG. Re-encode and store with a .jpg
