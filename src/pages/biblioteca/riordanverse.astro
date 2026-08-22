@@ -38,6 +38,8 @@ const heroes = bySeries("Los Héroes del Olimpo");
 const magnus = bySeries("Magnus Chase y los Dioses de Asgard");
 const apolo = bySeries("Las Pruebas de Apolo");
 const kane = bySeries("Las Crónicas de Kane");
+const kaneExtra = bySeries("Las Crónicas de Kane — complementario");
+const magnusExtra = bySeries("Magnus Chase y los Dioses de Asgard — complementario");
 
 // Thematic backdrop per pantheon for the wishlist "cover" placeholders — pure CSS/unicode
 // glyph watermarks, no external art needed, no real (copyrighted) cover art hotlinked.
@@ -354,6 +356,32 @@ const MYTH_GLOSSARY = [
       </div>
     </section>
 
+    {magnusExtra.length > 0 && (
+      <section class="pj-section pj-section--alt">
+        <div class="container">
+          <p class="pj-eyebrow">Nórdico · complementario</p>
+          <h2>Guías del universo de Magnus Chase</h2>
+          <div class="pj-grid">
+            {magnusExtra.map((b) => (
+              <div class="pj-card" data-riptide>
+                <div class="pj-card__mist">
+                  <img
+                    src={`/media/${b.cover_r2_key}?w=300`}
+                    srcset={`/media/${b.cover_r2_key}?w=300 300w, /media/${b.cover_r2_key}?w=500 500w`}
+                    sizes="200px"
+                    alt=""
+                    class="pj-card__img"
+                    loading="lazy"
+                  />
+                </div>
+                <p class="pj-card__title">{shortTitle(b)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
     <section class="pj-section pj-section--alt">
       <div class="container">
         <p class="pj-eyebrow">Griego · después de la guerra</p>
@@ -390,6 +418,32 @@ const MYTH_GLOSSARY = [
             {kane.map((b) => (
               <div class="pj-card" data-riptide>
                 <span class="pj-card__order">{b.reading_order}</span>
+                <div class="pj-card__mist">
+                  <img
+                    src={`/media/${b.cover_r2_key}?w=300`}
+                    srcset={`/media/${b.cover_r2_key}?w=300 300w, /media/${b.cover_r2_key}?w=500 500w`}
+                    sizes="200px"
+                    alt=""
+                    class="pj-card__img"
+                    loading="lazy"
+                  />
+                </div>
+                <p class="pj-card__title">{shortTitle(b)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    {kaneExtra.length > 0 && (
+      <section class="pj-section pj-section--alt">
+        <div class="container">
+          <p class="pj-eyebrow">Egipcio · complementario</p>
+          <h2>Guía de Las Crónicas de Kane</h2>
+          <div class="pj-grid">
+            {kaneExtra.map((b) => (
+              <div class="pj-card" data-riptide>
                 <div class="pj-card__mist">
                   <img
                     src={`/media/${b.cover_r2_key}?w=300`}
