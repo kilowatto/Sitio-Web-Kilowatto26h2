@@ -417,10 +417,10 @@ const rhinoWordsJson = JSON.stringify(
      animated WebP, not <video> -- some in-app browsers/link-preview webviews refuse to
      autoplay <video> and show a tap-to-play button instead, but an animated image always
      plays with zero interaction. Its src is only set by script when motion isn't reduced
-     (see below), so this rule keeps it invisible/un-fetched until then. */
-  .lib-portal__anim {
-    z-index: 1;
-  }
+     (see below), so this rule keeps it invisible/un-fetched until then. No z-index here: DOM
+     order alone (photo, then anim, then scrim, then text) already stacks it correctly -- an
+     explicit z-index previously put it ABOVE the scrim/text (both z-index:auto), hiding the
+     card's darkening gradient and title entirely. */
   .lib-portal__anim:not([src]) {
     display: none;
   }
