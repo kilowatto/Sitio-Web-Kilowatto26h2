@@ -15,12 +15,32 @@ const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 export type EntityType = "columna" | "investigacion";
 
+// Workers AI does not always hand back a plain string in `response`. When the model emits JSON
+// it can come back ALREADY PARSED, and the obvious String(...) turns an array of objects into
+// the literal "[object Object],[object Object]" -- which parses as nothing, reads as nothing,
+// and would have been sent to TTS as nothing. Narration never hit this because prose comes
+// back as a string; the dialogue builder asks for JSON and hit it on the first call.
+export function responseText(response: unknown): string {
+  if (typeof response === "string") return response.trim();
+  if (Array.isArray(response)) {
+    // Content-block shape: [{ type: "text", text: "..." }]. The `type` check is load-bearing:
+    // an array of {speaker, text} dialogue turns also has a string `text` on every element, and
+    // without it those get concatenated into one wall of prose with the speakers thrown away.
+    if (response.every((p: any) => p && typeof p === "object" && p.type === "text" && typeof p.text === "string")) {
+      return response.map((p: any) => p.text).join("").trim();
+    }
+    return JSON.stringify(response);
+  }
+  if (response && typeof response === "object") return JSON.stringify(response);
+  return "";
+}
+
 async function llm(prompt: string, maxTokens = 2048): Promise<string> {
   const result: any = await env.AI.run(MODEL, {
     messages: [{ role: "user", content: prompt }],
     max_tokens: maxTokens,
   });
-  return String(result?.response ?? "").trim();
+  return responseText(result?.response);
 }
 
 function decodeEntities(s: string): string {
@@ -107,7 +127,7 @@ function describeChart(chart: ChartRow): string {
   );
 }
 
-interface Section {
+export interface Section {
   heading: string | null;
   text: string;
 }
@@ -247,14 +267,22 @@ export interface ScriptResult {
   warnings: string[];
 }
 
-// Builds the full narration script. Adapts section by section rather than in one shot: whole
-// articles run past a comfortable context for this model, and per-section calls keep the
-// number guard tight enough to attribute a failure to a specific passage.
-export async function buildAudioScript(
+
+export interface LoadedArticle {
+  title: string;
+  subtitle: string | null;
+  sections: Section[];
+}
+
+// Loads a piece and turns it into narratable sections: translated fields for a non-canonical
+// locale, chart placeholders replaced by their deterministic prose description, sign-off block
+// dropped. Exported because the two-voice script builder needs exactly the same input, and
+// duplicating this is how the English narration ended up reading Spanish the first time.
+export async function loadArticle(
   entityType: EntityType,
   entityId: number,
   locale = "es-MX"
-): Promise<ScriptResult> {
+): Promise<LoadedArticle> {
   const table = entityType === "columna" ? "columns" : "investigaciones";
   const row = await env.DB.prepare(`SELECT title, subtitle, body_html FROM ${table} WHERE id = ?`)
     .bind(entityId)
@@ -311,7 +339,20 @@ export async function buildAudioScript(
     }
   }
 
-  const sections = buildSections(row.body_html, charts);
+  return { title: row.title, subtitle: row.subtitle, sections: buildSections(row.body_html, charts) };
+}
+
+
+// Builds the full narration script. Adapts section by section rather than in one shot: whole
+// articles run past a comfortable context for this model, and per-section calls keep the
+// number guard tight enough to attribute a failure to a specific passage.
+export async function buildAudioScript(
+  entityType: EntityType,
+  entityId: number,
+  locale = "es-MX"
+): Promise<ScriptResult> {
+  const row = await loadArticle(entityType, entityId, locale);
+  const { sections } = row;
   const warnings: string[] = [];
   const adapted: string[] = [];
 

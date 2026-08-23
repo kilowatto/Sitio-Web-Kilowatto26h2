@@ -8,6 +8,7 @@ import {
   type DialogueTurn,
 } from "../../../lib/elevenlabs-dialogue";
 import { concatChunksToR2 } from "../../../lib/elevenlabs";
+import { buildDialogueScript, debugFirstBeat } from "../../../lib/dialogue-script";
 
 export const prerender = false;
 
@@ -33,6 +34,19 @@ export const GET: APIRoute = async ({ url }) => {
     const action = url.searchParams.get("action") ?? "voices";
     if (action === "voices") {
       return Response.json({ voices: await listOwnVoices() });
+    }
+    // Script generation costs nothing but Workers AI, so it is worth reading the turns before
+    // paying ElevenLabs to perform them.
+    if (action === "script") {
+      const entityId = Number(url.searchParams.get("entityId") ?? 0);
+      if (!entityId) return new Response("entityId required", { status: 400 });
+      const locale = url.searchParams.get("locale") ?? "es-MX";
+      return Response.json(await buildDialogueScript("investigacion", entityId, locale));
+    }
+    if (action === "script-debug") {
+      const entityId = Number(url.searchParams.get("entityId") ?? 0);
+      if (!entityId) return new Response("entityId required", { status: 400 });
+      return Response.json(await debugFirstBeat(entityId, url.searchParams.get("locale") ?? "es-MX"));
     }
     if (action === "search") {
       const params: Record<string, string> = {};
@@ -61,11 +75,20 @@ export const POST: APIRoute = async ({ url, request }) => {
       cohostVoiceId?: string;
       languageCode?: string;
       label?: string;
+      entityId?: number;
+      locale?: string;
     }>()
     .catch(() => ({}) as any);
 
-  const turns = body?.turns ?? [];
-  if (turns.length === 0) return Response.json({ error: "turns required" }, { status: 400 });
+  // Either explicit turns (voice bench) or a piece to build them from (full episode).
+  let turns = body?.turns ?? [];
+  let scriptMeta: any = null;
+  if (turns.length === 0 && body?.entityId) {
+    const built = await buildDialogueScript("investigacion", Number(body.entityId), body?.locale ?? "es-MX");
+    turns = built.turns;
+    scriptMeta = { beats: built.beats, characters: built.characters, estimatedMinutes: built.estimatedMinutes, warnings: built.warnings };
+  }
+  if (turns.length === 0) return Response.json({ error: "turns o entityId requerido" }, { status: 400 });
 
   const host = body?.hostVoiceId ?? String((env as any).ELEVENLABS_VOICE_ID ?? "");
   const cohost = body?.cohostVoiceId ?? "";
@@ -92,6 +115,7 @@ export const POST: APIRoute = async ({ url, request }) => {
       cachedChunks: result.cachedChunks,
       estimatedCostUsd: Number((result.charactersBilled * 0.000184).toFixed(3)),
       warnings: result.warnings,
+      script: scriptMeta,
       elapsedMs: Date.now() - started,
     });
   } catch (err: any) {
