@@ -1,5 +1,6 @@
 ---
 import AudioPlayer from "./AudioPlayer.astro";
+import PodcastLinks from "./PodcastLinks.astro";
 
 // The conversational episode, offered on the article page as its own thing.
 //
@@ -45,9 +46,7 @@ const minutes = durationSeconds ? Math.round(durationSeconds / 60) : null;
     kind="audio_dialogue"
   />
 
-  <p class="conv__note">
-    También está en <a href="/podcast.xml">el feed del podcast</a>.
-  </p>
+  <PodcastLinks locale="es-MX" />
 </aside>
 
 <style>

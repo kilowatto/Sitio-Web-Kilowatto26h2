@@ -1,0 +1,74 @@
+---
+import { platformsFor } from "../lib/podcast-links";
+
+// "Listen on" row for the directories.
+//
+// Spotify ships an official badge and their brand rules require using it unaltered, so it is an
+// image. Apple's badge has to be downloaded separately from their marketing toolbox and is not
+// in the repo yet, so Apple gets a text button of the same height until it is -- borrowing
+// Apple's wordmark or Spotify's logo into a homemade button would break both sets of rules.
+interface Props {
+  locale?: string;
+  feedUrl?: string;
+}
+const { locale = "es-MX", feedUrl = "/podcast.xml" } = Astro.props;
+const platforms = platformsFor(locale);
+const en = locale.startsWith("en");
+---
+
+{platforms.length > 0 && (
+  <div class="plinks">
+    <span class="plinks__label">{en ? "Listen on" : "Escúchalo en"}</span>
+    <ul class="plinks__list">
+      {platforms.map((p) =>
+        p.id === "spotify" ? (
+          <li>
+            <a href={p.url} target="_blank" rel="noopener" aria-label={en ? "Listen on Spotify" : "Escúchalo en Spotify"}>
+              {/* Two files rather than a CSS filter: inverting Spotify's green would break their
+                  brand rules, and the light/dark badges are the two forms they actually ship. */}
+              <picture>
+                <source srcset="/podcast/spotify-badge-dark.png" media="(prefers-color-scheme: dark)" />
+                <img src="/podcast/spotify-badge-light.png" alt="Spotify" width="165" height="40" loading="lazy" />
+              </picture>
+            </a>
+          </li>
+        ) : (
+          <li>
+            <a class="plinks__text" href={p.url} target="_blank" rel="noopener">{p.name}</a>
+          </li>
+        )
+      )}
+      <li><a class="plinks__text plinks__text--quiet" href={feedUrl}>RSS</a></li>
+    </ul>
+  </div>
+)}
+
+<style>
+  .plinks { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0.9rem 0 0; }
+  .plinks__label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: var(--ia-text-soft, rgba(0, 0, 0, 0.55));
+  }
+  .plinks__list { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0; padding: 0; }
+  .plinks__list img { display: block; height: 40px; width: auto; }
+  /* Spotify's guidelines ask for clear space around the badge of at least a quarter of its
+     height, which the gap above already provides at 40px. */
+  .plinks__text {
+    display: inline-flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 0.95rem;
+    border: 1px solid var(--ia-border, rgba(0, 0, 0, 0.2));
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: inherit;
+    white-space: nowrap;
+  }
+  .plinks__text--quiet { font-weight: 500; opacity: 0.72; }
+  .plinks__text:hover { border-color: currentColor; }
+</style>
