@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { buildDialogueScript, HOST_NAME, COHOST_NAME } from "./dialogue-script";
+import { buildDialogueScript, stripAllTags, HOST_NAME, COHOST_NAME } from "./dialogue-script";
 import { synthesizeDialogue, type DialogueTurn } from "./elevenlabs-dialogue";
 import { concatChunksToR2 } from "./elevenlabs";
 
@@ -41,7 +41,8 @@ function estimateDurationSeconds(bytes: number): number {
 // string would lose that, and "who said this" is most of what a conversation transcript is for.
 export function turnsToTranscript(turns: DialogueTurn[]): string {
   return turns
-    .map((t) => `${t.speaker === "host" ? HOST_NAME : COHOST_NAME}: ${t.text}`)
+    // Tags like [laughs] are directions for the synthesizer; on the page they are noise.
+    .map((t) => `${t.speaker === "host" ? HOST_NAME : COHOST_NAME}: ${stripAllTags(t.text)}`)
     .join("\n\n");
 }
 

@@ -30,9 +30,14 @@ const SEED = 20260823;
 const MAX_REQUEST_CHARS = 1800;
 
 // Stability on v3 is a three-value dial, not a continuous one: 0.0 creative, 0.5 natural,
-// 1.0 robust. Natural is the documented default and the one that keeps a cloned voice
-// recognisable while still reacting to the tags.
-const SETTINGS = { stability: 0.5, use_speaker_boost: true };
+// 1.0 robust.
+//
+// 0.0, not the 0.5 this started at. Esteban's note on the first full episode was "le falta
+// energía", the same word he used about the narration at stability 0.55 -- and the fix there
+// was the same direction. Creative is documented as more prone to artefacts, which is the real
+// cost; it is worth it because a flat conversation is a conversation nobody finishes.
+const DEFAULT_SETTINGS = { stability: 0, use_speaker_boost: true };
+export type DialogueSettings = typeof DEFAULT_SETTINGS;
 
 export type SpeakerId = "host" | "cohost";
 
@@ -122,8 +127,10 @@ export interface DialogueResult {
 export async function synthesizeDialogue(
   turns: DialogueTurn[],
   voices: DialogueVoices,
-  languageCode?: string
+  languageCode?: string,
+  settingsOverride: Partial<DialogueSettings> = {}
 ): Promise<DialogueResult> {
+  const settings = { ...DEFAULT_SETTINGS, ...settingsOverride };
   const groups = groupTurns(turns);
   const chunks: AudioChunk[] = [];
   const warnings: string[] = [];
@@ -141,7 +148,10 @@ export async function synthesizeDialogue(
     // voices used in this particular group: swapping the co-host must invalidate the whole
     // episode, and a group that happens to be host-only would otherwise survive the swap.
     const key = `media/audio/dialogue-chunks/${await sha256Hex(
-      JSON.stringify({ inputs, model: MODEL_ID, settings: SETTINGS, format: OUTPUT_FORMAT, seed: SEED, voices, languageCode })
+      // `settings` and not DEFAULT_SETTINGS: an A/B of two stability values that shared a cache
+      // key would serve the first variant's audio for both and make the comparison meaningless.
+      // That exact mistake was made twice on the narration variants.
+      JSON.stringify({ inputs, model: MODEL_ID, settings, format: OUTPUT_FORMAT, seed: SEED, voices, languageCode })
     )}.mp3`;
 
     if (await env.MEDIA.head(key)) {
@@ -153,7 +163,7 @@ export async function synthesizeDialogue(
     const body: Record<string, unknown> = {
       inputs,
       model_id: MODEL_ID,
-      settings: SETTINGS,
+      settings,
       seed: SEED,
     };
     if (languageCode) body.language_code = languageCode;
@@ -181,6 +191,69 @@ export async function synthesizeDialogue(
   }
 
   return { chunks, charactersBilled, cachedChunks, warnings };
+}
+
+// ---------------------------------------------------------------------------------------
+// Intro assets
+// ---------------------------------------------------------------------------------------
+
+// The music sting. Generated ONCE and reused by every episode: it is the show's signature, so
+// it has to be identical each time, and regenerating it per episode would both cost more and
+// give a different tune every week.
+//
+// The API rejects `seed` together with `prompt` (422), so a prompt-generated sting is NOT
+// reproducible -- the stored R2 object is the only copy of the show's theme. Treat it as an
+// asset, not as something that can be rebuilt from this source file.
+export const STING_KEY = "media/audio/show/al-fondo-sting.mp3";
+
+export async function composeSting(
+  prompt: string,
+  lengthMs = 6000,
+  key = STING_KEY
+): Promise<{ key: string; bytes: number }> {
+  const res = await fetch(`${API_BASE}/v1/music?output_format=${OUTPUT_FORMAT}`, {
+    method: "POST",
+    headers: { "xi-api-key": apiKey(), "Content-Type": "application/json", Accept: "audio/mpeg" },
+    body: JSON.stringify({
+      prompt,
+      music_length_ms: lengthMs,
+      model_id: "music_v2",
+      // Any vocal in a station ident would collide with the announcer that follows it.
+      force_instrumental: true,
+    }),
+  });
+  if (!res.ok) throw new Error(`music failed (${res.status}): ${(await res.text()).slice(0, 400)}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (bytes.length === 0) throw new Error("music returned an empty body");
+  await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
+  return { key, bytes: bytes.length };
+}
+
+// The announcer line, in a voice that is neither Larry nor Leia. One short sentence per
+// episode, so it is cached by content like everything else -- re-running an episode does not
+// re-bill it.
+export async function synthesizeAnnouncer(text: string, voiceId: string): Promise<string> {
+  const key = `media/audio/show/announcer/${await sha256Hex(
+    JSON.stringify({ text, voiceId, model: MODEL_ID, format: OUTPUT_FORMAT, seed: SEED })
+  )}.mp3`;
+  if (await env.MEDIA.head(key)) return key;
+
+  const res = await fetch(`${API_BASE}/v1/text-to-dialogue?output_format=${OUTPUT_FORMAT}`, {
+    method: "POST",
+    headers: { "xi-api-key": apiKey(), "Content-Type": "application/json", Accept: "audio/mpeg" },
+    body: JSON.stringify({
+      inputs: [{ text, voice_id: voiceId }],
+      model_id: MODEL_ID,
+      // The announcer is the one place where a steady, identical read every episode is the
+      // point, so this ignores the expressive default the conversation uses.
+      settings: { stability: 1, use_speaker_boost: true },
+      seed: SEED,
+    }),
+  });
+  if (!res.ok) throw new Error(`announcer failed (${res.status}): ${(await res.text()).slice(0, 400)}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
+  return key;
 }
 
 export interface VoiceSummary {

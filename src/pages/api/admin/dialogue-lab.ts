@@ -5,6 +5,9 @@ import {
   searchSharedVoices,
   synthesizeDialogue,
   groupTurns,
+  composeSting,
+  synthesizeAnnouncer,
+  STING_KEY,
   type DialogueTurn,
 } from "../../../lib/elevenlabs-dialogue";
 import { concatChunksToR2 } from "../../../lib/elevenlabs";
@@ -68,6 +71,39 @@ export const GET: APIRoute = async ({ url }) => {
 export const POST: APIRoute = async ({ url, request }) => {
   if (!authed(url)) return new Response("unauthorized", { status: 401 });
 
+  // Intro bench: a music sting plus an announcer line, concatenated the way an episode will
+  // assemble them. Separate from the episode path so the show's opening can be iterated for
+  // cents instead of regenerating twelve minutes of conversation each time.
+  if (url.searchParams.get("action") === "intro") {
+    const b = await request
+      .json<{ prompt?: string; lengthMs?: number; announcer?: string; voiceId?: string; label?: string; stingKey?: string }>()
+      .catch(() => ({}) as any);
+    try {
+      const stingKey = b?.stingKey ?? STING_KEY;
+      let stingBytes = 0;
+      if (b?.prompt) {
+        stingBytes = (await composeSting(b.prompt, b.lengthMs ?? 6000, stingKey)).bytes;
+      } else if (!(await env.MEDIA.head(stingKey))) {
+        return Response.json({ error: "no hay sting guardado; manda prompt" }, { status: 400 });
+      }
+      if (!b?.announcer || !b?.voiceId) return Response.json({ error: "announcer y voiceId requeridos" }, { status: 400 });
+
+      const annKey = await synthesizeAnnouncer(b.announcer, b.voiceId);
+      const label = (b?.label ?? "intro").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
+      const destKey = `media/audio/dialogue-lab/${label}.mp3`;
+      const bytes = await concatChunksToR2(
+        [
+          { index: 0, text: "sting", r2Key: stingKey, requestId: null, cached: true },
+          { index: 1, text: b.announcer, r2Key: annKey, requestId: null, cached: true },
+        ],
+        destKey
+      );
+      return Response.json({ url: `https://kilowatto.com/media/video/${destKey}`, bytes, stingBytes, stingKey });
+    } catch (err: any) {
+      return Response.json({ error: err?.message ?? "unknown" }, { status: 500 });
+    }
+  }
+
   const body = await request
     .json<{
       turns?: DialogueTurn[];
@@ -77,6 +113,7 @@ export const POST: APIRoute = async ({ url, request }) => {
       label?: string;
       entityId?: number;
       locale?: string;
+      stability?: number;
     }>()
     .catch(() => ({}) as any);
 
@@ -96,7 +133,12 @@ export const POST: APIRoute = async ({ url, request }) => {
 
   try {
     const started = Date.now();
-    const result = await synthesizeDialogue(turns, { host, cohost }, body?.languageCode);
+    const result = await synthesizeDialogue(
+      turns,
+      { host, cohost },
+      body?.languageCode,
+      typeof body?.stability === "number" ? { stability: body.stability } : {}
+    );
     if (result.chunks.length === 0) {
       return Response.json({ error: "no audio produced", warnings: result.warnings }, { status: 502 });
     }

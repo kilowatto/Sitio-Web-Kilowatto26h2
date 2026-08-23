@@ -86,6 +86,30 @@ function normalizeSpeaker(raw: unknown): SpeakerId | null {
   return null;
 }
 
+// eleven_v3 performs bracketed audio tags instead of speaking them -- but only the ones it
+// knows. An invented tag like [música de fondo] is read out loud as words, so anything outside
+// this list is stripped rather than trusted. Kept small on purpose: a conversation sprinkled
+// with [laughs] every other turn stops sounding like people and starts sounding like a sitcom.
+const ALLOWED_TAGS = new Set([
+  "laughs", "sighs", "exhales", "curious", "excited", "surprised", "sarcastic", "hesitates",
+]);
+const TAG_RE = /\[([a-zA-Z ]{2,20})\]/g;
+
+function stripUnknownTags(text: string): { text: string; removed: string[] } {
+  const removed: string[] = [];
+  const cleaned = text.replace(TAG_RE, (all, inner: string) => {
+    if (ALLOWED_TAGS.has(inner.trim().toLowerCase())) return all;
+    removed.push(inner.trim());
+    return "";
+  });
+  return { text: cleaned.replace(/\s{2,}/g, " ").trim(), removed };
+}
+
+/** Audio tags are performance directions, not words: a reader should never see them. */
+export function stripAllTags(text: string): string {
+  return text.replace(TAG_RE, "").replace(/\s{2,}/g, " ").trim();
+}
+
 interface Beat {
   /** Which of the article's sections this beat is built from. */
   sectionIndex: number;
@@ -148,7 +172,8 @@ Rules, all of them hard:
 - Base every claim ONLY on the source text below. Invent nothing.
 - Write every figure in DIGITS, exactly as the source writes it. Never spell a number out.
 - Neither speaker may claim first-hand experience, credentials, or knowledge from outside the
-  piece. The research is Esteban Rey's; they are discussing it.
+  piece. The research is Kilowatto's; they are discussing it. Always say "Kilowatto" or "the
+  investigation", never a person's name.
 - No greetings, no sign-off, no "welcome back". This is the middle of an episode.
 
 Pacing:
@@ -159,6 +184,15 @@ Pacing:
 - Write exactly ${Math.max(8, Math.round(budgetChars / 220))} turns, alternating, and roughly
   ${budgetChars} characters in total. If you fall short, go deeper into the SAME finding using more
   of the source text; do not invent new material and do not move on to another topic.
+
+Make it sound like people talking, not two announcers reading:
+- Use fillers where they land naturally: "well", "look", "hang on", "right?", "I mean", "okay so".
+  One or two per turn at most; overdoing it is more tiring than leaving them out.
+- ${shared.cohost} can cut in to ask for a figure again, or react before she asks. ${shared.host}
+  can correct himself mid-sentence or open with "well, it depends".
+- You may mark the performance with bracketed tags, sparingly -- at most one every three or four
+  turns. The only allowed ones are: [laughs], [sighs], [exhales], [curious], [excited],
+  [surprised], [sarcastic], [hesitates]. Anything else is stripped, so do not invent any.
 
 What neither of them ever does, because the piece does not say it:
 - Give the listener advice or recommendations ("the important thing is to do your research",
@@ -191,7 +225,8 @@ Reglas, todas duras:
 - Basa cada afirmación SOLO en el texto fuente de abajo. No inventes nada.
 - Escribe cada cifra con DÍGITOS, tal como la escribe la fuente. Nunca deletrees un número.
 - Ninguno de los dos puede decir que tiene experiencia propia, credenciales, ni conocimiento de
-  fuera de la pieza. La investigación es de Esteban Rey; ellos la están comentando.
+  fuera de la pieza. La investigación es de Kilowatto; ellos la están comentando. Di siempre
+  "Kilowatto" o "la investigación", nunca el nombre de una persona.
 - Sin saludos, sin despedida, sin "regresamos". Esto es la mitad de un episodio.
 
 El ritmo:
@@ -202,6 +237,16 @@ El ritmo:
 - Escribe exactamente ${Math.max(8, Math.round(budgetChars / 220))} turnos, alternando, y unos
   ${budgetChars} caracteres en total. Si te quedas corto, profundiza en el MISMO hallazgo con más
   detalle del texto fuente; no inventes material nuevo ni te pases a otro tema.
+
+Que suene a gente hablando, no a dos locutores leyendo:
+- Usa muletillas donde caigan naturales: "o sea", "a ver", "mira", "pues", "bueno", "¿no?",
+  "espérame", "híjole". Una o dos por turno como mucho; abusar cansa más que no usarlas.
+- ${shared.cohost} puede interrumpir para pedir que le repitan un dato, o reaccionar antes de
+  preguntar. ${shared.host} puede corregirse a media frase o arrancar con "bueno, depende".
+- Puedes marcar la interpretación con etiquetas entre corchetes, en inglés y con moderación —
+  como mucho una cada tres o cuatro turnos. Las únicas permitidas son: [laughs], [sighs],
+  [exhales], [curious], [excited], [surprised], [sarcastic], [hesitates]. Cualquier otra se
+  borra, así que no inventes.
 
 Lo que ninguno de los dos hace nunca, porque la pieza no lo dice:
 - Dar consejos ni recomendaciones al oyente ("lo importante es investigar", "revisa los términos").
@@ -231,8 +276,8 @@ function openingTurns(locale: string, title: string, subtitle: string | null): D
       {
         speaker: "host",
         text: subtitle
-          ? `An investigation by Esteban Rey: ${title}. ${subtitle}`
-          : `An investigation by Esteban Rey: ${title}.`,
+          ? `A Deep Dive from Kilowatto: ${title}. ${subtitle}`
+          : `A Deep Dive from Kilowatto: ${title}.`,
       },
     ];
   }
@@ -241,8 +286,8 @@ function openingTurns(locale: string, title: string, subtitle: string | null): D
     {
       speaker: "host",
       text: subtitle
-        ? `Una investigación de Esteban Rey: ${title}. ${subtitle}`
-        : `Una investigación de Esteban Rey: ${title}.`,
+        ? `Una investigación de A fondo, con Kilowatto: ${title}. ${subtitle}`
+        : `Una investigación de A fondo, con Kilowatto: ${title}.`,
     },
   ];
 }
@@ -387,6 +432,7 @@ export async function buildDialogueScript(
       if (!parsed) continue;
 
       const candidate: DialogueTurn[] = [];
+      const droppedTags: string[] = [];
       let unknownSpeakers = 0;
       for (let k = 0; k < parsed.length; k++) {
         const text = String(parsed[k]?.text ?? "").trim();
@@ -397,9 +443,17 @@ export async function buildDialogueScript(
         // one side, so a relabelling by the model degrades into a plausible conversation
         // instead of a monologue.
         const previous = candidate[candidate.length - 1]?.speaker;
-        candidate.push({ speaker: speaker ?? (previous === "host" ? "cohost" : "host"), text });
+        const cleaned = stripUnknownTags(text);
+        if (cleaned.removed.length > 0) droppedTags.push(...cleaned.removed);
+        if (!cleaned.text) continue;
+        candidate.push({ speaker: speaker ?? (previous === "host" ? "cohost" : "host"), text: cleaned.text });
       }
       if (candidate.length === 0) continue;
+      if (droppedTags.length > 0) {
+        warnings.push(
+          `hallazgo "${beat.finding}": etiquetas de audio desconocidas descartadas (${[...new Set(droppedTags)].join(", ")})`
+        );
+      }
       if (unknownSpeakers > 0) {
         warnings.push(
           `hallazgo "${beat.finding}": ${unknownSpeakers} turnos sin interlocutor reconocible — se alternaron`
