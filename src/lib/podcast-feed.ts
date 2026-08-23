@@ -37,22 +37,29 @@ export const FEED_LOCALES: Record<string, FeedLocale> = {
   "es-MX": {
     code: "es-MX",
     rss: "es-mx",
-    title: "Kilowatto — Columnas e investigaciones",
+    title: "Al fondo con Kilowatto",
+    // The title names the conversations, which are 3 of the 26 episodes. That is Esteban's call
+    // and the reason is sound -- it is what the ident says out loud, and a show whose name
+    // contradicts its own audio is worse. But it does mean the description has to do the work of
+    // saying that the full readings are in here too, or a listener who subscribed for 12-minute
+    // conversations meets a 64-minute one and thinks something broke.
     description:
-      "Las columnas e investigaciones de Esteban Rey (Kilowatto) sobre tecnología, nube, IA y " +
-      "negocios en México y Latinoamérica, narradas en audio. Cada episodio es una pieza " +
-      "publicada en kilowatto.com. La narración usa una voz sintética; el texto es de Esteban.",
+      "Kilowatto y Leia conversan sobre las investigaciones de A fondo: tecnología, nube, IA y " +
+      "negocios en México y Latinoamérica. El feed lleva además la lectura completa de cada " +
+      "investigación y las columnas narradas, todo publicado en kilowatto.com. Los textos son de " +
+      "Esteban Rey; las voces son sintéticas.",
     path: "/podcast.xml",
     guid: "357307b7-4568-5d0c-96c1-3d7964c13e60",
   },
   en: {
     code: "en",
     rss: "en",
-    title: "Kilowatto — Columns and Deep Dives",
+    title: "Deep Dive with Kilowatto",
     description:
-      "Esteban Rey (Kilowatto) on technology, cloud, AI and business in Mexico and Latin " +
-      "America, narrated. Each episode is a piece published on kilowatto.com. The narration " +
-      "uses a synthetic voice; the writing is Esteban's.",
+      "Kilowatto and Leia talk through the Deep Dive investigations: technology, cloud, AI and " +
+      "business in Mexico and Latin America. The feed also carries the full reading of each " +
+      "investigation and the narrated columns, all published on kilowatto.com. The writing is " +
+      "Esteban Rey's; the voices are synthetic.",
     path: "/en/podcast.xml",
     guid: "ea0627af-4fdf-57be-9a0b-08475d2fa5ed",
   },
