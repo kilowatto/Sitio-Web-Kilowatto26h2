@@ -4,6 +4,7 @@ import {
   listOwnVoices,
   searchSharedVoices,
   synthesizeDialogue,
+  synthesizeDialogueV2,
   groupTurns,
   composeSting,
   synthesizeAnnouncer,
@@ -134,6 +135,7 @@ export const POST: APIRoute = async ({ url, request }) => {
       entityId?: number;
       locale?: string;
       stability?: number;
+      model?: "v3" | "multilingual_v2";
     }>()
     .catch(() => ({}) as any);
 
@@ -162,12 +164,21 @@ export const POST: APIRoute = async ({ url, request }) => {
 
   try {
     const started = Date.now();
-    const result = await synthesizeDialogue(
-      turns,
-      { host, cohost },
-      body?.languageCode,
-      typeof body?.stability === "number" ? { stability: body.stability } : {}
-    );
+    const result =
+      body?.model === "multilingual_v2"
+        ? await synthesizeDialogueV2(
+            turns,
+            { host, cohost },
+            typeof body?.stability === "number"
+              ? { stability: body.stability, similarity_boost: 0.75, style: 0, speed: 1, use_speaker_boost: true }
+              : undefined
+          )
+        : await synthesizeDialogue(
+            turns,
+            { host, cohost },
+            body?.languageCode,
+            typeof body?.stability === "number" ? { stability: body.stability } : {}
+          );
     if (result.chunks.length === 0) {
       return Response.json({ error: "no audio produced", warnings: result.warnings }, { status: 502 });
     }

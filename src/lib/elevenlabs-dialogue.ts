@@ -294,6 +294,71 @@ export async function synthesizeAnnouncer(
   return key;
 }
 
+// The same turns, but performed one at a time on eleven_multilingual_v2 instead of in one
+// text-to-dialogue call on v3.
+//
+// This exists because of the risk flagged before any of this was built: the `kilowatto` voice is
+// an instant clone made for multilingual_v2, and ElevenLabs recommends professional clones for
+// v3. Esteban's note on the first assembled episode was that Larry sounds flat -- the same word
+// he used about the narration, except the narration is on multilingual_v2 at stability 0.4 and
+// he signed off on it. So the question is whether the model is what flattened him.
+//
+// What this loses is real: v3 conditions each line on the surrounding turns, which is what makes
+// the back-and-forth sound like people rather than alternating narrators. Per-turn synthesis has
+// no such context, so the turn-taking gets stiffer. That is the trade being measured.
+export async function synthesizeDialogueV2(
+  turns: DialogueTurn[],
+  voices: DialogueVoices,
+  settings: Record<string, number | boolean> = { stability: 0.4, similarity_boost: 0.75, style: 0, speed: 1, use_speaker_boost: true }
+): Promise<DialogueResult> {
+  const chunks: AudioChunk[] = [];
+  const warnings: string[] = [];
+  let charactersBilled = 0;
+  let cachedChunks = 0;
+  const locators = await dictionaryLocators();
+
+  // v3 audio tags are meaningless to multilingual_v2 and would be READ ALOUD.
+  const clean = (t: string) => t.replace(/\[[a-zA-Z ]{2,20}\]/g, "").replace(/\s{2,}/g, " ").trim();
+
+  for (let i = 0; i < turns.length; i++) {
+    const text = clean(turns[i].text);
+    if (!text) continue;
+    const voice = voices[turns[i].speaker];
+    const key = `media/audio/dialogue-chunks-v2/${await sha256Hex(
+      JSON.stringify({ text, voice, model: "eleven_multilingual_v2", settings, format: OUTPUT_FORMAT, seed: SEED })
+    )}.mp3`;
+
+    if (await env.MEDIA.head(key)) {
+      chunks.push({ index: i, text, r2Key: key, requestId: null, cached: true });
+      cachedChunks++;
+      continue;
+    }
+
+    const body: Record<string, unknown> = {
+      text,
+      model_id: "eleven_multilingual_v2",
+      voice_settings: settings,
+      seed: SEED,
+    };
+    if (locators.length > 0) body.pronunciation_dictionary_locators = locators;
+
+    const res = await fetch(`${API_BASE}/v1/text-to-speech/${voice}?output_format=${OUTPUT_FORMAT}`, {
+      method: "POST",
+      headers: { "xi-api-key": apiKey(), "Content-Type": "application/json", Accept: "audio/mpeg" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`tts v2 failed (${res.status}) turn ${i}: ${(await res.text()).slice(0, 300)}`);
+
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.length === 0) { warnings.push(`turno ${i} vacío`); continue; }
+    await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
+    charactersBilled += text.length;
+    chunks.push({ index: i, text, r2Key: key, requestId: res.headers.get("request-id"), cached: false });
+  }
+
+  return { chunks, charactersBilled, cachedChunks, warnings };
+}
+
 export interface VoiceSummary {
   voice_id: string;
   name: string;

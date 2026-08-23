@@ -27,6 +27,19 @@ import { concatChunksToR2 } from "./elevenlabs";
 // same voice the columns are narrated with, so a listener who knows the columns recognises him.
 const COHOST_VOICE_ID = "tMzxR2W7o3RLIY7zWBbG";
 
+// The host, and NOT the cloned kilowatto voice the columns are narrated with.
+//
+// That voice is an instant clone built for multilingual_v2, and ElevenLabs recommends
+// professional clones for v3. The risk was flagged before any of this was built and it turned
+// out real: on v3 Larry came out flat, and Esteban's words on the assembled episode were "se
+// escucha muy plano Larry, el inicio me mandó a dormir". Rather than fight the model, the podcast
+// got its own host -- "Rafael", a professional-category Mexican Spanish voice, chosen from a
+// five-way comparison at the same cold open.
+//
+// Larry is untouched: he still narrates every column and every full reading on multilingual_v2 at
+// stability 0.4, which is the narration Esteban signed off on.
+const HOST_VOICE_ID = "nVOH3KsergSg3CFWwAQm";
+
 // The announcer who reads the ident. A third voice, so the show's name does not arrive in the
 // voice of one of the two people talking. "Marisol - Natural and Cordial", Mexican Spanish,
 // chosen by Esteban from a five-way comparison at the same line (2026-08-23) after the first
@@ -157,8 +170,7 @@ export async function runNarrateDialogue(
     const scriptText = JSON.stringify([...built.coldOpen, ...built.turns]);
     await upsert({ status: "generating", script_text: scriptText, error: null });
 
-    const voices = { host: String((env as any).ELEVENLABS_VOICE_ID ?? ""), cohost: COHOST_VOICE_ID };
-    if (!voices.host) return { ok: false, error: "ELEVENLABS_VOICE_ID no está configurado" };
+    const voices = { host: HOST_VOICE_ID, cohost: COHOST_VOICE_ID };
 
     const lang = locale.startsWith("en") ? "en" : "es";
     const episodeNumber = await resolveEpisodeNumber(entityId, locale);

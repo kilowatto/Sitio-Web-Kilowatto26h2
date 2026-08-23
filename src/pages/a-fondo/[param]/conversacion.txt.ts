@@ -35,7 +35,7 @@ export const GET: APIRoute = async ({ params }) => {
     row.subtitle ?? "",
     "",
     `Conversación sobre la investigación${minutes ? ` (${minutes} min)` : ""}.`,
-    "Larry y Leia son personajes; ambas voces son sintéticas. La investigación es de Kilowatto.",
+    "Kilowatto y Leia son personajes; ambas voces son sintéticas.",
     "Esta conversación resume la pieza: no la reemplaza. El texto completo, con fuentes y",
     "gráficas, está en kilowatto.com.",
     "",

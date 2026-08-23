@@ -62,10 +62,11 @@ export const FEED_LOCALES: Record<string, FeedLocale> = {
 const CATEGORY = "Technology";
 const ARTWORK = `${SITE}/podcast-cover.jpg`;
 const AUTHOR = "Esteban Rey";
-// The two voices of the conversational episodes. Larry is Esteban's rhino mascot and the voice
-// the columns are narrated with; Leia is one of his two ostriches, and the site already
-// describes her as the sociable, curious one -- which is the co-host's job.
-const HOST_NAME = "Larry";
+// The two voices of the conversational episodes. Kilowatto is the brand as a character, hosting
+// his own research; Leia is one of Esteban's two ostriches, and the site already describes her as
+// the sociable, curious one -- which is the co-host's job. Larry, the rhino, is not in the
+// podcast at all: he narrates the columns and the full readings.
+const HOST_NAME = "Kilowatto";
 const COHOST_NAME = "Leia";
 // podcast:locked owner. A hosting platform that receives an import request for this feed is
 // expected to mail this address for consent, so it has to be a real mailbox -- and a role

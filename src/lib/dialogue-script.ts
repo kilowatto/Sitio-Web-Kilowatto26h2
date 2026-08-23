@@ -41,7 +41,11 @@ const MAX_CHARS = Math.round(CHARS_PER_MINUTE * (TARGET_MINUTES + 4));
 const MIN_BEATS = 5;
 const MAX_BEATS = 9;
 
-export const HOST_NAME = "Larry";
+// The host is the brand itself, not the rhino. Larry keeps narrating the columns and the full
+// readings -- Esteban's call, and the narration on multilingual_v2 is the one he signed off on.
+// This character exists only in the podcast, and he is presenting his OWN research, which is why
+// nothing here attributes the work to a third party any more.
+export const HOST_NAME = "Kilowatto";
 export const COHOST_NAME = "Leia";
 
 async function llm(prompt: string, maxTokens = 2048): Promise<string> {
@@ -249,7 +253,8 @@ function turnsPrompt(
     return `Write one segment of a podcast conversation about the investigation "${title}".
 
 The two speakers:
-- ${shared.host} is a rhinoceros. He did the reading and brings the findings. Dry, concrete.
+- ${shared.host} did the investigation and is telling it. Dry, concrete, seasoned. He talks about
+  his own work: "I found", "it took me weeks to", "what I did not expect was".
 - ${shared.cohost} is an ostrich. She is the sociable, curious one: she asks, reacts, and pushes
   back when something sounds off. She is not an expert and never pretends to be.
 
@@ -258,9 +263,9 @@ This segment covers exactly one finding: ${finding}
 Rules, all of them hard:
 - Base every claim ONLY on the source text below. Invent nothing.
 - Write every figure in DIGITS, exactly as the source writes it. Never spell a number out.
-- Neither speaker may claim first-hand experience, credentials, or knowledge from outside the
-  piece. The research is Kilowatto's; they are discussing it. Always say "Kilowatto" or "the
-  investigation", never a person's name.
+- Neither speaker may bring in knowledge from outside the piece. ${shared.host} reports what THIS
+  investigation found and nothing else: no other sources, no other cases, no prior experience to
+  cite. Never mention a person's name.
 - No greetings, no sign-off, no "welcome back". This is the middle of an episode.
 
 Pacing:
@@ -305,7 +310,8 @@ ${sourceText}`;
   return `Escribe un segmento de una conversación de podcast sobre la investigación "${title}".
 
 Los dos que hablan:
-- ${shared.host} es un rinoceronte. Él hizo la lectura y trae los hallazgos. Seco, concreto.
+- ${shared.host} es quien hizo la investigación y la está contando. Seco, concreto, con oficio.
+  Habla de su propio trabajo: "encontré", "me tardé semanas en", "lo que no esperaba era".
 - ${shared.cohost} es una avestruz. Es la sociable y curiosa: pregunta, reacciona y contradice
   cuando algo suena raro. No es experta y nunca finge serlo.
 
@@ -314,9 +320,9 @@ Este segmento cubre exactamente un hallazgo: ${finding}
 Reglas, todas duras:
 - Basa cada afirmación SOLO en el texto fuente de abajo. No inventes nada.
 - Escribe cada cifra con DÍGITOS, tal como la escribe la fuente. Nunca deletrees un número.
-- Ninguno de los dos puede decir que tiene experiencia propia, credenciales, ni conocimiento de
-  fuera de la pieza. La investigación es de Kilowatto; ellos la están comentando. Di siempre
-  "Kilowatto" o "la investigación", nunca el nombre de una persona.
+- Ninguno de los dos puede aportar conocimiento de fuera de la pieza. ${shared.host} cuenta lo
+  que ESTA investigación encontró y nada más: no tiene otras fuentes, otros casos ni experiencia
+  previa que citar. Nunca menciones el nombre de una persona.
 - Sin saludos, sin despedida, sin "regresamos". Esto es la mitad de un episodio.
 
 El ritmo:
@@ -372,7 +378,7 @@ function greetingTurns(locale: string, title: string, subtitle: string | null): 
     return [
       {
         speaker: "host",
-        text: `[excited] Hey! Let's go straight to the bottom of it, because today we have an investigation from Kilowatto: ${title}.${subtitle ? ` ${subtitle}` : ""}`,
+        text: `[excited] Hey! Let's go straight to the bottom of it, because today I have a Deep Dive: ${title}.${subtitle ? ` ${subtitle}` : ""}`,
       },
       { speaker: "cohost", text: `Alright ${HOST_NAME}, where do we start?` },
     ];
@@ -380,7 +386,7 @@ function greetingTurns(locale: string, title: string, subtitle: string | null): 
   return [
     {
       speaker: "host",
-      text: `[excited] ¡Qué tal! Vamos directos al fondo, que hoy traemos una investigación de Kilowatto: ${title}.${subtitle ? ` ${subtitle}` : ""}`,
+      text: `[excited] ¡Qué tal! Vamos directos al fondo, que hoy traigo una investigación de A fondo: ${title}.${subtitle ? ` ${subtitle}` : ""}`,
     },
     { speaker: "cohost", text: `A ver ${HOST_NAME}, ¿por dónde empezamos?` },
   ];
