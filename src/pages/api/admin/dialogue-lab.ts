@@ -7,6 +7,7 @@ import {
   groupTurns,
   composeSting,
   synthesizeAnnouncer,
+  isMonoMp3,
   STING_KEY,
   type DialogueTurn,
 } from "../../../lib/elevenlabs-dialogue";
@@ -88,6 +89,15 @@ export const POST: APIRoute = async ({ url, request }) => {
       }
       if (!b?.announcer || !b?.voiceId) return Response.json({ error: "announcer y voiceId requeridos" }, { status: 400 });
 
+      const mono = await isMonoMp3(stingKey);
+      if (mono === false) {
+        return Response.json({
+          error:
+            "el sting está en estéreo; concatenado con voces mono el reproductor las acelera al doble. " +
+            "Conviértelo offline: ffmpeg -i in.mp3 -ac 1 -ar 44100 -b:a 192k out.mp3",
+        }, { status: 409 });
+      }
+
       const annKey = await synthesizeAnnouncer(b.announcer, b.voiceId);
       const label = (b?.label ?? "intro").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
       const destKey = `media/audio/dialogue-lab/${label}.mp3`;
@@ -122,8 +132,17 @@ export const POST: APIRoute = async ({ url, request }) => {
   let scriptMeta: any = null;
   if (turns.length === 0 && body?.entityId) {
     const built = await buildDialogueScript("investigacion", Number(body.entityId), body?.locale ?? "es-MX");
-    turns = built.turns;
-    scriptMeta = { beats: built.beats, characters: built.characters, estimatedMinutes: built.estimatedMinutes, warnings: built.warnings };
+    // The bench flattens cold open and body into one file; the real pipeline keeps them apart so
+    // the ident can sit between them.
+    turns = [...built.coldOpen, ...built.turns];
+    scriptMeta = {
+      beats: built.beats,
+      topic: built.topic,
+      coldOpenTurns: built.coldOpen.length,
+      characters: built.characters,
+      estimatedMinutes: built.estimatedMinutes,
+      warnings: built.warnings,
+    };
   }
   if (turns.length === 0) return Response.json({ error: "turns o entityId requerido" }, { status: 400 });
 

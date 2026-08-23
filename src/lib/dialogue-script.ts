@@ -67,6 +67,19 @@ function parseJsonArray(raw: string): any[] | null {
   }
 }
 
+function parseJsonObject(raw: string): any | null {
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const body = fenced ? fenced[1] : raw;
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+  try {
+    return JSON.parse(body.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
 // Number words are the hole in findInventedNumbers(): it compares digit strings, so a turn
 // that says "ciento siete dólares" contains no digits at all and passes the guard trivially.
 // The scripts are therefore written with digits, and this flags the case where the model
@@ -149,6 +162,80 @@ Secciones:
 ${inventory}`;
 }
 
+// The cold open, and it is not decoration.
+//
+// Two findings from the research literature decide its shape:
+//
+// Loewenstein (1994) -- curiosity is the feeling of a gap in what you know, and it only appears
+// if you already know enough to NOTICE the gap. Complete ignorance produces nothing. So the
+// opening has to be about something the listener already holds an opinion on, not about
+// something new.
+//
+// Muller's 2008 thesis (the Veritasium PhD) -- a clear exposition leaves people no more correct
+// but MORE CONFIDENT, which is worse than no instruction at all. What works is surfacing the
+// wrong belief first and then breaking it. His own summary: clarity numbs the mind, confusion
+// cracks it open.
+//
+// So: state the belief the listener is confident about, break it with one fact, and do NOT
+// resolve it. The unresolved gap is the whole mechanism. Leia says the confident wrong thing --
+// dramatised the way Muller's street-corner quiz does it, rather than Larry lecturing about a
+// misconception nobody admitted to holding.
+function hookPrompt(locale: string, title: string, fullText: string): string {
+  if (locale.startsWith("en")) {
+    return `Read the investigation below and design the cold open for a podcast episode about it.
+
+Find the single place where the piece contradicts what a normal, reasonably informed person
+would confidently assume. Not the most important finding -- the most SURPRISING one.
+
+Reply with ONLY a JSON object, every value a COMPLETE sentence:
+{"question":"a short question the listener thinks they already know the answer to",
+ "commonAnswer":"what almost everyone answers, in the words they would use",
+ "breaker":"the fact from the piece that shows the common answer is wrong, with its figure",
+ "topic":"one to three words naming the subject, for the announcer"}
+
+Worked example, for a piece about VPNs:
+{"question":"A VPN hides your browsing from your internet provider. That is what it is for, right?",
+ "commonAnswer":"Right, that is the whole point of paying for one.",
+ "breaker":"Half of the 100 most downloaded free VPNs were sending user data to third parties, including ByteDance and Yandex.",
+ "topic":"VPNs"}
+
+Rules:
+- "breaker" must come from the piece. Invent nothing, and write figures in digits.
+- Do NOT explain or resolve it. The opening exists to leave a gap, not to close it.
+- The question has to be about something the listener already has an opinion on. A question
+  about something nobody has ever thought about produces no curiosity at all.
+
+Investigation:
+${fullText}`;
+  }
+
+  return `Lee la investigación de abajo y diseña la apertura en frío de un episodio de podcast.
+
+Encuentra el punto donde la pieza contradice lo que una persona normal y razonablemente informada
+daría por hecho con confianza. No el hallazgo más importante: el más SORPRENDENTE.
+
+Responde SOLO con un objeto JSON, y cada valor tiene que ser una frase COMPLETA:
+{"question":"una pregunta corta cuya respuesta quien escucha cree que ya sabe",
+ "commonAnswer":"lo que contesta casi todo el mundo, con las palabras que usaría",
+ "breaker":"el dato de la pieza que demuestra que esa respuesta está mal, con su cifra",
+ "topic":"una a tres palabras que nombren el tema, para el locutor"}
+
+Ejemplo resuelto, para una pieza sobre VPN:
+{"question":"Una VPN esconde lo que navegas de tu proveedor de internet. Para eso es, ¿no?",
+ "commonAnswer":"Pues sí, para eso paga uno.",
+ "breaker":"La mitad de las 100 apps de VPN gratuitas más descargadas mandaban datos de sus usuarios a terceros, entre ellos ByteDance y Yandex.",
+ "topic":"VPN"}
+
+Reglas:
+- "breaker" tiene que salir de la pieza. No inventes nada, y escribe las cifras con dígitos.
+- NO lo expliques ni lo resuelvas. La apertura existe para dejar un hueco, no para cerrarlo.
+- La pregunta tiene que ser sobre algo de lo que quien escucha ya tiene una opinión. Una pregunta
+  sobre algo que nadie se ha planteado nunca no produce curiosidad ninguna.
+
+Investigación:
+${fullText}`;
+}
+
 function turnsPrompt(
   locale: string,
   title: string,
@@ -200,6 +287,9 @@ What neither of them ever does, because the piece does not say it:
 - Ask for advice: ${shared.cohost} asks about the FACTS of the finding, never "what would you
   recommend to people?".
 - Opine in the abstract about how important the topic is, or talk about the episode itself.
+- Say that the investigation "does not mention" something. If a fact is not in the source text,
+  ${shared.cohost} simply does not ask about it: talking about what the document lacks breaks the
+  conversation and helps nobody.
 
 This is the right rhythm:
 [{"speaker":"host","text":"The charge was 107 dollars. The same VPN he had signed up for two years earlier at 2.19 a month. It was not a billing error: it is the auto-renewal price, which the company never put in large type."},
@@ -254,6 +344,9 @@ Lo que ninguno de los dos hace nunca, porque la pieza no lo dice:
 - Pedir consejos: ${shared.cohost} pregunta por los HECHOS del hallazgo, nunca "¿qué le
   recomendarías a la gente?".
 - Opinar en abstracto sobre lo importante que es el tema, o hablar del episodio mismo.
+- Decir que la investigación "no menciona" algo. Si un dato no está en el texto fuente,
+  ${shared.cohost} simplemente no lo pregunta: hablar de lo que le falta al documento rompe la
+  conversación y no le sirve a nadie.
 
 Así se ve el ritmo correcto:
 [{"speaker":"host","text":"El cargo que le llegó fue de 107 dólares. La misma VPN que había contratado dos años antes por 2.19 al mes. No es un error de facturación: es el precio de renovación automática, que la empresa nunca puso en letras grandes."},
@@ -266,29 +359,56 @@ Texto fuente:
 ${sourceText}`;
 }
 
-// The open and the close are templates, not model output, for two reasons: nothing here can
-// invent a figure because there are no figures, and the pointer back to the full piece on the
-// site is guaranteed to be in every episode instead of depending on the model remembering.
-function openingTurns(locale: string, title: string, subtitle: string | null): DialogueTurn[] {
+// The close is a template, not model output: nothing here can invent a figure because there are
+// no figures, and the pointer back to the full piece on the site is guaranteed to be in every
+// episode instead of depending on the model remembering.
+//
+// The greeting comes AFTER the ident, which comes after the cold open. That order is the point,
+// not a detail: a hook placed behind the branding is not a cold open, and the whole reason the
+// form is called that is that the intrigue arrives before anyone tells you what show you are
+// listening to.
+function greetingTurns(locale: string, title: string, subtitle: string | null): DialogueTurn[] {
   if (locale.startsWith("en")) {
     return [
-      { speaker: "cohost", text: `${HOST_NAME}, what did you bring today?` },
       {
         speaker: "host",
-        text: subtitle
-          ? `A Deep Dive from Kilowatto: ${title}. ${subtitle}`
-          : `A Deep Dive from Kilowatto: ${title}.`,
+        text: `[excited] Hey! Let's go straight to the bottom of it, because today we have an investigation from Kilowatto: ${title}.${subtitle ? ` ${subtitle}` : ""}`,
       },
+      { speaker: "cohost", text: `Alright ${HOST_NAME}, where do we start?` },
     ];
   }
   return [
-    { speaker: "cohost", text: `${HOST_NAME}, ¿qué traes hoy?` },
     {
       speaker: "host",
-      text: subtitle
-        ? `Una investigación de A fondo, con Kilowatto: ${title}. ${subtitle}`
-        : `Una investigación de A fondo, con Kilowatto: ${title}.`,
+      text: `[excited] ¡Qué tal! Vamos directos al fondo, que hoy traemos una investigación de Kilowatto: ${title}.${subtitle ? ` ${subtitle}` : ""}`,
     },
+    { speaker: "cohost", text: `A ver ${HOST_NAME}, ¿por dónde empezamos?` },
+  ];
+}
+
+// Turns the belief/breaker pair into the two-move open: Leia says the confident wrong thing,
+// Larry breaks it and stops. Written as a template rather than asked of the model, because the
+// one thing that must not happen is the open RESOLVING the gap it just made -- and "explain,
+// but stop before the explanation" is exactly the instruction a model ignores.
+function coldOpenTurns(
+  locale: string,
+  question: string,
+  commonAnswer: string,
+  breaker: string
+): DialogueTurn[] {
+  if (locale.startsWith("en")) {
+    return [
+      { speaker: "host", text: `${COHOST_NAME}, quick one. ${question}` },
+      { speaker: "cohost", text: `[curious] ${commonAnswer}` },
+      { speaker: "host", text: `That is what almost everybody answers. ${breaker}` },
+      { speaker: "cohost", text: `[surprised] Hang on. What?` },
+    ];
+  }
+  return [
+    { speaker: "host", text: `${COHOST_NAME}, rápido. ${question}` },
+    { speaker: "cohost", text: `[curious] ${commonAnswer}` },
+    { speaker: "host", text: `Eso es lo que contesta casi todo el mundo. ${breaker}` },
+    { speaker: "cohost", text: `[surprised] Espérame. ¿Cómo?` },
   ];
 }
 
@@ -335,7 +455,12 @@ function mergeWithin(groups: DialogueTurn[][]): DialogueTurn[] {
 }
 
 export interface DialogueScriptResult {
+  /** Before the ident. Synthesized as its own segment so the sting can sit between them. */
+  coldOpen: DialogueTurn[];
+  /** After the ident: greeting, findings, close. */
   turns: DialogueTurn[];
+  /** One to three words, for the announcer line. */
+  topic: string;
   beats: number;
   characters: number;
   estimatedMinutes: number;
@@ -401,9 +526,42 @@ export async function buildDialogueScript(
   }
   beats = beats.slice(0, MAX_BEATS);
 
-  const opening = openingTurns(locale, title, subtitle);
+  // The hook reads the WHOLE piece, not one section: the most surprising thing is rarely in the
+  // section the outline happened to rank first.
+  const fullText = sections.map((x) => x.text).join("\n\n");
+  const hook = parseJsonObject(await llm(hookPrompt(locale, title, fullText), 700));
+  let coldOpen: DialogueTurn[] = [];
+  let topic = title.split(/[:,—]/)[0].trim().split(/\s+/).slice(0, 3).join(" ");
+
+  // A hook made of sentence fragments reads as a glitch, not as intrigue: the first attempt
+  // returned "las VPN son gratuitas o baratas" and a bare "$70 a $80 mil millones", which
+  // slotted into the template as ungrammatical noise. Complete sentences or no cold open.
+  const complete = (v: unknown) =>
+    typeof v === "string" && v.trim().length > 20 && /[.!?…]$|\?$/.test(v.trim());
+
+  if (complete(hook?.question) && complete(hook?.commonAnswer) && complete(hook?.breaker)) {
+    const inventedHook = findInventedNumbers(fullText, `${hook.question} ${hook.breaker}`);
+    if (inventedHook.length > 0) {
+      // No second attempt here. Without a cold open the episode still works; with a fabricated
+      // figure in its first fifteen seconds it does not.
+      warnings.push(`apertura descartada: cifras inventadas ${inventedHook.join(", ")}`);
+    } else {
+      coldOpen = coldOpenTurns(
+        locale,
+        String(hook.question).trim(),
+        String(hook.commonAnswer).trim(),
+        String(hook.breaker).trim()
+      );
+    }
+    if (typeof hook.topic === "string" && hook.topic.trim()) topic = hook.topic.trim().slice(0, 40);
+  } else {
+    if (typeof hook?.topic === "string" && hook.topic.trim()) topic = hook.topic.trim().slice(0, 40);
+    warnings.push("no se pudo construir la apertura en frío; el episodio arranca con el saludo");
+  }
+
+  const opening = greetingTurns(locale, title, subtitle);
   const closing = closingTurns(locale, sectionName, slug);
-  const overhead = [...opening, ...closing].reduce((n, t) => n + t.text.length, 0);
+  const overhead = [...coldOpen, ...opening, ...closing].reduce((n, t) => n + t.text.length, 0);
   const budgetPerBeat = Math.max(
     600,
     Math.round((TARGET_CHARS - overhead) / beats.length / BUDGET_OVERSHOOT)
@@ -479,7 +637,7 @@ export async function buildDialogueScript(
       // segment that mentions a million and stops meaning anything.
       const joined = candidate.map((t) => t.text).join(" ");
       const spelled = [...joined.matchAll(SPELLED_NUMBER_RE)]
-        .filter((m) => !/\d[\s$€%.,]*$/.test(joined.slice(Math.max(0, m.index! - 12), m.index!)))
+        .filter((m) => !/\d/.test(joined.slice(Math.max(0, m.index! - 15), m.index!)))
         .map((m) => m[0]);
       if (spelled.length > 0) {
         warnings.push(
@@ -512,10 +670,13 @@ export async function buildDialogueScript(
   }
 
   const turns = mergeWithin([opening, ...kept, closing]);
-  const characters = turns.reduce((n, t) => n + t.text.length, 0);
+  const characters =
+    turns.reduce((n, t) => n + t.text.length, 0) + coldOpen.reduce((n, t) => n + t.text.length, 0);
 
   return {
+    coldOpen,
     turns,
+    topic,
     beats: beats.length,
     characters,
     estimatedMinutes: Number((characters / CHARS_PER_MINUTE).toFixed(1)),

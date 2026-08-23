@@ -206,6 +206,34 @@ export async function synthesizeDialogue(
 // asset, not as something that can be rebuilt from this source file.
 export const STING_KEY = "media/audio/show/al-fondo-sting.mp3";
 
+// MP3 frames carry their own channel mode, and concatenating files is exactly the operation
+// that can put two different modes in one stream. A decoder locks the mode from the first frame
+// it sees: a stereo sting followed by mono speech makes it read each mono frame as stereo, which
+// halves the samples per channel and plays the voices at DOUBLE SPEED. Esteban's words were "se
+// escuchan como las ardillitas", and nothing in the pipeline had complained.
+//
+// /v1/music returns stereo and /v1/text-to-dialogue returns mono, so this WILL happen to any
+// freshly generated sting. There is no encoder in a Worker isolate, so it cannot be fixed here:
+// the sting has to be converted offline, once, and re-uploaded --
+//   ffmpeg -i sting-raw.mp3 -ac 1 -ar 44100 -b:a 192k sting-mono.mp3
+// This check turns the silent corruption into a missing sting plus a warning, which is a failure
+// anyone will notice.
+export async function isMonoMp3(key: string): Promise<boolean | null> {
+  const head = await env.MEDIA.get(key, { range: { offset: 0, length: 8192 } });
+  if (!head) return null;
+  const d = new Uint8Array(await head.arrayBuffer());
+  let i = 0;
+  if (d[0] === 0x49 && d[1] === 0x44 && d[2] === 0x33) {
+    i = 10 + (((d[6] & 0x7f) << 21) | ((d[7] & 0x7f) << 14) | ((d[8] & 0x7f) << 7) | (d[9] & 0x7f));
+  }
+  for (; i < d.length - 3; i++) {
+    if (d[i] !== 0xff || (d[i + 1] & 0xe0) !== 0xe0) continue;
+    // Channel mode is bits 7-6 of the fourth header byte; 3 means single channel.
+    return ((d[i + 3] >> 6) & 3) === 3;
+  }
+  return null;
+}
+
 export async function composeSting(
   prompt: string,
   lengthMs = 6000,
