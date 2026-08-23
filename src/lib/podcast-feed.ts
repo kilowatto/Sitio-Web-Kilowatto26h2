@@ -67,7 +67,11 @@ export const FEED_LOCALES: Record<string, FeedLocale> = {
 
 // Apple's category list is case-sensitive and only the first pair is read.
 const CATEGORY = "Technology";
-const ARTWORK = `${SITE}/podcast-cover.jpg`;
+// The ?v= is not decoration. Apple and Spotify cache artwork by URL and do not re-fetch an
+// unchanged one, so replacing the image in R2 leaves the directories showing the old cover
+// indefinitely. Bump this on every cover change; it is the only thing that forces a re-read.
+// v2 = 2026-08-23, the version without eyeglasses.
+const ARTWORK = `${SITE}/podcast-cover.jpg?v=2`;
 const AUTHOR = "Esteban Rey";
 // The two voices of the conversational episodes. Kilowatto is the brand as a character, hosting
 // his own research; Leia is one of Esteban's two ostriches, and the site already describes her as
