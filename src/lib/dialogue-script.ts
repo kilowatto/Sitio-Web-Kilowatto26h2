@@ -61,14 +61,50 @@ function parseJsonArray(raw: string): any[] | null {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
   const body = fenced ? fenced[1] : raw;
   const start = body.indexOf("[");
+  if (start === -1) return null;
   const end = body.lastIndexOf("]");
-  if (start === -1 || end <= start) return null;
-  try {
-    const parsed = JSON.parse(body.slice(start, end + 1));
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
+  if (end > start) {
+    try {
+      const parsed = JSON.parse(body.slice(start, end + 1));
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // fall through to salvage
+    }
   }
+
+  // Salvage a truncated array. Raising max_tokens makes this rarer, not impossible: a longer
+  // piece will find the new ceiling too, and losing every finding because the LAST one was cut
+  // mid-sentence is a bad trade for a list whose earlier entries are complete and usable.
+  const objects: any[] = [];
+  let depth = 0;
+  let objStart = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < body.length; i++) {
+    const c = body[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "{") {
+      if (depth === 0) objStart = i;
+      depth++;
+    } else if (c === "}") {
+      depth--;
+      if (depth === 0 && objStart !== -1) {
+        try {
+          objects.push(JSON.parse(body.slice(objStart, i + 1)));
+        } catch {
+          /* skip a malformed object rather than losing the rest */
+        }
+        objStart = -1;
+      }
+    }
+  }
+  return objects.length > 0 ? objects : null;
 }
 
 function parseJsonObject(raw: string): any | null {
@@ -476,7 +512,11 @@ export interface DialogueScriptResult {
 /** Raw model output for one beat, so a parse failure can be diagnosed instead of guessed at. */
 export async function debugFirstBeat(entityId: number, locale = "es-MX"): Promise<any> {
   const { title, sections } = await loadArticle("investigacion", entityId, locale);
-  const outlineRaw = await llm(outlinePrompt(locale, title, sections), 1024);
+  // 2048, not the 1024 this started at. Investigación 3 has enough sections that nine findings
+  // with a sentence each overran the cap, the array never closed, and the parse failed -- which
+  // surfaced as "el esquema no se pudo interpretar" and silently fell back to taking the first
+  // sections in order. It looked intermittent because only the longest piece hit it.
+  const outlineRaw = await llm(outlinePrompt(locale, title, sections), 2048);
   const parsedOutline = parseJsonArray(outlineRaw);
   const beat = (parsedOutline ?? [])[0];
   const idx = Number(beat?.sectionIndex ?? 0);
@@ -516,7 +556,11 @@ export async function buildDialogueScript(
   const warnings: string[] = [];
 
   // Outline pass: which findings make the episode.
-  const outlineRaw = await llm(outlinePrompt(locale, title, sections), 1024);
+  // 2048, not the 1024 this started at. Investigación 3 has enough sections that nine findings
+  // with a sentence each overran the cap, the array never closed, and the parse failed -- which
+  // surfaced as "el esquema no se pudo interpretar" and silently fell back to taking the first
+  // sections in order. It looked intermittent because only the longest piece hit it.
+  const outlineRaw = await llm(outlinePrompt(locale, title, sections), 2048);
   let beats: Beat[] = (parseJsonArray(outlineRaw) ?? [])
     .map((b: any) => ({ sectionIndex: Number(b?.sectionIndex), finding: String(b?.finding ?? "").trim() }))
     .filter((b) => Number.isInteger(b.sectionIndex) && sections[b.sectionIndex] && b.finding);
