@@ -15,13 +15,24 @@ interface DuneBook {
   cover_r2_key: string | null;
 }
 
+interface Author {
+  name: string;
+  bio_html: string;
+  fun_facts_json: string;
+}
+
 let books: DuneBook[] = [];
+let author: Author | null = null;
 if (env?.DB) {
   const { results } = await env.DB.prepare(
     `SELECT id, title, reading_order, cover_r2_key FROM books WHERE series = 'Las Crónicas de Dune' ORDER BY reading_order ASC`
   ).all<DuneBook>();
   books = results ?? [];
+  author = await env.DB.prepare(
+    `SELECT name, bio_html, fun_facts_json FROM authors WHERE slug = 'frank-herbert'`
+  ).first<Author>();
 }
+const funFacts: string[] = author ? JSON.parse(author.fun_facts_json) : [];
 
 const SYNOPSES: Record<string, string> = {
   Dune: "En el planeta desértico Arrakis, único lugar del universo donde se produce la especia que hace posible los viajes interestelares, el joven Paul Atreides ve caer a su familia en una trampa mortal — y encuentra entre los fremen del desierto el camino hacia algo mucho más grande que la venganza.",
@@ -151,6 +162,19 @@ const factions = [
         </div>
       </div>
     </section>
+
+    {author && (
+      <section class="ar-section">
+        <div class="container">
+          <p class="ar-eyebrow">Quién lo escribió</p>
+          <h2>{author.name}</h2>
+          <div class="ar-author__bio"><Fragment set:html={author.bio_html} /></div>
+          <ul class="ar-author__facts">
+            {funFacts.map((f) => <li>{f}</li>)}
+          </ul>
+        </div>
+      </section>
+    )}
   </div>
 </Site>
 
@@ -363,6 +387,40 @@ const factions = [
     font-size: 0.86rem;
     color: #d9c3a8;
     line-height: 1.4;
+  }
+
+  .ar-author__bio {
+    max-width: 42rem;
+    color: #d9c3a8;
+  }
+  .ar-author__bio p {
+    margin: 0 0 0.9rem;
+  }
+  .ar-author__bio p:last-child {
+    margin-bottom: 0;
+  }
+  .ar-author__facts {
+    list-style: none;
+    margin: 1.2rem 0 0;
+    padding: 0;
+    max-width: 42rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .ar-author__facts li {
+    position: relative;
+    padding-left: 1.3rem;
+    color: #c9b49a;
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+  .ar-author__facts li::before {
+    content: "✦";
+    position: absolute;
+    left: 0;
+    color: var(--ar-spice-blue);
+    font-size: 0.8rem;
   }
 
   .ar-faction-grid {

@@ -199,6 +199,18 @@ async function buildChunks(): Promise<Chunk[]> {
     });
   }
 
+  // Author bios (Sobre el autor, on the Harry Potter/Riordanverse/Arrakis themed pages) --
+  // shared table so this prose isn't written twice, once for the page and once for Larry.
+  const { results: authors } = await env.DB.prepare("SELECT * FROM authors").all<any>();
+  for (const a of authors ?? []) {
+    const funFacts: string[] = JSON.parse(a.fun_facts_json);
+    chunks.push({
+      id: `author:${a.slug}`,
+      text: `Sobre ${a.name}, autor de libros que Esteban Rey tiene en su biblioteca: ${stripHtml(a.bio_html)} Datos curiosos: ${funFacts.join(" ")}`,
+      metadata: { entity_type: "author", entity_id: a.slug },
+    });
+  }
+
   const { results: bookQuotes } = await env.DB.prepare(
     "SELECT bq.*, b.title AS book_title FROM book_quotes bq LEFT JOIN books b ON b.id = bq.book_id ORDER BY bq.sort_order"
   ).all<any>();

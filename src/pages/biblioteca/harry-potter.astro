@@ -18,11 +18,21 @@ interface HpBook {
   comment: string | null;
 }
 
+interface Author {
+  name: string;
+  bio_html: string;
+  fun_facts_json: string;
+}
+
 let lbBox: HpBook[] = [];
 let salamandra: HpBook[] = [];
 let special: HpBook[] = [];
+let author: Author | null = null;
 
 if (env?.DB) {
+  author = await env.DB.prepare(
+    `SELECT name, bio_html, fun_facts_json FROM authors WHERE slug = 'jk-rowling'`
+  ).first<Author>();
   const { results } = await env.DB.prepare(
     `SELECT id, title, series, reading_order, cover_r2_key, release_year, comment FROM books
      WHERE series LIKE 'Harry Potter%' ORDER BY sort_order ASC`
@@ -43,6 +53,7 @@ if (env?.DB) {
       b.series.includes("libros de texto de Hogwarts")
   );
 }
+const funFacts: string[] = author ? JSON.parse(author.fun_facts_json) : [];
 ---
 
 <Site
@@ -228,6 +239,19 @@ if (env?.DB) {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+    )}
+
+    {author && (
+      <section class="hp-section hp-author">
+        <div class="container">
+          <p class="hp-eyebrow">Quién lo escribió</p>
+          <h2>{author.name}</h2>
+          <div class="hp-author__bio"><Fragment set:html={author.bio_html} /></div>
+          <ul class="hp-author__facts">
+            {funFacts.map((f) => <li>{f}</li>)}
+          </ul>
         </div>
       </section>
     )}
@@ -870,6 +894,40 @@ if (env?.DB) {
   /* Grimorio — a spellbook page listing how to trace every gesture above. Torn-paper look via
      layered gradients (no image asset needed), slight rotation for a hand-placed feel, revealed
      with its own small "Revelio" fade-in the moment it scrolls into view. */
+  .hp-author__bio {
+    max-width: 42rem;
+    color: #d9cdae;
+  }
+  .hp-author__bio p {
+    margin: 0 0 0.9rem;
+  }
+  .hp-author__bio p:last-child {
+    margin-bottom: 0;
+  }
+  .hp-author__facts {
+    list-style: none;
+    margin: 1.2rem 0 0;
+    padding: 0;
+    max-width: 42rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .hp-author__facts li {
+    position: relative;
+    padding-left: 1.3rem;
+    color: #b7ac8c;
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+  .hp-author__facts li::before {
+    content: "✦";
+    position: absolute;
+    left: 0;
+    color: #ffd764;
+    font-size: 0.8rem;
+  }
+
   .hp-grimoire-section {
     overflow: visible;
   }
