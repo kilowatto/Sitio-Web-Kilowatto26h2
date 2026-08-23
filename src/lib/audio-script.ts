@@ -174,8 +174,32 @@ function normalizeNumber(raw: string): string {
 // Returns numbers present in the adapted text that do NOT appear in the source. A non-empty
 // result means the model invented a figure, which for a journalism-adjacent site is a
 // correctness failure, not a style nit.
+// Numbers the SOURCE spells out in words. Without these the guard rejects a faithful adaptation:
+// investigación 3 says "la primera caída en veinte años", the model correctly wrote "20 años",
+// and the guard -- which only ever compared digit strings -- called 20 an invented figure and
+// dropped the finding. In BOTH languages. The article does contain the digit 20 elsewhere, but
+// the guard runs per section, so elsewhere does not help.
+//
+// Only values of 10 and up: the guard already ignores single digits, so mapping "una" to 1 would
+// add noise and protect nothing.
+const SPELLED_VALUES: Record<string, string> = {
+  diez: "10", once: "11", doce: "12", trece: "13", catorce: "14", quince: "15",
+  dieciséis: "16", dieciseis: "16", diecisiete: "17", dieciocho: "18", diecinueve: "19",
+  veinte: "20", veintiuno: "21", veintidós: "22", veinticinco: "25", treinta: "30",
+  cuarenta: "40", cincuenta: "50", sesenta: "60", setenta: "70", ochenta: "80",
+  noventa: "90", cien: "100", ciento: "100", mil: "1000",
+  ten: "10", eleven: "11", twelve: "12", thirteen: "13", fourteen: "14", fifteen: "15",
+  sixteen: "16", seventeen: "17", eighteen: "18", nineteen: "19", twenty: "20",
+  thirty: "30", forty: "40", fifty: "50", sixty: "60", seventy: "70", eighty: "80",
+  ninety: "90", hundred: "100", thousand: "1000",
+};
+const SPELLED_IN_SOURCE_RE = new RegExp(`\\b(${Object.keys(SPELLED_VALUES).join("|")})\\b`, "gi");
+
 export function findInventedNumbers(source: string, adapted: string): string[] {
   const sourceNumbers = new Set((source.match(NUMBER_RE) ?? []).map(normalizeNumber));
+  for (const word of source.match(SPELLED_IN_SOURCE_RE) ?? []) {
+    sourceNumbers.add(SPELLED_VALUES[word.toLowerCase()]);
+  }
   const invented: string[] = [];
   for (const raw of adapted.match(NUMBER_RE) ?? []) {
     const norm = normalizeNumber(raw);
