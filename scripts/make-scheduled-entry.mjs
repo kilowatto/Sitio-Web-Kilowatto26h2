@@ -58,6 +58,16 @@ export default {
           console.log("Scheduled news check:", t);
         })().catch((e) => console.error("Scheduled news check failed:", e))
       );
+    } else if (controller.cron === "30 */6 * * *") {
+      // Generates whatever audio is missing, two assets at a time. Deliberately NOT hooked into
+      // approve.ts: generating takes minutes, and the English audio cannot start until the
+      // English translation workflow that the same approve fired has finished. A sweep finds
+      // the work later, when it is actually ready, and retries itself if a pass fails.
+      ctx.waitUntil(
+        callSelf("/api/admin/audio-sweep?token=" + env.ADMIN_TOKEN, env, ctx)
+          .then((t) => console.log("Scheduled audio sweep:", t))
+          .catch((e) => console.error("Scheduled audio sweep failed:", e))
+      );
     } else if (controller.cron === "0 8 * * 1") {
       ctx.waitUntil(
         callSelf("/api/projects/refresh?token=" + env.ADMIN_TOKEN, env, ctx)
@@ -113,7 +123,7 @@ config.workflows = [
 // opinion column in Esteban's voice (see src/pages/api/columns/generate.ts) and always lands as
 // 'pending_approval' — this is drafting, not publishing, so it runs regardless of the brand
 // autopilot pause state; only a real approve click in /admin/columnas makes it public.
-config.triggers = { crons: ["0 */6 * * *", "*/30 6-23 * * *", "0 8 * * 1", "0 9 * * 1", "0 10 * * 1", "0 11 * * 1"] };
+config.triggers = { crons: ["0 */6 * * *", "30 */6 * * *", "*/30 6-23 * * *", "0 8 * * 1", "0 9 * * 1", "0 10 * * 1", "0 11 * * 1"] };
 // Without this, Cloudflare's static-asset layer intercepts requests for paths that don't
 // match a real file BEFORE the Worker ever runs, and falls back to its own redirect-to-"/"
 // behavior — confirmed live 2026-07-22: any genuinely unmatched URL (and the custom
