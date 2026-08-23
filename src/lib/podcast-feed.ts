@@ -20,6 +20,17 @@ export interface FeedLocale {
   title: string;
   description: string;
   path: string;
+  /**
+   * podcast:guid -- the show's permanent identity, independent of where it is hosted.
+   * The namespace spec fixes both the algorithm and the namespace UUID: UUIDv5 over the feed
+   * URL with the protocol stripped. Recompute with:
+   *   node -e 'const c=require("crypto");const ns=Buffer.from("ead4c236bf5858c6a2c6a6b28d128cb6","hex");
+   *   const h=c.createHash("sha1").update(Buffer.concat([ns,Buffer.from(process.argv[1])])).digest();
+   *   const b=h.subarray(0,16);b[6]=(b[6]&15)|80;b[8]=(b[8]&63)|128;
+   *   const x=b.toString("hex");console.log([x.slice(0,8),x.slice(8,12),x.slice(12,16),x.slice(16,20),x.slice(20)].join("-"))' \
+   *   kilowatto.com/podcast.xml
+   */
+  guid: string;
 }
 
 export const FEED_LOCALES: Record<string, FeedLocale> = {
@@ -32,6 +43,7 @@ export const FEED_LOCALES: Record<string, FeedLocale> = {
       "negocios en México y Latinoamérica, narradas en audio. Cada episodio es una pieza " +
       "publicada en kilowatto.com. La narración usa una voz sintética; el texto es de Esteban.",
     path: "/podcast.xml",
+    guid: "357307b7-4568-5d0c-96c1-3d7964c13e60",
   },
   en: {
     code: "en",
@@ -42,6 +54,7 @@ export const FEED_LOCALES: Record<string, FeedLocale> = {
       "America, narrated. Each episode is a piece published on kilowatto.com. The narration " +
       "uses a synthetic voice; the writing is Esteban's.",
     path: "/en/podcast.xml",
+    guid: "ea0627af-4fdf-57be-9a0b-08475d2fa5ed",
   },
 };
 
@@ -49,6 +62,10 @@ export const FEED_LOCALES: Record<string, FeedLocale> = {
 const CATEGORY = "Technology";
 const ARTWORK = `${SITE}/podcast-cover.jpg`;
 const AUTHOR = "Esteban Rey";
+// podcast:locked owner. A hosting platform that receives an import request for this feed is
+// expected to mail this address for consent, so it has to be a real mailbox -- and a role
+// address on the domain rather than a personal one, since the feed is public.
+const OWNER_EMAIL = "larry@kilowatto.com";
 
 function esc(s: string): string {
   // Apple wants numeric references, not HTML entity names: &rsquo; and &copy; are rejected.
@@ -87,7 +104,14 @@ interface EpisodeRow {
   published_at: string | null;
 }
 
-export async function buildPodcastFeed(localeCode: string): Promise<string | null> {
+export interface BuiltFeed {
+  xml: string;
+  /** Newest episode's publication date, for Last-Modified. Stable between publishes, which is
+   *  what makes the ETag/304 path below worth anything. */
+  lastModified: Date;
+}
+
+export async function buildPodcastFeed(localeCode: string): Promise<BuiltFeed | null> {
   const loc = FEED_LOCALES[localeCode];
   if (!loc) return null;
 
@@ -153,7 +177,10 @@ export async function buildPodcastFeed(localeCode: string): Promise<string | nul
     })
     .join("\n");
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
+  // Episodes come back newest-first, so the head of the list dates the feed.
+  const newest = episodes[0]?.published_at ?? null;
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
      xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
      xmlns:podcast="https://podcastindex.org/namespace/1.0"
@@ -169,6 +196,13 @@ export async function buildPodcastFeed(localeCode: string): Promise<string | nul
     <itunes:explicit>false</itunes:explicit>
     <itunes:type>episodic</itunes:type>
     <atom:link href="${SITE}${loc.path}" rel="self" type="application/rss+xml" />
+    <lastBuildDate>${rfc2822(newest)}</lastBuildDate>
+    <!-- The show's identity, independent of this URL: it survives a move to another host, and
+         it is how the directories tell this feed apart from a copy of it. -->
+    <podcast:guid>${loc.guid}</podcast:guid>
+    <!-- "yes" means no hosting platform may import this feed without the owner's consent. Flip
+         to "no" only for the duration of a deliberate migration. -->
+    <podcast:locked owner="${OWNER_EMAIL}">yes</podcast:locked>
     <!-- The narration is synthetic. Declaring it is Esteban's editorial stance and matches the
          disclosure shown on every page and by Larry; podcast:txt purpose="ai-content" is the
          emerging machine-readable signal for it. -->
@@ -177,4 +211,65 @@ ${items}
   </channel>
 </rss>
 `;
+
+  return { xml, lastModified: new Date(rfc2822(newest)) };
+}
+
+// Conditional-GET and Range plumbing for the two feed routes.
+//
+// Apple, Spotify and every aggregator poll these feeds on a schedule forever; answering 304 when
+// nothing changed is the difference between a D1 query per poll and a header comparison. Byte
+// ranges are here because Apple's requirement is on episode media (which /media/video already
+// serves as 206) but the validators run the same probe against the feed URL they were handed,
+// and a 19 KB string we already hold in memory can satisfy it for free.
+export function feedResponse(feed: BuiltFeed, request: Request): Response {
+  const bytes = new TextEncoder().encode(feed.xml);
+  // Length + a hash-free digest of the content is enough: the body is deterministic given the
+  // data, so identical content always yields an identical tag.
+  let h = 2166136261;
+  for (let i = 0; i < bytes.length; i++) {
+    h ^= bytes[i];
+    h = Math.imul(h, 16777619);
+  }
+  const etag = `"${bytes.length.toString(16)}-${(h >>> 0).toString(16)}"`;
+  const lastModified = feed.lastModified.toUTCString();
+
+  const headers: Record<string, string> = {
+    "content-type": "application/rss+xml; charset=utf-8",
+    // Podcast clients poll often; an hour keeps them from hammering D1 while staying fresh
+    // enough that a new episode shows up the same day.
+    "cache-control": "public, max-age=3600",
+    "accept-ranges": "bytes",
+    etag,
+    "last-modified": lastModified,
+  };
+
+  const inm = request.headers.get("if-none-match");
+  if (inm && inm.split(",").some((t) => t.trim() === etag)) {
+    return new Response(null, { status: 304, headers });
+  }
+
+  const range = request.headers.get("range");
+  const m = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null;
+  if (m && (m[1] || m[2])) {
+    const size = bytes.length;
+    let start: number;
+    let end: number;
+    if (m[1]) {
+      start = parseInt(m[1], 10);
+      end = m[2] ? Math.min(parseInt(m[2], 10), size - 1) : size - 1;
+    } else {
+      start = Math.max(0, size - parseInt(m[2], 10));
+      end = size - 1;
+    }
+    if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= size) {
+      return new Response(null, { status: 416, headers: { ...headers, "content-range": `bytes */${size}` } });
+    }
+    return new Response(bytes.slice(start, end + 1), {
+      status: 206,
+      headers: { ...headers, "content-range": `bytes ${start}-${end}/${size}` },
+    });
+  }
+
+  return new Response(bytes, { headers });
 }

@@ -3,7 +3,7 @@
 > Estado vivo del proyecto. Plan original y las 26 decisiones: acordadas con Esteban el
 > 2026-08-21/22. Este archivo es la fuente de verdad — actualízalo al cerrar cada fase.
 >
-> Última actualización: 2026-08-22 (cierre de Fase 1b)
+> Última actualización: 2026-08-23 (feeds de podcast validados)
 
 ## Por qué
 
@@ -25,7 +25,26 @@ Referencia visual: [este video](https://www.youtube.com/watch?v=0swxMbThNug) (Lo
 | 4 · Videocolumna con Larry | ⏳ Riesgo resuelto, sin construir | Cara final, character bible, LoRA, pipeline |
 
 ### Diferido a propósito
-Podcast en Apple/Spotify (Esteban eligió sitio primero), los otros 10 locales, GIF animado.
+Los otros 10 locales, GIF animado.
+
+### Podcast
+
+Dos feeds, uno por idioma, porque `<language>` es un tag de canal:
+`/podcast.xml` (es-MX) y `/en/podcast.xml`, ambos con 23 episodios y certificación PSP-1 en
+Podbase. Construidos en `src/lib/podcast-feed.ts`; portada en `/podcast-cover.jpg`
+(1500×1500 JPEG, RGB, sin alfa). **Falta el alta manual** en Apple Podcasts Connect y Spotify
+for Creators — solo Esteban puede hacerla.
+
+Dos cosas que un validador marca en rojo y conviene entender antes de "arreglarlas":
+
+- **"Byte-range support: ✗"** no era de los episodios. Los 46 enclosures responden 206 a
+  cualquier forma de `Range` (probado uno por uno); el validador corre la sonda contra **la URL
+  del feed** que le diste. Se resolvió sirviendo rangos también desde el feed — son 20 KB que
+  ya están en memoria.
+- **ETag y Last-Modified** en el feed no son cosmética: Apple y Spotify lo consultan para
+  siempre, y un 304 cambia una consulta a D1 por una comparación de encabezados. El ETag es un
+  FNV-1a del cuerpo; el `Last-Modified` sale del episodio más reciente, no de `now()`, o cambiaría
+  en cada petición y no serviría de nada.
 
 ---
 
