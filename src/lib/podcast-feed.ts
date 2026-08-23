@@ -62,6 +62,11 @@ export const FEED_LOCALES: Record<string, FeedLocale> = {
 const CATEGORY = "Technology";
 const ARTWORK = `${SITE}/podcast-cover.jpg`;
 const AUTHOR = "Esteban Rey";
+// The two voices of the conversational episodes. Larry is Esteban's rhino mascot and the voice
+// the columns are narrated with; Leia is one of his two ostriches, and the site already
+// describes her as the sociable, curious one -- which is the co-host's job.
+const HOST_NAME = "Larry";
+const COHOST_NAME = "Leia";
 // podcast:locked owner. A hosting platform that receives an import request for this feed is
 // expected to mail this address for consent, so it has to be a real mailbox -- and a role
 // address on the domain rather than a personal one, since the feed is public.
@@ -93,6 +98,7 @@ function rfc2822(value: string | null): string {
 }
 
 interface EpisodeRow {
+  kind: string;
   entity_type: string;
   entity_id: number;
   r2_key: string;
@@ -115,8 +121,12 @@ export async function buildPodcastFeed(localeCode: string): Promise<BuiltFeed | 
   const loc = FEED_LOCALES[localeCode];
   if (!loc) return null;
 
+  // Both kinds. Esteban's call: the feed carries the conversation AND the full reading of an
+  // investigación, so a listener who wants the whole hour can still get it in their app.
+  // 'audio_dialogue' sorts before 'audio_narration', which puts the conversation first within a
+  // piece -- the short one is the one most people want.
   const rows = await env.DB.prepare(
-    `SELECT ma.entity_type, ma.entity_id, ma.r2_key, ma.bytes, ma.duration_s,
+    `SELECT ma.kind, ma.entity_type, ma.entity_id, ma.r2_key, ma.bytes, ma.duration_s,
             COALESCE(c.title, i.title) AS title,
             COALESCE(c.subtitle, i.subtitle) AS subtitle,
             COALESCE(c.slug, i.slug) AS slug,
@@ -124,9 +134,9 @@ export async function buildPodcastFeed(localeCode: string): Promise<BuiltFeed | 
        FROM media_assets ma
        LEFT JOIN columns c         ON ma.entity_type = 'columna'       AND c.id = ma.entity_id
        LEFT JOIN investigaciones i ON ma.entity_type = 'investigacion' AND i.id = ma.entity_id
-      WHERE ma.kind = 'audio_narration' AND ma.status = 'ready'
+      WHERE ma.kind IN ('audio_narration', 'audio_dialogue') AND ma.status = 'ready'
         AND ma.locale = ? AND ma.r2_key IS NOT NULL
-      ORDER BY COALESCE(c.published_at, i.published_at) DESC`
+      ORDER BY COALESCE(c.published_at, i.published_at) DESC, ma.kind ASC`
   )
     .bind(localeCode)
     .all<EpisodeRow>();
@@ -153,19 +163,41 @@ export async function buildPodcastFeed(localeCode: string): Promise<BuiltFeed | 
     }
   }
 
+  // Only label the full reading when the same piece also has a conversation in this feed --
+  // otherwise the label distinguishes it from nothing and just makes the title longer.
+  const hasDialogue = new Set(
+    episodes.filter((e) => e.kind === "audio_dialogue").map((e) => `${e.entity_type}:${e.entity_id}`)
+  );
+
   const items = episodes
     .map((e) => {
+      const isDialogue = e.kind === "audio_dialogue";
       const section = e.entity_type === "columna" ? "columnas" : "a-fondo";
       const pageUrl = `${SITE}${prefix}/${section}/${e.slug}`;
       const audioUrl = `${SITE}/media/video/${e.r2_key}`;
-      const transcriptUrl = `${pageUrl}/transcripcion.txt`;
-      // A stable guid that survives the file being regenerated: keyed on the piece and locale,
-      // not on the audio URL, whose hash changes whenever the script is re-narrated.
-      const guid = `kilowatto:${e.entity_type}:${e.entity_id}:${localeCode}`;
+      const transcriptUrl = `${pageUrl}/${isDialogue ? "conversacion" : "transcripcion"}.txt`;
+      // The two versions of one piece are two episodes and need two guids -- a shared one makes
+      // every podcast app treat the second as an edit of the first and hide it. The suffix goes
+      // ONLY on the conversation: a guid is an episode's permanent identity, so re-keying the 46
+      // narrations that already exist would republish every one of them as new to anyone
+      // subscribed. Nobody is subscribed yet, but that is luck, not a reason.
+      const guid = isDialogue
+        ? `kilowatto:${e.entity_type}:${e.entity_id}:${localeCode}:dialogo`
+        : `kilowatto:${e.entity_type}:${e.entity_id}:${localeCode}`;
+
+      const labelled =
+        !isDialogue && hasDialogue.has(`${e.entity_type}:${e.entity_id}`)
+          ? `${localeCode === "es-MX" ? "Lectura completa" : "Full reading"} — ${e.title}`
+          : e.title;
+      const blurb = isDialogue
+        ? localeCode === "es-MX"
+          ? `${HOST_NAME} y ${COHOST_NAME} conversan sobre la investigación. ${e.subtitle ?? ""}`.trim()
+          : `${HOST_NAME} and ${COHOST_NAME} talk through the investigation. ${e.subtitle ?? ""}`.trim()
+        : (e.subtitle ?? e.title);
 
       return `    <item>
-      <title>${esc(e.title)}</title>
-      <description>${esc(e.subtitle ?? e.title)}</description>
+      <title>${esc(labelled)}</title>
+      <description>${esc(blurb)}</description>
       <link>${esc(pageUrl)}</link>
       <guid isPermaLink="false">${esc(guid)}</guid>
       <pubDate>${rfc2822(e.published_at)}</pubDate>
