@@ -260,9 +260,14 @@ export async function composeSting(
 // The announcer line, in a voice that is neither Larry nor Leia. One short sentence per
 // episode, so it is cached by content like everything else -- re-running an episode does not
 // re-bill it.
-export async function synthesizeAnnouncer(text: string, voiceId: string): Promise<string> {
+export async function synthesizeAnnouncer(
+  text: string,
+  voiceId: string,
+  languageCode = "es",
+  normalization: "auto" | "on" | "off" = "auto"
+): Promise<string> {
   const key = `media/audio/show/announcer/${await sha256Hex(
-    JSON.stringify({ text, voiceId, model: MODEL_ID, format: OUTPUT_FORMAT, seed: SEED })
+    JSON.stringify({ text, voiceId, model: MODEL_ID, format: OUTPUT_FORMAT, seed: SEED, languageCode, normalization })
   )}.mp3`;
   if (await env.MEDIA.head(key)) return key;
 
@@ -275,6 +280,11 @@ export async function synthesizeAnnouncer(text: string, voiceId: string): Promis
       // The announcer is the one place where a steady, identical read every episode is the
       // point, so this ignores the expressive default the conversation uses.
       settings: { stability: 1, use_speaker_boost: true },
+      // Without this the normalizer picked Iberian letter names and read "VPN" as "uve pe ene".
+      // The show is Mexican; ISO 639-1 has no regional variant, but "es" is still better than
+      // letting it guess.
+      language_code: languageCode,
+      apply_text_normalization: normalization,
       seed: SEED,
     }),
   });

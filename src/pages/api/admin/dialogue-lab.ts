@@ -77,7 +77,10 @@ export const POST: APIRoute = async ({ url, request }) => {
   // cents instead of regenerating twelve minutes of conversation each time.
   if (url.searchParams.get("action") === "intro") {
     const b = await request
-      .json<{ prompt?: string; lengthMs?: number; announcer?: string; voiceId?: string; label?: string; stingKey?: string }>()
+      .json<{
+        prompt?: string; lengthMs?: number; announcer?: string; voiceId?: string; label?: string;
+        stingKey?: string; languageCode?: string; normalization?: "auto" | "on" | "off"; noSting?: boolean;
+      }>()
       .catch(() => ({}) as any);
     try {
       const stingKey = b?.stingKey ?? STING_KEY;
@@ -89,7 +92,7 @@ export const POST: APIRoute = async ({ url, request }) => {
       }
       if (!b?.announcer || !b?.voiceId) return Response.json({ error: "announcer y voiceId requeridos" }, { status: 400 });
 
-      const mono = await isMonoMp3(stingKey);
+      const mono = b?.noSting ? true : await isMonoMp3(stingKey);
       if (mono === false) {
         return Response.json({
           error:
@@ -98,16 +101,23 @@ export const POST: APIRoute = async ({ url, request }) => {
         }, { status: 409 });
       }
 
-      const annKey = await synthesizeAnnouncer(b.announcer, b.voiceId);
+      const annKey = await synthesizeAnnouncer(
+        b.announcer,
+        b.voiceId,
+        b.languageCode ?? "es",
+        b.normalization ?? "auto"
+      );
       const label = (b?.label ?? "intro").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
       const destKey = `media/audio/dialogue-lab/${label}.mp3`;
-      const bytes = await concatChunksToR2(
-        [
-          { index: 0, text: "sting", r2Key: stingKey, requestId: null, cached: true },
-          { index: 1, text: b.announcer, r2Key: annKey, requestId: null, cached: true },
-        ],
-        destKey
-      );
+      // noSting isolates the announcer, so a pronunciation probe is not 7 seconds of music
+      // followed by three words.
+      const parts = b?.noSting
+        ? [{ index: 0, text: b.announcer, r2Key: annKey, requestId: null, cached: true }]
+        : [
+            { index: 0, text: "sting", r2Key: stingKey, requestId: null, cached: true },
+            { index: 1, text: b.announcer, r2Key: annKey, requestId: null, cached: true },
+          ];
+      const bytes = await concatChunksToR2(parts, destKey);
       return Response.json({ url: `https://kilowatto.com/media/video/${destKey}`, bytes, stingBytes, stingKey });
     } catch (err: any) {
       return Response.json({ error: err?.message ?? "unknown" }, { status: 500 });

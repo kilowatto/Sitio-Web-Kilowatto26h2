@@ -28,8 +28,10 @@ import { concatChunksToR2 } from "./elevenlabs";
 const COHOST_VOICE_ID = "tMzxR2W7o3RLIY7zWBbG";
 
 // The announcer who reads the ident. A third voice, so the show's name does not arrive in the
-// voice of one of the two people talking.
-const ANNOUNCER_VOICE_ID = "z365btkMkbqu8wJGFTrh";
+// voice of one of the two people talking. "Marisol - Natural and Cordial", Mexican Spanish,
+// chosen by Esteban from a five-way comparison at the same line (2026-08-23) after the first
+// candidate read "VPN" with Iberian letter names.
+const ANNOUNCER_VOICE_ID = "iOeCMakiJ4CctfQaM9yd";
 
 const SHOW_NAME = "Al fondo con Kilowatto";
 
