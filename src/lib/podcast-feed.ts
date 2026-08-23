@@ -73,6 +73,13 @@ const COHOST_NAME = "Leia";
 // address on the domain rather than a personal one, since the feed is public.
 const OWNER_EMAIL = "larry@kilowatto.com";
 
+// XML forbids "--" anywhere inside a comment, and the feed carries several explanatory ones.
+// A double hyphen in one of them takes the WHOLE feed down with a parse error -- which is how
+// this rule was learned, live, with both feeds returning unparseable XML.
+function xmlComment(text: string): string {
+  return `<!-- ${text.replace(/--+/g, "\u2014")} -->`;
+}
+
 function esc(s: string): string {
   // Apple wants numeric references, not HTML entity names: &rsquo; and &copy; are rejected.
   return String(s ?? "")
@@ -224,6 +231,14 @@ export async function buildPodcastFeed(localeCode: string): Promise<BuiltFeed | 
     <link>${SITE}${prefix}</link>
     <language>${loc.rss}</language>
     <itunes:author>${esc(AUTHOR)}</itunes:author>
+    <!-- Absent from Apple's current REQUIRED list, which is why it was left out at first, but
+         mandatory in practice: Spotify mails the 8-digit claim code to itunes:email and there is
+         no other way to prove ownership of a self-hosted feed. Leaving it out passes every
+         validator and then fails the submission with a message that does not say why. -->
+    <itunes:owner>
+      <itunes:name>${esc(AUTHOR)}</itunes:name>
+      <itunes:email>${esc(OWNER_EMAIL)}</itunes:email>
+    </itunes:owner>
     <itunes:image href="${ARTWORK}" />
     <itunes:category text="${CATEGORY}" />
     <itunes:explicit>false</itunes:explicit>
