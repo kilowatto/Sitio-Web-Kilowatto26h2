@@ -1,0 +1,85 @@
+---
+import AudioPlayer from "./AudioPlayer.astro";
+
+// The conversational episode, offered on the article page as its own thing.
+//
+// Not folded into the table of contents next to the narration, on purpose. The narration is a
+// reading aid: it follows the article paragraph by paragraph, highlights as it goes, and scrolls
+// with you, which is why it lives in the sticky rail. The conversation follows nothing on this
+// page -- it selects six to nine findings and discusses them. Two players in the same rail would
+// read as "pick a voice", when the actual choice is "read along" versus "listen instead".
+interface Props {
+  audioKey: string;
+  durationSeconds?: number | null;
+  episodeNumber?: number | null;
+  transcriptUrl?: string | null;
+  entityId?: number | null;
+}
+const { audioKey, durationSeconds = null, episodeNumber = null, transcriptUrl = null, entityId = null } = Astro.props;
+
+const minutes = durationSeconds ? Math.round(durationSeconds / 60) : null;
+---
+
+<aside class="conv" aria-labelledby="conv-title">
+  <div class="conv__head">
+    <p class="conv__show">Al fondo con Kilowatto{episodeNumber ? ` · Episodio ${episodeNumber}` : ""}</p>
+    <h2 class="conv__title" id="conv-title">
+      ¿Prefieres escucharla platicada?
+    </h2>
+    <p class="conv__blurb">
+      Kilowatto y Leia repasan los hallazgos principales{minutes ? ` en ${minutes} minutos` : ""}.
+      No es la investigación leída en voz alta: es una conversación sobre ella, así que se salta
+      cosas. El texto completo, con las fuentes y las gráficas, es este.
+    </p>
+  </div>
+
+  <AudioPlayer
+    audioKey={audioKey}
+    durationSeconds={durationSeconds}
+    transcriptUrl={transcriptUrl}
+    label="Escuchar la conversación"
+    disclosure="Kilowatto y Leia son personajes y las dos voces son sintéticas. La investigación es real."
+    compact
+    entityType="investigacion"
+    entityId={entityId}
+  />
+
+  <p class="conv__note">
+    También está en <a href="/podcast.xml">el feed del podcast</a>.
+  </p>
+</aside>
+
+<style>
+  .conv {
+    border: 1px solid var(--ia-border, rgba(0, 0, 0, 0.12));
+    border-radius: 0.9rem;
+    padding: 1.1rem 1.15rem 0.9rem;
+    margin: 0 0 1.75rem;
+    background: var(--ia-surface, rgba(0, 0, 0, 0.02));
+  }
+  .conv__show {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: var(--rhino, #4a5568);
+    margin: 0 0 0.3rem;
+  }
+  .conv__title { font-size: 1.05rem; line-height: 1.25; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+  .conv__blurb {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin: 0 0 0.9rem;
+    color: var(--ia-text-soft, rgba(0, 0, 0, 0.66));
+  }
+  .conv__note {
+    font-size: 0.7rem;
+    margin: 0.7rem 0 0;
+    color: var(--ia-text-soft, rgba(0, 0, 0, 0.55));
+  }
+  .conv__note a { color: inherit; }
+
+  @media (min-width: 900px) {
+    .conv { padding: 1.3rem 1.4rem 1rem; }
+  }
+</style>

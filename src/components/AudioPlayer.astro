@@ -18,6 +18,10 @@ interface Props {
   transcriptUrl?: string | null;
   /** Narrow variant for the investigación TOC rail, where the column is ~250px. */
   compact?: boolean;
+  /** Overrides the disclosure sentence. The default names Larry and says "narrado", which is
+      true of a narration and false of the two-voice conversation -- and a disclosure that
+      misdescribes what you are hearing is worse than a generic one. */
+  disclosure?: string;
   /** Enables paragraph highlighting + follow-scroll. [{p,start,end}] over the body's <p>s. */
   cueMap?: string | null;
   /** Identifies the piece for listening telemetry. */
@@ -35,6 +39,7 @@ const {
   label = "Escucha esta columna",
   transcriptUrl = null,
   compact = false,
+  disclosure = "Narrado con la voz sintética de Larry. El texto es de Esteban; la voz no es humana.",
   cueMap = null,
   entityType = null,
   entityId = null,
@@ -79,7 +84,7 @@ function fmtDuration(seconds: number): string {
   ) : null}
 
   <p class="kw-audio__note">
-    Narrado con la voz sintética de Larry. El texto es de Esteban; la voz no es humana.
+    {disclosure}
     {transcriptUrl ? (
       <>
         {" "}

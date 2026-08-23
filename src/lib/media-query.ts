@@ -10,6 +10,7 @@ export interface MediaAsset {
   duration_s: number | null;
   status: string;
   cue_map_json: string | null;
+  episode_number?: number | null;
 }
 
 export const SITE = "https://kilowatto.com";
@@ -18,6 +19,16 @@ export const SITE = "https://kilowatto.com";
 // which podcast players and seeking both require.
 export function audioUrl(r2Key: string): string {
   return `${SITE}/media/video/${r2Key}`;
+}
+
+// D1 stores datetimes as "2026-08-21 03:11:56". schema.org wants ISO 8601, and a space instead
+// of the T makes the value unparseable to a validator -- it does not error, it just ignores the
+// date, which is the kind of wrong that never shows up in testing.
+export function isoDate(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  const v = value.trim();
+  if (v.includes("T")) return v;
+  return v.includes(" ") ? `${v.replace(" ", "T")}Z` : v;
 }
 
 // schema.org wants ISO 8601, so 389 seconds is "PT6M29S", not "389" or "6:29".
@@ -45,7 +56,7 @@ export function audioObjectJsonLd(
     contentUrl: audioUrl(asset.r2_key),
     encodingFormat: "audio/mpeg",
     ...(isoDuration(asset.duration_s) ? { duration: isoDuration(asset.duration_s) } : {}),
-    ...(opts.datePublished ? { uploadDate: opts.datePublished } : {}),
+    ...(isoDate(opts.datePublished) ? { uploadDate: isoDate(opts.datePublished) } : {}),
     inLanguage: asset.locale,
     // Prefer the plain-text transcript when there is one: answer engines and crawlers read
     // prose, and VTT is cue timings wrapped around the words. The VTT stays available for
@@ -63,22 +74,69 @@ export function audioObjectJsonLd(
   };
 }
 
+// PodcastEpisode, not AudioObject.
+//
+// The conversation is a different thing from the narration and the distinction is not pedantry:
+// AudioObject says "a spoken version of this article", which is exactly what the narration is
+// and exactly what the conversation is NOT. It is an episode of a show, it selects six to nine
+// findings out of the piece rather than reading it, and it appears in a feed with its own guid.
+// Declaring it as a reading of the article would be a claim that does not survive listening.
+export function podcastEpisodeJsonLd(
+  asset: MediaAsset,
+  opts: {
+    name: string;
+    description?: string | null;
+    datePublished?: string | null;
+    transcriptUrl?: string | null;
+    pageUrl: string;
+    feedUrl: string;
+    showName: string;
+  }
+): Record<string, unknown> | null {
+  if (!asset.r2_key) return null;
+  return {
+    "@type": "PodcastEpisode",
+    name: opts.name,
+    ...(asset.episode_number ? { episodeNumber: asset.episode_number } : {}),
+    ...(opts.description ? { description: opts.description } : {}),
+    ...(isoDate(opts.datePublished) ? { datePublished: isoDate(opts.datePublished) } : {}),
+    url: opts.pageUrl,
+    inLanguage: asset.locale,
+    partOfSeries: { "@type": "PodcastSeries", name: opts.showName, webFeed: opts.feedUrl },
+    associatedMedia: {
+      "@type": "AudioObject",
+      contentUrl: audioUrl(asset.r2_key),
+      encodingFormat: "audio/mpeg",
+      ...(isoDuration(asset.duration_s) ? { duration: isoDuration(asset.duration_s) } : {}),
+      ...(opts.transcriptUrl
+        ? { transcript: { "@type": "MediaObject", contentUrl: opts.transcriptUrl, encodingFormat: "text/plain" } }
+        : {}),
+    },
+    // Both voices are synthetic and both are characters. Saying so in the structured data is the
+    // same stance the feed and the page already take out loud.
+    creditText: "Conversación con voces sintéticas (Kilowatto y Leia)",
+    isAccessibleForFree: true,
+  };
+}
+
 // Fetches the narration for one piece in one locale. Returns null unless it's actually
 // playable -- a row in 'pending'/'generating'/'failed' must never render a player, or readers
 // get a dead control.
 export async function getAudioAsset(
   entityType: EntityType,
   entityId: number,
-  locale = "es-MX"
+  locale = "es-MX",
+  kind: "audio_narration" | "audio_dialogue" = "audio_narration"
 ): Promise<MediaAsset | null> {
   try {
     const row = await env.DB.prepare(
-      `SELECT id, kind, locale, r2_key, transcript_vtt_key, duration_s, status, cue_map_json
+      `SELECT id, kind, locale, r2_key, transcript_vtt_key, duration_s, status, cue_map_json,
+              episode_number
        FROM media_assets
-       WHERE entity_type = ? AND entity_id = ? AND locale = ? AND kind = 'audio_narration'
+       WHERE entity_type = ? AND entity_id = ? AND locale = ? AND kind = ?
          AND status = 'ready' AND r2_key IS NOT NULL`
     )
-      .bind(entityType, entityId, locale)
+      .bind(entityType, entityId, locale, kind)
       .first<MediaAsset>();
     return row ?? null;
   } catch {

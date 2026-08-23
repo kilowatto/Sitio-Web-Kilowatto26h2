@@ -4,7 +4,8 @@
 import Site from "../../layouts/Site.astro";
 import InvestigacionList from "../../components/InvestigacionList.astro";
 import InvestigacionToc from "../../components/InvestigacionToc.astro";
-import { getAudioAsset, audioObjectJsonLd } from "../../lib/media-query";
+import { getAudioAsset, audioObjectJsonLd, podcastEpisodeJsonLd } from "../../lib/media-query";
+import ConversationCard from "../../components/ConversationCard.astro";
 import InvestigacionShare from "../../components/InvestigacionShare.astro";
 import CommentSection from "../../components/CommentSection.astro";
 import ChartCard from "../../components/charts/ChartCard.astro";
@@ -94,6 +95,20 @@ const chartByKey = new Map(charts.map((c) => [c.chart_key, c]));
 const stampedBodyHtml = investigacion ? stampSectionIds(investigacion.body_html) : "";
 const segments = investigacion ? splitInvestigacionBody(stampedBodyHtml) : [];
 const audio = investigacion ? await getAudioAsset("investigacion", investigacion.id, "es-MX") : null;
+const dialogue = investigacion
+  ? await getAudioAsset("investigacion", investigacion.id, "es-MX", "audio_dialogue")
+  : null;
+const dialogueLd = investigacion && dialogue
+  ? podcastEpisodeJsonLd(dialogue, {
+      name: investigacion.title,
+      description: investigacion.subtitle,
+      datePublished: investigacion.published_at,
+      transcriptUrl: `https://kilowatto.com/a-fondo/${investigacion.slug}/conversacion.txt`,
+      pageUrl: `https://kilowatto.com/a-fondo/${investigacion.slug}`,
+      feedUrl: "https://kilowatto.com/podcast.xml",
+      showName: "Al fondo con Kilowatto",
+    })
+  : null;
 const audioLd = investigacion && audio ? audioObjectJsonLd(audio, {
   name: investigacion.title,
   description: investigacion.subtitle ?? investigacion.summary,
@@ -136,6 +151,11 @@ const faqJsonLd =
       }
     : null;
 
+// The episode is NOT nested inside the Report the way the narration is: `audio` on an Article
+// means "a spoken version of this", and the conversation is a separate work about the piece. It
+// goes in the graph as its own node, linked back by url.
+const podcastJsonLd = dialogueLd ? { "@context": "https://schema.org", ...dialogueLd } : null;
+
 const datasetJsonLd = investigacion
   ? buildChartDatasetJsonLd(
       charts.map((c) => ({ chartKey: c.chart_key, title: c.title, description: c.description, data: JSON.parse(c.data_json) })),
@@ -164,6 +184,7 @@ const datasetJsonLd = investigacion
       <script type="application/ld+json" set:html={JSON.stringify(articleJsonLd)} />
       {faqJsonLd && <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
       {datasetJsonLd.map((d) => <script type="application/ld+json" set:html={JSON.stringify(d)} />)}
+      {podcastJsonLd && <script type="application/ld+json" set:html={JSON.stringify(podcastJsonLd)} />}
 
       {investigacion.cover_r2_key ? (
         <div class="ia-hero">
@@ -208,6 +229,16 @@ const datasetJsonLd = investigacion
             <p class="ia-summary__label">Resumen ejecutivo</p>
             <p>{investigacion.summary}</p>
           </div>
+
+          {dialogue && (
+            <ConversationCard
+              audioKey={dialogue.r2_key!}
+              durationSeconds={dialogue.duration_s}
+              episodeNumber={dialogue.episode_number ?? null}
+              transcriptUrl={`/a-fondo/${investigacion.slug}/conversacion.txt`}
+              entityId={investigacion.id}
+            />
+          )}
 
           <div class="ia-layout">
             <InvestigacionToc
