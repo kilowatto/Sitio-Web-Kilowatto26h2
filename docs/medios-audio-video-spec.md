@@ -3,7 +3,7 @@
 > Estado vivo del proyecto. Plan original y las 26 decisiones: acordadas con Esteban el
 > 2026-08-21/22. Este archivo es la fuente de verdad — actualízalo al cerrar cada fase.
 >
-> Última actualización: 2026-08-23 (feeds de podcast validados)
+> Última actualización: 2026-08-23 (podcast conversado en producción)
 
 ## Por qué
 
@@ -20,8 +20,10 @@ Referencia visual: [este video](https://www.youtube.com/watch?v=0swxMbThNug) (Lo
 |---|---|---|
 | 1 · Audio en español | ✅ **Terminada** | — |
 | 1b · Audio en inglés | ✅ **Terminada** | — |
-| 2 · Gráficas interactivas | ❌ Sin empezar | Isla `client:visible` sobre los 14 SVG existentes |
-| 3 · Clips cortos 60-90s | ❌ Sin empezar | Remotion + Containers + publicación a X/LinkedIn |
+| 2 · Gráficas accesibles | ✅ **Terminada** | — |
+| Podcast (feeds) | ✅ **Terminada** | Alta manual en Apple y Spotify — solo Esteban |
+| Podcast conversado | ✅ **Terminada** | Enganche automático al aprobar; JSON-LD; Larry; telemetría |
+| 3 · Clips cortos 60-90s | ⏸️ **En pausa** | Decisión de Esteban 2026-08-23: las investigaciones se quedan en audio |
 | 4 · Videocolumna con Larry | ⏳ Riesgo resuelto, sin construir | Cara final, character bible, LoRA, pipeline |
 
 ### Diferido a propósito
@@ -29,22 +31,112 @@ Los otros 10 locales, GIF animado.
 
 ### Podcast
 
-Dos feeds, uno por idioma, porque `<language>` es un tag de canal:
-`/podcast.xml` (es-MX) y `/en/podcast.xml`, ambos con 23 episodios y certificación PSP-1 en
-Podbase. Construidos en `src/lib/podcast-feed.ts`; portada en `/podcast-cover.jpg`
+Dos feeds, uno por idioma, porque `<language>` es un tag de canal: `/podcast.xml` (es-MX) y
+`/en/podcast.xml`, con certificación PSP-1 en Podbase. Portada en `/podcast-cover.jpg`
 (1500×1500 JPEG, RGB, sin alfa). **Falta el alta manual** en Apple Podcasts Connect y Spotify
 for Creators — solo Esteban puede hacerla.
 
 Dos cosas que un validador marca en rojo y conviene entender antes de "arreglarlas":
 
-- **"Byte-range support: ✗"** no era de los episodios. Los 46 enclosures responden 206 a
-  cualquier forma de `Range` (probado uno por uno); el validador corre la sonda contra **la URL
-  del feed** que le diste. Se resolvió sirviendo rangos también desde el feed — son 20 KB que
-  ya están en memoria.
-- **ETag y Last-Modified** en el feed no son cosmética: Apple y Spotify lo consultan para
-  siempre, y un 304 cambia una consulta a D1 por una comparación de encabezados. El ETag es un
-  FNV-1a del cuerpo; el `Last-Modified` sale del episodio más reciente, no de `now()`, o cambiaría
-  en cada petición y no serviría de nada.
+- **"Byte-range support: ✗"** no era de los episodios. Los enclosures responden 206 a cualquier
+  forma de `Range` (probado uno por uno); el validador corre la sonda contra **la URL del feed**
+  que le diste. Se resolvió sirviendo rangos también desde el feed.
+- **ETag y Last-Modified** no son cosmética: Apple y Spotify consultan para siempre, y un 304
+  cambia una consulta a D1 por una comparación de encabezados. El `Last-Modified` sale del
+  episodio más reciente, no de `now()`, o cambiaría en cada petición.
+
+---
+
+## Podcast conversado — "Al fondo con Kilowatto"
+
+Las investigaciones narradas duran 27, 27 y **64 minutos**. Esteban intentó escuchar la suya y no
+pudo. Las columnas, a ~6 minutos, se quedan como narración y no las toca nada de esto.
+
+**6 episodios en producción.** El feed lleva las dos versiones de cada investigación.
+
+| ep | es-MX | en | narrado es-MX | compresión |
+|---|---|---|---|---|
+| 1 · VPN | 11:33 | 7:25 | 29:47 | 2.6:1 |
+| 2 · El péndulo | 8:42 | 6:54 | 26:51 | 3.1:1 |
+| 3 · IA en la universidad | 17:31 | 8:55 | 64:15 | 3.7:1 |
+
+Costo real: **~$9** los seis, a $0.000184/carácter en `eleven_v3` (1.8× lo que cuesta
+`multilingual_v2`).
+
+### Personajes y voces
+
+| | Quién | Voz | Dónde sale |
+|---|---|---|---|
+| **Kilowatto** | La marca, presentando su propia investigación | Rafael (profesional, mx) | Solo podcast |
+| **Leia** | La avestruz de Esteban, "la sociable y curiosa" | Dani - Podcast Host (mx) | Solo podcast |
+| Locutora | Lee el ident | Marisol (mx) | Solo podcast |
+| **Larry** | El rinoceronte | voz `kilowatto` clonada | Columnas y lecturas completas |
+
+### Estructura del episodio
+
+```
+[apertura en frío]  pregunta → respuesta segura y equivocada → dato que la rompe → sin resolver
+[sting + locutora]  "Al fondo con Kilowatto. Episodio N. TEMA."
+[saludo]            Kilowatto entra emocionado: "vamos directos al fondo"
+[6-9 hallazgos]     uno por sección elegida, con el guardián de cifras por hallazgo
+[cierre]            Leia manda a A fondo en kilowatto.com
+```
+
+### Decisiones que costaron aprenderse
+
+1. **El clon instantáneo no aguanta v3.** La voz `kilowatto` se hizo para `multilingual_v2` y
+   ElevenLabs recomienda clones profesionales para v3. En v3 salió plana, y `stability: 0` no lo
+   arregló porque la planitud era el clon, no el ajuste. Por eso el podcast tiene conductor
+   propio con voz profesional y Larry se quedó intacto en la narración.
+
+2. **Estéreo + mono = ardillitas.** Cada frame MP3 lleva su modo de canal y el decodificador lo
+   fija con el primero que ve. `/v1/music` devuelve estéreo y las voces son mono, así que el
+   locutor se reproducía al doble de velocidad. **No se arregla en runtime** — un isolate no
+   tiene codificador. El sting se convirtió offline (`ffmpeg -ac 1`) y `isMonoMp3()` ahora lo
+   verifica antes de ensamblar: si está en estéreo, se omite la música con una advertencia.
+
+3. **La apertura en frío tiene mecanismo, no estilo.** Loewenstein (1994): la curiosidad exige
+   que ya sepas lo suficiente para notar el hueco. Muller (tesis 2008, el PhD de Veritasium): una
+   explicación clara deja a la gente igual de equivocada pero más segura — hay que sacar la
+   creencia falsa primero. Por eso esos turnos son **plantilla y no salida del modelo**:
+   "explica, pero párate antes de explicar" es justo la instrucción que un modelo ignora.
+
+4. **El guardián de cifras rechazaba adaptaciones correctas.** La fuente escribe "veinte años" con
+   letra, el modelo pone "20", y el guardián —que solo comparaba dígitos y corre por sección— lo
+   llamaba invención. Ahora recolecta también los números escritos con letra.
+
+5. **El respaldo del esquema escondía una falla sistemática.** Con 15 secciones, nueve hallazgos
+   no cabían en `max_tokens: 1024`, el arreglo JSON nunca cerraba, y el respaldo tomaba las
+   primeras secciones en orden. El episodio se publicaba **sin selección editorial** y solo lo
+   delataba una advertencia. Parecía intermitente porque solo la pieza más larga llegaba al tope.
+
+6. **Workers AI no siempre devuelve texto en `response`.** Cuando el modelo emite JSON puede venir
+   ya parseado, y `String()` lo vuelve `[object Object]`. Y al arreglarlo, el heurístico de
+   bloques de contenido se tragaba los turnos `{speaker, text}`: hay que exigir `type === "text"`.
+
+7. **El modelo etiqueta los turnos con los NOMBRES de los personajes**, no con las llaves del
+   esquema. Mapear lo desconocido a `host` volvió los 22 turnos un monólogo de cuatro minutos que
+   pasaba todas las demás validaciones.
+
+8. **No fusionar turnos entre hallazgos.** Producía frases que soldaban el cierre de un hallazgo
+   con el arranque del siguiente, diciendo algo que ninguna mitad decía.
+
+9. **Los guid de las narraciones no se tocaron.** Al meter el tipo nuevo pasaron a llevar sufijo,
+   lo que habría republicado los 23 episodios como nuevos. El sufijo va solo en la conversación.
+
+10. **Un POST sin `Content-Type` da 403**, no 401: es el guard de origen de Astro. Variante nueva
+    de la trampa que ya conocíamos para `callSelf`.
+
+### Piezas nuevas
+
+| Qué | Dónde |
+|---|---|
+| Guion conversado (esquema, gancho, turnos) | `src/lib/dialogue-script.ts` |
+| Síntesis v3, sting, locutor, guardián mono | `src/lib/elevenlabs-dialogue.ts` |
+| Orquestación por episodio | `src/lib/narrate-dialogue.ts` → `/api/admin/narrate-dialogue` |
+| Banco de pruebas (voces, intro, guion) | `/api/admin/dialogue-lab` |
+| Transcripción con interlocutores | `/a-fondo/[slug]/conversacion.txt` |
+| Tipo y número de episodio | migraciones 0074, 0075 |
 
 ---
 
