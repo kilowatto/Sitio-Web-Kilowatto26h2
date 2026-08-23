@@ -22,6 +22,8 @@ interface Props {
       true of a narration and false of the two-voice conversation -- and a disclosure that
       misdescribes what you are hearing is worse than a generic one. */
   disclosure?: string;
+  /** Distinguishes the narration from the conversation in telemetry. */
+  kind?: "audio_narration" | "audio_dialogue";
   /** Enables paragraph highlighting + follow-scroll. [{p,start,end}] over the body's <p>s. */
   cueMap?: string | null;
   /** Identifies the piece for listening telemetry. */
@@ -40,6 +42,7 @@ const {
   transcriptUrl = null,
   compact = false,
   disclosure = "Narrado con la voz sintética de Larry. El texto es de Esteban; la voz no es humana.",
+  kind = "audio_narration",
   cueMap = null,
   entityType = null,
   entityId = null,
@@ -64,6 +67,7 @@ function fmtDuration(seconds: number): string {
   class={`kw-audio${compact ? " kw-audio--compact" : ""}`}
   data-kw-audio
   data-entity-type={entityType ?? undefined}
+  data-kind={kind}
   data-entity-id={entityId ?? undefined}
   data-locale={locale}
   data-body-selector={bodySelector}
@@ -110,6 +114,7 @@ function fmtDuration(seconds: number): string {
     const entityType = root.dataset.entityType ?? null;
     const entityId = Number(root.dataset.entityId ?? "0");
     const locale = root.dataset.locale ?? "es-MX";
+    const kind = root.dataset.kind ?? "audio_narration";
 
     // ---- telemetry ----
     // A per-load random id. Without it "hours listened" is uncomputable: summing the position
@@ -121,7 +126,7 @@ function fmtDuration(seconds: number): string {
     function send(event: string) {
       if (!entityType || !entityId) return;
       const payload = JSON.stringify({
-        entityType, entityId, locale, event,
+        entityType, entityId, locale, event, kind,
         sessionId,
         position: Math.round(audio!.currentTime),
         duration: Math.round(audio!.duration || 0),

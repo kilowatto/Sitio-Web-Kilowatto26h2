@@ -128,7 +128,7 @@ function urlFor(key: string): string {
           ) : (
             <table class="tbl">
               <thead>
-                <tr><th>Pieza</th><th class="n">Plays</th><th class="n">Terminadas</th><th>Tasa</th></tr>
+                <tr><th>Pieza</th><th>Formato</th><th class="n">Plays</th><th class="n">Terminadas</th><th>Tasa</th></tr>
               </thead>
               <tbody>
                 {byPiece.map((p) => {
@@ -137,6 +137,7 @@ function urlFor(key: string): string {
                   return (
                     <tr>
                       <td><a href={urlFor(key)}>{meta?.title ?? key}</a></td>
+                      <td class="dim">{p.kind === "audio_dialogue" ? "conversación" : "narración"}</td>
                       <td class="n mono">{p.plays}</td>
                       <td class="n mono">{p.completions}</td>
                       <td>

@@ -94,13 +94,21 @@ async function buildChunks(): Promise<Chunk[]> {
   // audio?" retrieves it, and carrying the real URL so he can hand it over instead of
   // describing it vaguely.
   const { results: audioAssets } = await env.DB.prepare(
-    `SELECT ma.entity_type, ma.entity_id, ma.locale, ma.r2_key, ma.duration_s,
+    `SELECT ma.entity_type, ma.entity_id, ma.locale, ma.kind, ma.r2_key, ma.duration_s,
+            ma.episode_number,
             COALESCE(c.title, i.title) AS title,
             COALESCE(c.slug, i.slug) AS slug
        FROM media_assets ma
        LEFT JOIN columns c        ON ma.entity_type = 'columna'       AND c.id = ma.entity_id
        LEFT JOIN investigaciones i ON ma.entity_type = 'investigacion' AND i.id = ma.entity_id
-      WHERE ma.kind = 'audio_narration' AND ma.status = 'ready' AND ma.r2_key IS NOT NULL`
+      WHERE ma.kind IN ('audio_narration', 'audio_dialogue') AND ma.status = 'ready'
+        AND ma.r2_key IS NOT NULL
+        -- Canonical locale only. Everything else in this index comes from the Spanish base
+        -- tables, and audio was the one thing duplicated per language: retrieval handed the
+        -- Spanish chatbot both rows for the same piece and Larry answered "dura 25 minutos"
+        -- (the English one) for a narration that runs 29:47, then, once both were labelled,
+        -- answered that he was not sure because he could see two different numbers.
+        AND ma.locale = 'es-MX'`
   ).all<any>();
 
   for (const a of audioAssets ?? []) {
@@ -110,18 +118,34 @@ async function buildChunks(): Promise<Chunk[]> {
     const pageUrl = a.entity_type === "columna"
       ? `https://kilowatto.com/columnas/${a.slug}`
       : `https://kilowatto.com/a-fondo/${a.slug}`;
+    // Two different things, described differently on purpose. Telling a reader the
+    // investigación "has audio" when what exists is a 12-minute conversation that skips most of
+    // it -- or the reverse, sending them to a 64-minute reading when they asked for the short
+    // version -- is the failure this whole chunk exists to prevent.
+    const isDialogue = a.kind === "audio_dialogue";
+    // Without naming the language, retrieval happily hands the Spanish chatbot the English
+    // row: Larry answered a Spanish question with the English narration's 25 minutes when the
+    // Spanish one runs 29:47. Same piece, same wording, different duration.
+    const lang = a.locale === "es-MX" ? "en español" : `en ${a.locale}`;
     chunks.push({
-      id: `audio:${a.entity_type}:${a.entity_id}:${a.locale}`,
-      text:
-        `La ${kind} "${a.title}" tiene versión en AUDIO narrada, se puede escuchar, ` +
-        `tiene podcast, tiene narración hablada${minutes ? ` de aproximadamente ${minutes} minutos` : ""}. ` +
-        `El reproductor está arriba del texto en ${pageUrl}. ` +
-        `La narración usa la voz sintética de Larry, no es una grabación humana.`,
+      id: `audio:${a.entity_type}:${a.entity_id}:${a.locale}:${a.kind}`,
+      text: isDialogue
+        ? `La ${kind} "${a.title}" tiene un EPISODIO DE PODCAST conversado, se puede escuchar, ` +
+          `es una plática${minutes ? ` de aproximadamente ${minutes} minutos` : ""} entre Kilowatto y ` +
+          `Leia sobre los hallazgos principales. Se llama "Al fondo con Kilowatto"` +
+          `${a.episode_number ? `, episodio ${a.episode_number}` : ""}. ` +
+          `NO es la investigación leída completa: es una conversación sobre ella y se salta partes. ` +
+          `Está en ${pageUrl} y en el feed https://kilowatto.com/podcast.xml. ` +
+          `Las dos voces son sintéticas y los dos son personajes.`
+        : `La ${kind} "${a.title}" tiene versión en AUDIO narrada, se puede escuchar, ` +
+          `es la lectura completa ${lang}${minutes ? `, de aproximadamente ${minutes} minutos` : ""}, palabra por palabra. ` +
+          `El reproductor está arriba del texto en ${pageUrl}. ` +
+          `La narración usa la voz sintética de Larry, no es una grabación humana.`,
       metadata: {
         entity_type: "audio",
         entity_id: a.entity_id,
         slug: a.slug,
-        section: "Versión en audio",
+        section: isDialogue ? "Episodio de podcast" : "Versión en audio",
       },
     });
   }
@@ -321,7 +345,7 @@ function truncateForMetadata(text: string): string {
   return text.length > MAX_METADATA_TEXT ? text.slice(0, MAX_METADATA_TEXT) + "…" : text;
 }
 
-export async function runReindex(): Promise<{ indexed: number }> {
+export async function runReindex(): Promise<{ indexed: number; purged: number }> {
   const chunks = await buildChunks();
 
   // Concurrency-capped, not sequential -- press/books/projects/food additions on 2026-08-22
@@ -345,11 +369,41 @@ export async function runReindex(): Promise<{ indexed: number }> {
     await env.VECTORIZE.upsert(vectors);
   }
 
+  // Delete what no longer exists.
+  //
+  // This endpoint only ever upserted, so every chunk id that has EVER been indexed was still in
+  // Vectorize: deleted pieces, renamed sections, old id formats. It surfaced as Larry insisting
+  // the VPN narration runs 25 minutes -- the English row, dropped from the index two deploys
+  // earlier and still being retrieved. A chatbot citing content that no longer exists is the
+  // whole failure mode of a stale index, and nothing here would ever have caught it.
+  //
+  // The previous run's id list lives in KV: ~450 ids is about 18 KB, far under the value cap,
+  // and diffing it is cheaper and more reliable than trying to enumerate the index.
+  let purged = 0;
+  try {
+    const currentIds = vectors.map((v) => v.id);
+    const previousRaw = await env.KILOWATTO_KV?.get("reindex_vector_ids");
+    if (previousRaw) {
+      const current = new Set(currentIds);
+      const stale = (JSON.parse(previousRaw) as string[]).filter((id) => !current.has(id));
+      // Vectorize caps a delete batch; 500 at a time keeps well inside it.
+      for (let i = 0; i < stale.length; i += 500) {
+        await env.VECTORIZE.deleteByIds(stale.slice(i, i + 500));
+      }
+      purged = stale.length;
+    }
+    await env.KILOWATTO_KV?.put("reindex_vector_ids", JSON.stringify(currentIds));
+  } catch (err) {
+    // A failed purge leaves stale vectors, which is the status quo -- never a reason to fail
+    // an otherwise good reindex.
+    console.error("reindex purge failed:", err);
+  }
+
   if (env?.KILOWATTO_KV) {
     await env.KILOWATTO_KV.put("last_reindex_at", new Date().toISOString());
   }
 
-  return { indexed: vectors.length };
+  return { indexed: vectors.length, purged };
 }
 
 export const POST: APIRoute = async ({ request }) => {

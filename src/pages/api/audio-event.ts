@@ -14,7 +14,7 @@ export const prerender = false;
 // Schema for kilowatto_audio_events (Analytics Engine is append-only and schemaless, so the
 // column meanings live here and must not be reordered -- existing rows would be reinterpreted):
 //   blob1 entityType   blob2 entityId   blob3 locale   blob4 event   blob5 country
-//   blob6 device       blob7 pathname   blob8 sessionId
+//   blob6 device       blob7 pathname   blob8 sessionId   blob9 kind
 //   double1 positionSeconds   double2 durationSeconds   double3 percentOfDuration
 //   index1 "{entityType}:{entityId}"
 const VALID_EVENTS = new Set(["play", "pause", "seek", "progress", "ended", "ratechange"]);
@@ -40,6 +40,7 @@ export const POST: APIRoute = async ({ request }) => {
       duration?: number;
       pathname?: string;
       sessionId?: string;
+      kind?: string;
     }>();
 
     const entityType = String(body?.entityType ?? "");
@@ -65,6 +66,11 @@ export const POST: APIRoute = async ({ request }) => {
         deviceOf(request.headers.get("user-agent") ?? ""),
         String(body?.pathname ?? "").slice(0, 200),
         String(body?.sessionId ?? "").slice(0, 40),
+        // Which of the two audios on an investigación page this is. Without it both players
+        // report the same entity and the dashboard cannot tell a 12-minute conversation from a
+        // 64-minute reading -- the completion rate of the two is exactly the comparison worth
+        // having. Old rows carry an empty string, which reads as narration and is what they are.
+        body?.kind === "audio_dialogue" ? "audio_dialogue" : "audio_narration",
       ],
       doubles: [position, duration, percent],
       indexes: [`${entityType}:${entityId}`],

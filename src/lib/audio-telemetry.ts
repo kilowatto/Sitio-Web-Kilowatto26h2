@@ -47,6 +47,8 @@ export async function getAudioTotals(days = 30): Promise<AudioTotals | null> {
 export interface AudioPiece {
   entityType: string;
   entityId: number;
+  /** '' on rows written before the conversation existed; those are all narrations. */
+  kind: string;
   plays: number;
   completions: number;
   completionRate: number;
@@ -55,12 +57,12 @@ export interface AudioPiece {
 export async function getAudioByPiece(days = 30, limit = 20): Promise<AudioPiece[] | null> {
   try {
     const res = await queryPageViews(
-      `SELECT blob1 AS entityType, blob2 AS entityId,
+      `SELECT blob1 AS entityType, blob2 AS entityId, blob9 AS kind,
               SUM(IF(blob4 = 'play', 1, 0)) AS plays,
               SUM(IF(blob4 = 'ended', 1, 0)) AS completions
        FROM kilowatto_audio_events
        WHERE timestamp > NOW() - INTERVAL '${days}' DAY
-       GROUP BY entityType, entityId
+       GROUP BY entityType, entityId, kind
        ORDER BY plays DESC
        LIMIT ${limit}`
     );
@@ -70,6 +72,7 @@ export async function getAudioByPiece(days = 30, limit = 20): Promise<AudioPiece
       return {
         entityType: String(r.entityType),
         entityId: Number(r.entityId),
+        kind: String(r.kind ?? ""),
         plays,
         completions,
         completionRate: plays > 0 ? Math.round((completions / plays) * 100) : 0,
