@@ -70,7 +70,28 @@ export const POST: APIRoute = async ({ params, request }) => {
     reindexError = err?.message ?? "unknown error reindexing";
   }
 
-  return new Response(JSON.stringify({ ok: true, linkedin: carousel, reindexed, reindexError }), {
+  // Translate into the 11 non-canonical locales in the background.
+  //
+  // Investigaciones have done this on approve for a while; columns never did, so any column
+  // published between manual runs of /api/translate silently stayed monolingual. Found
+  // 2026-08-22 when the audio backfill hit a column with no English body three weeks after it
+  // was published — nothing else had surfaced it.
+  //
+  // Fire-and-forget behind a binding check: the binding only exists in the real Worker, not in
+  // `astro dev`, and a translation failure must never block a publish that already succeeded.
+  let translation: string | null = null;
+  try {
+    if ((env as any).TRANSLATE_COLUMN_WORKFLOW) {
+      await (env as any).TRANSLATE_COLUMN_WORKFLOW.create({ params: { columnId: Number(id) } });
+      translation = "workflow lanzado";
+    } else {
+      translation = "binding ausente (dev)";
+    }
+  } catch (err: any) {
+    translation = `falló al lanzar: ${err?.message ?? "error desconocido"}`;
+  }
+
+  return new Response(JSON.stringify({ ok: true, linkedin: carousel, reindexed, reindexError, translation }), {
     headers: { "content-type": "application/json" },
   });
 };
