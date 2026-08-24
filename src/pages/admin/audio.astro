@@ -4,6 +4,13 @@ import AdminLogin from "../../components/AdminLogin.astro";
 import { env } from "cloudflare:workers";
 import { checkAdminAuth } from "../../lib/admin-auth";
 import {
+  getDownloadTotals,
+  getDownloadsByClient,
+  getDownloadsByEpisode,
+  getDownloadsByCountry,
+} from "../../lib/podcast-downloads";
+import { lastPodcastMonitor } from "../../lib/podcast-monitor";
+import {
   getAudioTotals,
   getAudioByPiece,
   getDropOffCurve,
@@ -24,9 +31,14 @@ let dropOff: Awaited<ReturnType<typeof getDropOffCurve>> = null;
 let events: Awaited<ReturnType<typeof getAudioEventBreakdown>> = null;
 let secondsListened: number | null = null;
 let catalog: any[] = [];
+let dlTotals: Awaited<ReturnType<typeof getDownloadTotals>> = null;
+let dlClients: Awaited<ReturnType<typeof getDownloadsByClient>> = null;
+let dlEpisodes: Awaited<ReturnType<typeof getDownloadsByEpisode>> = null;
+let dlCountries: Awaited<ReturnType<typeof getDownloadsByCountry>> = null;
+let monitor: Awaited<ReturnType<typeof lastPodcastMonitor>> = null;
 
 if (authorized) {
-  [totals, byPiece, dropOff, events, secondsListened, catalog] = await Promise.all([
+  [totals, byPiece, dropOff, events, secondsListened, catalog, dlTotals, dlClients, dlEpisodes, dlCountries] = await Promise.all([
     getAudioTotals(DAYS),
     getAudioByPiece(DAYS),
     getDropOffCurve(DAYS),
@@ -42,7 +54,13 @@ if (authorized) {
         WHERE ma.kind = 'audio_narration' AND ma.status = 'ready'
         ORDER BY ma.entity_type, ma.entity_id`
     ).all().then((r) => r.results ?? []),
+    getDownloadTotals(DAYS),
+    getDownloadsByClient(DAYS),
+    getDownloadsByEpisode(DAYS),
+    getDownloadsByCountry(DAYS),
   ]);
+  monitor = await lastPodcastMonitor();
+
 }
 
 // Title lookup so the per-piece table shows names instead of "columna:22".
@@ -65,6 +83,13 @@ function fmtHours(seconds: number): string {
   return h < 10 ? `${h.toFixed(1)} h` : `${Math.round(h)} h`;
 }
 const withCues = catalog.filter((c: any) => c.cue_map_json).length;
+
+const maxDlClient = dlClients && dlClients.length ? Math.max(...dlClients.map((c) => c.downloads), 1) : 1;
+const maxDlCountry = dlCountries && dlCountries.length ? Math.max(...dlCountries.map((c) => c.downloads), 1) : 1;
+const REGION = new Intl.DisplayNames(["es"], { type: "region" });
+function countryName(code: string): string {
+  try { return REGION.of(code) ?? code; } catch { return code; }
+}
 
 const maxDrop = dropOff ? Math.max(...dropOff.map((d) => d.reached), 1) : 1;
 const maxPlays = byPiece && byPiece.length ? Math.max(...byPiece.map((p) => p.plays), 1) : 1;
@@ -168,6 +193,111 @@ function urlFor(key: string): string {
         </section>
 
         <section class="card">
+          <h2>Salud del podcast</h2>
+          <p class="note">
+            Se revisa solo cada seis horas. Comprueba lo que un validador de feeds no comprueba:
+            que cada URL de transcripción <em>resuelva</em>, no solo que el tag exista. Así se
+            encontraron las 26 rotas del feed en inglés, que tenían certificación PSP-1.
+          </p>
+          {!monitor ? (
+            <p class="empty">Todavía no ha corrido. La primera pasada es a los pocos minutos de la hora en punto.</p>
+          ) : (
+            <>
+              <p class={monitor.ok ? "mon-ok" : "mon-bad"}>
+                {monitor.ok ? "Todo bien" : "Hay fallas"} · última revisión {new Date(monitor.at).toLocaleString("es-MX")}
+              </p>
+              {monitor.feeds.map((f) => (
+                <div class="mon">
+                  <h3>{f.locale}</h3>
+                  <ul class="mon-list">
+                    {f.checks.map((c) => (
+                      <li class={c.ok ? "is-ok" : c.warn ? "is-warn" : "is-bad"}>
+                        <span class="mon-dot" />
+                        <span class="mon-name">{c.name}</span>
+                        <span class="mon-detail">{c.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </>
+          )}
+        </section>
+
+        <section class="card">
+          <h2>Descargas del podcast</h2>
+          <p class="note">
+            Contadas en nuestro propio servidor, no reportadas por Spotify ni Apple: ninguna de
+            las dos expone esas cifras por API. Como el audio lo servimos nosotros, cada
+            reproducción desde cualquier app pasa por aquí — incluidas apps donde nunca nos dimos
+            de alta. Una descarga es un oyente que se llevó al menos un minuto de audio de una
+            pieza en un día, que es la regla de la IAB; sin eso, las decenas de peticiones
+            parciales de una sola escucha se contarían como decenas de descargas.
+          </p>
+          {!dlTotals || dlTotals.downloads === 0 ? (
+            <p class="empty">Aún no hay descargas registradas.</p>
+          ) : (
+            <>
+              <section class="kpis kpis--3">
+                <div class="kpi"><div class="v">{dlTotals.downloads.toLocaleString("es-MX")}</div><div class="l">Descargas</div></div>
+                <div class="kpi"><div class="v">{dlTotals.gigabytes} GB</div><div class="l">Transferidos</div></div>
+                <div class="kpi"><div class="v">{dlTotals.requests.toLocaleString("es-MX")}</div><div class="l">Peticiones crudas</div></div>
+              </section>
+
+              <div class="split">
+                <div>
+                  <h3>Por app</h3>
+                  {!dlClients || dlClients.length === 0 ? <p class="empty">—</p> : (
+                    <ul class="bars">
+                      {dlClients.map((c) => (
+                        <li>
+                          <span class="bars__k">{c.client}</span>
+                          <span class="bars__track"><span class="bars__fill" style={`width:${Math.round((c.downloads / maxDlClient) * 100)}%`} /></span>
+                          <b class="mono">{c.downloads}</b>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div>
+                  <h3>Por país</h3>
+                  {!dlCountries || dlCountries.length === 0 ? <p class="empty">—</p> : (
+                    <ul class="bars">
+                      {dlCountries.map((c) => (
+                        <li>
+                          <span class="bars__k">{countryName(c.country)}</span>
+                          <span class="bars__track"><span class="bars__fill" style={`width:${Math.round((c.downloads / maxDlCountry) * 100)}%`} /></span>
+                          <b class="mono">{c.downloads}</b>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              {dlEpisodes && dlEpisodes.length > 0 && (
+                <table class="tbl" style="margin-top:1rem">
+                  <thead><tr><th>Episodio</th><th>Formato</th><th>Idioma</th><th class="n">Descargas</th></tr></thead>
+                  <tbody>
+                    {dlEpisodes.map((e) => {
+                      const meta = titleOf.get(`${e.entityType}:${e.entityId}`);
+                      return (
+                        <tr>
+                          <td>{meta?.title ?? `${e.entityType} ${e.entityId}`}</td>
+                          <td class="dim">{e.kind === "audio_dialogue" ? "conversación" : "narración"}</td>
+                          <td class="dim">{e.locale}</td>
+                          <td class="n mono">{e.downloads}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+        </section>
+
+        <section class="card">
           <h2>Catálogo</h2>
           <table class="tbl">
             <thead><tr><th>Pieza</th><th>Tipo</th><th class="n">Min</th><th>Sincronía</th></tr></thead>
@@ -225,5 +355,28 @@ function urlFor(key: string): string {
   .rate-fill { height: 100%; background: var(--rhino); border-radius: 999px; }
 
   .ev { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .mon-ok { font-size: 0.8rem; font-weight: 700; color: var(--rhino); margin: 0 0 0.7rem; }
+  .mon-bad { font-size: 0.8rem; font-weight: 700; color: #c0392b; margin: 0 0 0.7rem; }
+  .mon { margin-bottom: 0.8rem; }
+  .mon-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+  .mon-list li { display: grid; grid-template-columns: 0.55rem 12rem 1fr; align-items: center; gap: 0.5rem; font-size: 0.76rem; }
+  @media (max-width: 620px) { .mon-list li { grid-template-columns: 0.55rem 1fr; } .mon-detail { grid-column: 2; color: var(--admin-text-soft); } }
+  .mon-dot { width: 0.55rem; height: 0.55rem; border-radius: 999px; background: var(--admin-text-soft); }
+  .is-ok .mon-dot { background: var(--rhino); }
+  .is-warn .mon-dot { background: #d68910; }
+  .is-bad .mon-dot { background: #c0392b; }
+  .mon-detail { color: var(--admin-text-soft); overflow: hidden; text-overflow: ellipsis; }
+
+  .kpis--3 { grid-template-columns: repeat(3, 1fr); margin-bottom: 1rem; }
+  @media (min-width: 700px) { .kpis--3 { grid-template-columns: repeat(3, 1fr); } }
+  .split { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+  @media (min-width: 720px) { .split { grid-template-columns: 1fr 1fr; gap: 1.5rem; } }
+  .card h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--admin-text-soft); margin: 0 0 0.5rem; }
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+  .bars li { display: grid; grid-template-columns: 7.5rem 1fr auto; align-items: center; gap: 0.5rem; font-size: 0.78rem; }
+  .bars__k { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bars__track { height: 0.45rem; border-radius: 999px; background: var(--admin-surface-2); overflow: hidden; }
+  .bars__fill { display: block; height: 100%; background: var(--rhino); border-radius: 999px; }
+
   .ev li { display: flex; align-items: baseline; gap: 0.4rem; border: 1px solid var(--admin-border); border-radius: 999px; padding: 0.25rem 0.7rem; font-size: 0.76rem; }
 </style>

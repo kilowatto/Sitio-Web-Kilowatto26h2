@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { writeDownload } from "../../../lib/podcast-download-log";
 
 export const prerender = false;
 
@@ -41,6 +42,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   const whole = async () => {
     const object = await env.MEDIA.get(key);
     if (!object) return new Response("not found", { status: 404 });
+    await writeDownload(key, request, size, false);
     return new Response(object.body, {
       headers: { ...baseHeaders, "content-length": String(size) },
     });
@@ -76,6 +78,11 @@ export const GET: APIRoute = async ({ params, request }) => {
   const length = end - start + 1;
   const object = await env.MEDIA.get(key, { range: { offset: start, length } });
   if (!object) return new Response("not found", { status: 404 });
+
+  // Logged per REQUEST, not per listen. One listen is dozens of partial requests, so the raw
+  // count is meaningless -- the byte total is what carries the signal, and the query side
+  // collapses a listener's requests into a single download the way the IAB rules require.
+  await writeDownload(key, request, length, true);
 
   return new Response(object.body, {
     status: 206,

@@ -69,6 +69,10 @@
     {
       "binding": "PAGE_ANALYTICS",
       "dataset": "kilowatto_page_views"
+    },
+    {
+      "binding": "DOWNLOAD_ANALYTICS",
+      "dataset": "kilowatto_podcast_downloads"
     }
   ]
   // TRANSLATE_INVESTIGACION_WORKFLOW is intentionally NOT declared here -- its class only

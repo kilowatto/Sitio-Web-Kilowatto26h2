@@ -68,6 +68,14 @@ export default {
           .then((t) => console.log("Scheduled audio sweep:", t))
           .catch((e) => console.error("Scheduled audio sweep failed:", e))
       );
+      // Same fire, second job: verify the feeds and what the directories believe about them.
+      // Cheap (a few dozen HEAD-ish requests) and it is the only thing that notices when a
+      // transcript URL starts 404-ing or Apple silently stops ingesting episodes.
+      ctx.waitUntil(
+        callSelf("/api/admin/podcast-check?token=" + env.ADMIN_TOKEN, env, ctx)
+          .then((t) => console.log("Scheduled podcast check:", t))
+          .catch((e) => console.error("Scheduled podcast check failed:", e))
+      );
     } else if (controller.cron === "0 8 * * 1") {
       ctx.waitUntil(
         callSelf("/api/projects/refresh?token=" + env.ADMIN_TOKEN, env, ctx)
@@ -123,6 +131,16 @@ config.workflows = [
 // opinion column in Esteban's voice (see src/pages/api/columns/generate.ts) and always lands as
 // 'pending_approval' — this is drafting, not publishing, so it runs regardless of the brand
 // autopilot pause state; only a real approve click in /admin/columnas makes it public.
+// A service binding pointing at THIS Worker. The podcast monitor has to fetch its own public
+// URLs -- the whole point is proving that what a podcast app requests actually comes back -- and
+// a plain fetch() to kilowatto.com from inside the isolate goes out to the edge and back in,
+// which returns 522. Confirmed live 2026-08-23: both feed checks failed that way on the first
+// run. A service binding is the supported loopback and never leaves Cloudflare's network.
+//
+// Declared here rather than in wrangler.jsonc for the same reason as the Workflow bindings: the
+// service does not exist locally and declaring it there breaks `astro dev`.
+config.services = [{ binding: "SELF", service: config.name }];
+
 config.triggers = { crons: ["0 */6 * * *", "30 */6 * * *", "*/30 6-23 * * *", "0 8 * * 1", "0 9 * * 1", "0 10 * * 1", "0 11 * * 1"] };
 // Without this, Cloudflare's static-asset layer intercepts requests for paths that don't
 // match a real file BEFORE the Worker ever runs, and falls back to its own redirect-to-"/"
