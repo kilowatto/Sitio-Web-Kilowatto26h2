@@ -512,3 +512,60 @@ renderizados en el sitio con un diseño ya aprobado. Las composiciones pueden es
 El plan original decía "la voz de Larry". Hoy Larry narra columnas y **Kilowatto** conduce el
 podcast. Un clip social es cara pública de marca, así que probablemente es Kilowatto — pero no
 está decidido.
+
+---
+
+## ElevenLabs Flows: el hallazgo que replantea las fases 3 y 4
+
+Investigado el 2026-08-23 a petición de Esteban, que no se creyó el primer resultado. Tenía
+razón: la página de capacidades de Avatars dice *"API access: Not available at launch"*, **y eso
+es cierto solo de Avatars.** El video sí tiene API, bajo otro producto.
+
+### `POST /v1/flows/video`
+
+Asíncrono: devuelve `id` + `status: pending`, y se recoge con el GET correspondiente **o por
+webhook**, que evita hacer polling desde un Worker.
+
+Siete modelos bajo la misma llave que ya tenemos:
+
+| model_id | Para qué |
+|---|---|
+| `creatify-aurora` | **Personaje hablando con lip-sync** |
+| `bytedance-seedance-v2` / `.5` / `-fast` / `-mini` | Video generativo, 9:16, hasta 9 imágenes de referencia |
+| `veo-3.1-generate-001` / `-fast` | Video generativo de Google |
+
+### `creatify-aurora` es lo que Larry necesita
+
+```
+audio   (requerido)  la voz que mueve los labios  → ya la generamos
+image   (requerido)  "The image of the character to animate"
+audio_guidance_scale  qué tanto se pegan los labios al audio
+guidance_scale        qué tanto se pega a la imagen de entrada
+resolution            480p | 720p
+webhook               entrega el resultado sin polling
+```
+
+Dice **"character"**, no "person". No hay detección de rostro humano que pelear — que es
+exactamente el muro contra el que chocamos con HeyGen, donde el umbral resultó ser la geometría
+del hocico y el ángulo no era programable.
+
+Y los dos `guidance_scale` **son perillas de afinamiento reales**, no metáforas: son justo lo que
+un sistema de A/B puede recorrer.
+
+### La división de trabajo que esto implica
+
+**Ni Remotion ni el video generativo sirven para lo del otro**, y confundirlos sería el error:
+
+- **Los datos van en Remotion.** Un modelo generativo no puede dibujar una cifra exacta y
+  legible. Es la misma lección que ya está escrita en `column-infographic.ts`: *"deliberately NOT
+  an AI-generated image… an infographic's whole job is showing correct numbers"*. Poner "$107" en
+  pantalla no es negociable y solo el render determinista lo garantiza.
+- **Larry va en Flows.** Animar un personaje es justo lo que Remotion no hace.
+- **Componer los dos necesita ffmpeg**, o sea el Container, que sigue haciendo falta — pero ahora
+  para dos trabajos, no uno.
+
+### Qué queda de HeyGen
+
+Deja de ser la única opción y pasa a ser el **comparador**. También tiene API, así que se puede
+correr el mismo Larry por los dos y medir cuál rinde — que es lo que Esteban pidió: usar los dos
+y afinar con datos.
