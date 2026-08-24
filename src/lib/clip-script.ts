@@ -185,8 +185,13 @@ export async function buildClipProps(
     ? `Esa gráfica se titula "${chart.title ?? ""}"${chart.description ? ` y dice: ${chart.description}` : ""}.`
     : "";
 
-  const minNarration = Math.round(durationSeconds * 2.1);
-  const maxNarration = Math.round(durationSeconds * 2.6);
+  // 14.65 characters per second of speech, measured on the podcast: 1,293 characters came back
+  // as 88.2 seconds of audio. The first version of this asked for durationSeconds * 2.1, which
+  // is off by a factor of seven -- it produced 19 seconds of narration for a 75-second clip,
+  // leaving 56 seconds of silence over a static chart.
+  const CHARS_PER_SECOND = 14.65;
+  const minNarration = Math.round(durationSeconds * CHARS_PER_SECOND * 0.85);
+  const maxNarration = Math.round(durationSeconds * CHARS_PER_SECOND * 1.05);
 
   const prompt = `Escribe el texto de un clip vertical de ${durationSeconds} segundos sobre esta pieza de Kilowatto.
 
@@ -203,13 +208,14 @@ ${isLong
 Reglas duras:
 - El gancho es una FRASE COMPLETA con verbo, de 6 a 12 palabras. Va en tipografía enorme.
   "VPN no protege" no sirve: no es una frase, es un telegrama.
-- La narración es lo que se ESCUCHA mientras las barras aparecen. Entre ${minNarration} y ${maxNarration}
-  caracteres. PROHIBIDO leer las cifras una por una: ya están en pantalla y repetirlas suena a
-  teleprompter. Di qué SIGNIFICAN y qué se hace con eso.
+- La narración es lo que se ESCUCHA mientras las barras aparecen, y tiene que durar TODO el clip:
+  entre ${minNarration} y ${maxNarration} caracteres. Es un guion hablado de ${durationSeconds}
+  segundos, no un pie de foto. PROHIBIDO leer las cifras una por una: ya están en pantalla y
+  repetirlas suena a teleprompter. Di qué SIGNIFICAN, de dónde salen y qué se hace con eso.
 - Usa SOLO cifras que aparezcan en el texto fuente o en la lista de arriba, con dígitos.
 - Nada de "no te lo pierdas", "increíble", "la verdad" ni superlativos.
 
-Así se ve bien, para una pieza sobre VPN:
+Así se ve el TONO correcto (ajusta el LARGO a lo que se pide arriba):
 {"hook":"Nueve de cada diez VPN gratuitas filtran tus datos.",
  "narration":"La promesa de una VPN gratuita es que nadie te vea. Una auditoría de cien de ellas encontró lo contrario: la mayoría filtra algo, muchas piden permisos que su función no necesita, y la mitad comparte lo que recoge con terceros que tú nunca elegiste. Lo gratis lo pagas con lo que querías esconder.",
  "cta":"La investigación completa"}
