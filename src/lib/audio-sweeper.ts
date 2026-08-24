@@ -3,6 +3,7 @@ import { runNarrate } from "./narrate";
 import { runNarrateDialogue } from "./narrate-dialogue";
 import { runAudioPost } from "./audio-post";
 import { sendAlert } from "./alerts";
+import { assign } from "./experiments";
 
 // Generates whatever audio is missing, a little at a time, on a schedule.
 //
@@ -154,6 +155,26 @@ export async function runAudioSweep(limit = DEFAULT_LIMIT): Promise<SweepResult>
       }
     } catch (err: any) {
       results.push({ item, ok: false, detail: String(err?.message ?? err) });
+    }
+
+    // Record which arm of audio_kind this asset belongs to. Observational, not assigned: the
+    // sweep's own priority order decides what gets made, and every investigación eventually gets
+    // both a conversation and a full reading, so the arms balance on their own. Pretending to
+    // randomize here would be theatre.
+    if (results[results.length - 1]?.ok) {
+      const row = await env.DB.prepare(
+        `SELECT id FROM media_assets WHERE entity_type = ? AND entity_id = ? AND locale = ? AND kind = ?`
+      )
+        .bind(item.entityType, item.entityId, item.locale, item.kind)
+        .first<{ id: number }>();
+      if (row) {
+        await assign(
+          "audio_kind",
+          item.kind === "audio_dialogue" ? "conversacion" : "lectura",
+          "media_asset",
+          row.id
+        ).catch(() => {});
+      }
     }
 
     // A finished asset should announce itself. Best-effort and idempotent: a failure here must

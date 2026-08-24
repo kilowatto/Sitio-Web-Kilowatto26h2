@@ -13,5 +13,13 @@ export const GET: APIRoute = async ({ url }) => {
   const id = Number(url.searchParams.get("id") ?? 0);
   if (!id) return new Response("id requerido", { status: 400 });
   const debug = url.searchParams.get("debug") === "1";
-  return Response.json(await buildClipProps(type, id, url.searchParams.get("chart") ?? undefined, debug));
+  const hookStyle = url.searchParams.get("hook");
+  return Response.json(
+    await buildClipProps(type, id, {
+      chartKey: url.searchParams.get("chart") ?? undefined,
+      debug,
+      durationSeconds: Number(url.searchParams.get("seconds")) || undefined,
+      hookStyle: hookStyle === "question" || hookStyle === "number" ? hookStyle : undefined,
+    })
+  );
 };

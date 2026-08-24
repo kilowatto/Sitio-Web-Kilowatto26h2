@@ -106,16 +106,31 @@ function toBars(chart: ChartRow): ClipBar[] {
   }
 }
 
+export interface ClipOptions {
+  chartKey?: string;
+  debug?: boolean;
+  /** Overrides the per-type default. The clip_duration experiment sets this. */
+  durationSeconds?: number;
+  /**
+   * Overrides the hook style. Until this existed, style was derived from length -- a long clip
+   * always opened with a question, a short one always with the figure -- which meant the two
+   * knobs could never be told apart: whichever one won, the other got the credit.
+   */
+  hookStyle?: "question" | "number";
+}
+
 export async function buildClipProps(
   entityType: EntityType,
   entityId: number,
-  chartKey?: string,
-  debug = false
+  opts: ClipOptions = {}
 ): Promise<ClipProps> {
+  const { chartKey, debug = false } = opts;
   const { title, subtitle, sections } = await loadArticle(entityType, entityId, "es-MX");
   const warnings: string[] = [];
-  const durationSeconds = CLIP_SECONDS[entityType];
+  const durationSeconds = opts.durationSeconds ?? CLIP_SECONDS[entityType];
   const isLong = entityType === "investigacion";
+  // Style of the opening line, independent of how long the clip is.
+  const questionHook = (opts.hookStyle ?? (isLong ? "question" : "number")) === "question";
 
   // Pick the chart. Bar-shaped only, and the one with the widest spread between its largest and
   // smallest value -- a chart where everything is 48%, 50%, 51% says nothing at a glance.
@@ -201,7 +216,7 @@ ${figures ? `Cifras que se van a MOSTRAR en pantalla, en barras, mientras se esc
 ${chartContext ? `QUÉ SIGNIFICAN ESAS CIFRAS: ${chartContext} No inventes otra interpretación.` : ""}
 ${figures ? "EL GANCHO TIENE QUE SER SOBRE ESAS CIFRAS. Es lo que se ve en pantalla; un gancho sobre otro tema de la pieza deja al espectador leyendo una cosa y escuchando otra." : ""}
 
-${isLong
+${questionHook
   ? "GANCHO: empieza por lo que quien mira cree que ya sabe y resulta falso. Una afirmación que contradiga el sentido común, sin resolverla."
   : "GANCHO: empieza por la afirmación más fuerte y concreta de la pieza, de golpe. No preguntes: en 30 segundos no hay espacio para plantear y responder."}
 

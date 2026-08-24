@@ -5,6 +5,7 @@ import { buildVoiceContext, voicePromptBlock } from "./brand-voice";
 import { assignSmartSchedule } from "./post-scheduler";
 import { createShortLink } from "./short-links";
 import { responseText } from "./audio-script";
+import { pickArm, assign } from "./experiments";
 
 // A vertical clip, end to end: pick the piece, write the props, have Larry narrate them, render
 // the video, and put it in the queue as a post like any other.
@@ -39,6 +40,8 @@ export interface ClipPostResult {
   videoKey?: string;
   seconds?: number;
   warnings?: string[];
+  /** Which experiment arms this clip was made with. */
+  arms?: string[];
   skipped?: string;
   error?: string;
 }
@@ -92,7 +95,16 @@ export async function runClipPost(
       .first<{ n: number }>();
     if ((existing?.n ?? 0) > 0) return { ok: true, skipped: "ya tiene clip" };
 
-    const props = await buildClipProps(entityType, entityId, chartKey);
+    // Two knobs under test, independently: how long the clip runs, and whether it opens with a
+    // question or with the figure. pickArm balances rather than randomizes -- see experiments.ts.
+    const durationArm = await pickArm("clip_duration");
+    const hookArm = await pickArm("clip_hook");
+
+    const props = await buildClipProps(entityType, entityId, {
+      chartKey,
+      durationSeconds: (durationArm?.config as any)?.durationSeconds,
+      hookStyle: (hookArm?.config as any)?.hookStyle,
+    });
     if (!props.narration?.trim()) {
       return { ok: false, error: `no salió narración: ${props.warnings.join("; ")}` };
     }
@@ -179,10 +191,19 @@ Responde SOLO: {"content": "..."}`;
       await env.DB.prepare("UPDATE brand_posts SET content = ?, source_url = ? WHERE id = ?")
         .bind(platform === "linkedin" ? `${content}\n\nLa pieza completa → ${shortUrl}` : content, shortUrl, postId)
         .run();
+      if (durationArm) await assign("clip_duration", durationArm.arm, "brand_post", postId);
+      if (hookArm) await assign("clip_hook", hookArm.arm, "brand_post", postId);
       postIds.push(postId);
     }
 
-    return { ok: true, postIds, videoKey, seconds, warnings: props.warnings };
+    return {
+      ok: true,
+      postIds,
+      videoKey,
+      seconds,
+      warnings: props.warnings,
+      arms: [durationArm?.arm, hookArm?.arm].filter(Boolean) as string[],
+    };
   } catch (err: any) {
     return { ok: false, error: String(err?.message ?? err) };
   }

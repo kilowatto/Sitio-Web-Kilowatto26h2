@@ -10,6 +10,7 @@ import {
   getDownloadsByCountry,
 } from "../../lib/podcast-downloads";
 import { lastPodcastMonitor } from "../../lib/podcast-monitor";
+import { allReports } from "../../lib/experiments";
 import {
   getAudioTotals,
   getAudioByPiece,
@@ -24,6 +25,9 @@ const token = await checkAdminAuth(Astro, env);
 const authorized = !!token;
 
 const DAYS = 30;
+
+let experiments: Awaited<ReturnType<typeof allReports>> = [];
+if (authorized) experiments = await allReports().catch(() => []);
 
 let totals: Awaited<ReturnType<typeof getAudioTotals>> = null;
 let byPiece: Awaited<ReturnType<typeof getAudioByPiece>> = null;
@@ -298,6 +302,44 @@ function urlFor(key: string): string {
         </section>
 
         <section class="card">
+          <h2>Qué está a prueba</h2>
+          <p class="hint">
+            Un brazo gana sólo cuando tiene suficientes piezas Y le saca al otro más que el umbral.
+            Con cinco piezas a la semana, el número más alto de hoy casi siempre es ruido.
+          </p>
+          {experiments.length === 0 && <p class="dim">Sin experimentos configurados.</p>}
+          {experiments.map((e) => (
+            <div class="exp">
+              <div class="exp-head">
+                <strong>{e.key}</strong>
+                <span class="dim">{e.description}</span>
+              </div>
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Brazo</th>
+                    <th class="n">Piezas</th>
+                    <th class="n">{e.surface === "audio" ? "Descargas" : "Clics"}</th>
+                    <th class="n">Por pieza</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {e.arms.map((a) => (
+                    <tr class={a.arm === e.winner ? "win" : undefined}>
+                      <td>{a.arm}{a.arm === e.winner && " 🏆"}</td>
+                      <td class="n mono">{a.subjects}</td>
+                      <td class="n mono">{a.outcome}</td>
+                      <td class="n mono">{a.perSubject.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p class={e.winner ? "ok" : "dim"}>{e.verdict}</p>
+            </div>
+          ))}
+        </section>
+
+        <section class="card">
           <h2>Catálogo</h2>
           <table class="tbl">
             <thead><tr><th>Pieza</th><th>Tipo</th><th class="n">Min</th><th>Sincronía</th></tr></thead>
@@ -347,6 +389,12 @@ function urlFor(key: string): string {
   .tbl a { color: inherit; }
   .tbl .n { text-align: right; }
   .dim { color: var(--admin-text-soft); font-size: 0.74rem; }
+  .hint { font-size: 0.7rem; color: var(--admin-text-soft); margin: 0 0 0.7rem; line-height: 1.4; }
+  .exp { margin-bottom: 1rem; }
+  .exp:last-child { margin-bottom: 0; }
+  .exp-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; margin-bottom: 0.3rem; font-size: 0.78rem; }
+  .exp .win { font-weight: 600; }
+  .exp p { font-size: 0.72rem; margin: 0.3rem 0 0; }
   .ok { color: var(--rhino); font-weight: 600; }
   .no { color: var(--admin-text-soft); }
 
