@@ -16,6 +16,7 @@
 //    can run unattended for long.
 import { decryptSetting } from "./crypto";
 import { buildOAuth1Header } from "./oauth1";
+import { readMedia, uploadMediaToX, uploadMediaToLinkedIn } from "./social-media";
 
 interface PublishResult {
   ok: boolean;
@@ -30,7 +31,7 @@ export async function getSetting(env: any, key: string): Promise<string | null> 
   return decryptSetting(env, row.encrypted_value);
 }
 
-export async function postToX(env: any, content: string): Promise<PublishResult> {
+export async function postToX(env: any, content: string, mediaKey?: string | null): Promise<PublishResult> {
   const [apiKey, apiKeySecret, accessToken, accessTokenSecret] = await Promise.all([
     getSetting(env, "X_API_KEY"),
     getSetting(env, "X_API_KEY_SECRET"),
@@ -45,8 +46,19 @@ export async function postToX(env: any, content: string): Promise<PublishResult>
     };
   }
 
+  const creds = { apiKey, apiKeySecret, accessToken, accessTokenSecret };
+
+  // Media is best-effort on purpose: if the upload fails the text still goes out. See the note
+  // at the top of social-media.ts.
+  const body: Record<string, unknown> = { text: content };
+  if (mediaKey) {
+    const media = await readMedia(env, mediaKey);
+    const uploaded = media ? await uploadMediaToX(creds, media.bytes, media.contentType) : null;
+    if (uploaded) body.media = { media_ids: [uploaded.id] };
+  }
+
   const url = "https://api.x.com/2/tweets";
-  const authorization = await buildOAuth1Header("POST", url, { apiKey, apiKeySecret, accessToken, accessTokenSecret });
+  const authorization = await buildOAuth1Header("POST", url, creds);
 
   const res = await fetch(url, {
     method: "POST",
@@ -54,7 +66,7 @@ export async function postToX(env: any, content: string): Promise<PublishResult>
       authorization,
       "content-type": "application/json",
     },
-    body: JSON.stringify({ text: content }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     return { ok: false, error: `X API ${res.status}: ${await res.text()}` };
@@ -64,7 +76,7 @@ export async function postToX(env: any, content: string): Promise<PublishResult>
   return { ok: true, externalId: id, externalUrl: id ? `https://x.com/Kilowatto/status/${id}` : undefined };
 }
 
-export async function postToLinkedIn(env: any, content: string): Promise<PublishResult> {
+export async function postToLinkedIn(env: any, content: string, mediaKey?: string | null): Promise<PublishResult> {
   const [accessToken, personUrn] = await Promise.all([
     getSetting(env, "LINKEDIN_ACCESS_TOKEN"),
     getSetting(env, "LINKEDIN_PERSON_URN"),
@@ -72,6 +84,12 @@ export async function postToLinkedIn(env: any, content: string): Promise<Publish
   if (!accessToken || !personUrn) {
     return { ok: false, error: "LINKEDIN_ACCESS_TOKEN/LINKEDIN_PERSON_URN no configurados — agrégalos en /admin/settings" };
   }
+  let media: { id: string } | null = null;
+  if (mediaKey) {
+    const file = await readMedia(env, mediaKey);
+    if (file) media = await uploadMediaToLinkedIn(accessToken, personUrn, file.bytes, file.contentType);
+  }
+
   const res = await fetch("https://api.linkedin.com/rest/posts", {
     method: "POST",
     headers: {
@@ -83,6 +101,7 @@ export async function postToLinkedIn(env: any, content: string): Promise<Publish
     body: JSON.stringify({
       author: personUrn,
       commentary: content,
+      ...(media ? { content: { media: { id: media.id } } } : {}),
       visibility: "PUBLIC",
       distribution: { feedDistribution: "MAIN_FEED", targetEntities: [], thirdPartyDistributionChannels: [] },
       lifecycleState: "PUBLISHED",
@@ -95,6 +114,11 @@ export async function postToLinkedIn(env: any, content: string): Promise<Publish
   return { ok: true, externalId: id, externalUrl: id ? `https://www.linkedin.com/feed/update/${id}` : undefined };
 }
 
-export async function publishPost(env: any, platform: "x" | "linkedin", content: string): Promise<PublishResult> {
-  return platform === "x" ? postToX(env, content) : postToLinkedIn(env, content);
+export async function publishPost(
+  env: any,
+  platform: "x" | "linkedin",
+  content: string,
+  mediaKey?: string | null
+): Promise<PublishResult> {
+  return platform === "x" ? postToX(env, content, mediaKey) : postToLinkedIn(env, content, mediaKey);
 }

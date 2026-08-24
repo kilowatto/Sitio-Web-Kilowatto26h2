@@ -37,3 +37,6 @@ fotos temporales 2/
 # Remotion: dependencias pesadas y la copia del navegador headless
 remotion/node_modules/
 remotion/out/
+
+# Remotion's webpack bundle, rebuilt inside the container image on every build.
+remotion/build/

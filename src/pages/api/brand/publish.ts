@@ -52,7 +52,11 @@ export async function publishBrandPost(post: any, platform: "x" | "linkedin", au
   const fixedHashtags = (await env.KILOWATTO_KV.get("brand_fixed_hashtags")) ?? "";
   const finalContent = [post.content, post.hashtags, fixedHashtags].filter(Boolean).join("\n\n");
 
-  const result = await publishPost(env, platform, finalContent);
+  // Video wins over image when a row has both: a clip's still is only ever a fallback for a
+  // surface that cannot play it, and no surface here is.
+  const mediaKey = post.video_r2_key || post.image_r2_key || null;
+
+  const result = await publishPost(env, platform, finalContent, mediaKey);
   if (result.ok) {
     await env.DB.prepare(
       `UPDATE brand_posts SET status = 'posted', posted_at = datetime('now'), external_post_id = ?, external_url = ?, auto_published = ? WHERE id = ?`

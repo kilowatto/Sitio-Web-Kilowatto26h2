@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kilowatto-render",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // A Worker of its own, not part of the site.
+  //
+  // Remotion cannot run in a Worker isolate at all -- it launches Chrome and a native binary --
+  // so the render lives in a container and something has to own that container. Keeping it
+  // separate means a bad image or a runaway render cannot take kilowatto.com down with it, and
+  // the site talks to this over a service binding.
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "kilowatto-media" }],
+
+  "containers": [
+    {
+      "class_name": "RenderContainer",
+      "image": "../remotion/Dockerfile",
+      "image_build_context": "../remotion",
+      // standard-3: 2 vCPU, 8 GiB, 16 GB disk. Remotion renders frames in parallel and a
+      // 1080x1920 clip at 30fps is a few thousand frames, so the cores are the thing that
+      // matters; the disk is for Chrome plus the bundle plus one MP4.
+      "instance_type": "standard-3",
+      // Two at a time. Cadence during the tuning phase is five clips a week, so this is about
+      // never queueing rather than about throughput.
+      "max_instances": 2
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [{ "name": "RENDER_CONTAINER", "class_name": "RenderContainer" }]
+  },
+
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RenderContainer"] }],
+
+  "observability": { "enabled": true }
+}

@@ -59,3 +59,38 @@ marca, no de ingeniería.
 ## 6 · Docker quedó listo
 
 Instalaste Docker 29.7.2, así que el bloque D no está bloqueado.
+
+## Docker en tu Mac no llega a Docker Hub (bloquea el render en producción)
+
+Todo el servicio de render está escrito y verificado localmente: `remotion/Dockerfile`,
+`remotion/src/server.ts` (el servidor HTTP que corre dentro del contenedor) y `render-worker/`
+(el Worker que lo maneja). El servidor produjo un MP4 **byte por byte idéntico** al que genera
+`npx remotion render` — mismo SHA-256 — así que el código está bien.
+
+Lo único que falta es construir y subir la imagen, y ahí se atora:
+
+```
+#2 [internal] load metadata for docker.io/library/node:24-bookworm-slim
+#2 ERROR: DeadlineExceeded: context deadline exceeded
+```
+
+El diagnóstico: desde la terminal, `curl https://registry-1.docker.io/v2/` responde en 0.3 s. El
+**daemon** de Docker no. Docker Desktop manda todo su tráfico por su proxy interno
+(`http.docker.internal:3128`) y esa ruta no está saliendo. No hay proxy de sistema ni variable de
+entorno que lo explique, y reiniciar Docker Desktop no lo arregló.
+
+Qué probar, en orden:
+
+1. Docker Desktop → Settings → Resources → Network: cambia el modo a **"Manual"** con DNS
+   `8.8.8.8`, o activa/desactiva "Use kernel networking for UDP".
+2. Settings → Resources → Proxies: deja **"Use system proxy settings"** apagado y sin proxy manual.
+3. Si estás en una VPN, apágala y prueba `docker pull node:24-bookworm-slim`.
+4. Como último recurso, Troubleshoot → **Reset to factory defaults**.
+
+Cuando `docker pull node:24-bookworm-slim` funcione, avísame o corre tú:
+
+```
+cd render-worker
+npx wrangler secret put RENDER_SECRET     # el mismo valor que en el Worker del sitio
+npx wrangler deploy                        # construye y sube la imagen sola
+```

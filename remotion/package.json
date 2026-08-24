@@ -5,12 +5,15 @@
   "description": "Vertical clips for X and LinkedIn. Separate workspace on purpose: Remotion requires React and the Astro site has none.",
   "scripts": {
     "studio": "remotion studio",
-    "render": "remotion render"
+    "render": "remotion render",
+    "serve": "node src/server.ts"
   },
   "dependencies": {
     "@remotion/cli": "4.0.515",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "remotion": "4.0.515"
+    "remotion": "4.0.515",
+    "@remotion/renderer": "4.0.515",
+    "express": "^5.1.0"
   }
 }

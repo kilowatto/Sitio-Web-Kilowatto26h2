@@ -1,0 +1,13 @@
+{
+  "name": "kilowatto-render-worker",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.0.42"
+  },
+  "devDependencies": {
+    "wrangler": "^4.42.0"
+  }
+}

@@ -239,7 +239,16 @@ function formatCountdown(expiresAt: string | null): string | null {
                     )}
                     {p.rejection_reason && <p class="warn">⚠️ {p.rejection_reason}</p>}
 
-                    {p.image_r2_key && (
+                    {p.video_r2_key && (
+                      <div class="video-block">
+                        {/* Served through /media/video, which does real Range/206 -- a <video>
+                            that cannot seek reports seekable=[0,0] and the scrubber dies. */}
+                        <video class="draft-video" controls preload="metadata" playsinline src={`/media/video/${p.video_r2_key}`}></video>
+                        <p class="hint">Este clip se publica junto con el texto. Nada sale sin tu aprobación.</p>
+                      </div>
+                    )}
+
+                    {p.image_r2_key && !p.video_r2_key && (
                       <div class="image-block">
                         <img class="draft-image" data-id={p.id} src={`/media/${p.image_r2_key}?w=500`} alt="" />
                         <button class="reject-image" data-id={p.id} type="button">
@@ -1571,6 +1580,17 @@ function formatCountdown(expiresAt: string | null): string | null {
   }
   .warn { color: #b91c1c; font-size: 0.82rem; margin: 0 0 0.5rem; }
 
+  .video-block { margin-bottom: 0.6rem; }
+  .draft-video {
+    width: 100%;
+    /* 9:16, capped so a vertical clip does not push the approve buttons off the card. */
+    max-height: 60vh;
+    aspect-ratio: 9 / 16;
+    object-fit: contain;
+    background: #000;
+    border-radius: 0.5rem;
+    margin-bottom: 0.4rem;
+  }
   .image-block { margin-bottom: 0.6rem; }
   .draft-image {
     width: 100%;

@@ -68,6 +68,14 @@ export default {
           .then((t) => console.log("Scheduled audio sweep:", t))
           .catch((e) => console.error("Scheduled audio sweep failed:", e))
       );
+      // Same fire, third job: one clip, at most. The cadence limit (five a week) lives in the
+      // sweeper, and it does nothing at all until the render service is deployed -- so this can
+      // be wired now and simply starts working the day the container image exists.
+      ctx.waitUntil(
+        callSelf("/api/admin/clip-sweep?token=" + env.ADMIN_TOKEN, env, ctx)
+          .then((t) => console.log("Scheduled clip sweep:", t))
+          .catch((e) => console.error("Scheduled clip sweep failed:", e))
+      );
       // Same fire, second job: verify the feeds and what the directories believe about them.
       // Cheap (a few dozen HEAD-ish requests) and it is the only thing that notices when a
       // transcript URL starts 404-ing or Apple silently stops ingesting episodes.
@@ -139,7 +147,28 @@ config.workflows = [
 //
 // Declared here rather than in wrangler.jsonc for the same reason as the Workflow bindings: the
 // service does not exist locally and declaring it there breaks `astro dev`.
-config.services = [{ binding: "SELF", service: config.name }];
+// RENDER points at kilowatto-render (render-worker/), the separate Worker that owns the
+// Remotion container. Remotion cannot run in an isolate at all -- it launches Chrome and a
+// native binary -- so rendering lives in a container, and a container needs a Worker of its
+// own. Keeping it out of this Worker means a bad image or a runaway render cannot take
+// kilowatto.com with it.
+//
+// FLIP THIS TO true the first time render-worker/ is deployed successfully.
+//
+// It is off because a service binding to a Worker that does not exist yet can be rejected at
+// deploy time, and that would block every deploy of the SITE over a feature the site does not
+// depend on. kilowatto-render cannot be deployed today: its container image needs a `docker
+// pull` that Esteban's Docker cannot currently make (see docs/pendientes-esteban.md).
+//
+// Nothing else needs to change when it flips. clip-sweeper.ts already checks for the binding and
+// reports "sin servicio de render" while it is absent, so the clip pipeline simply starts
+// working.
+const RENDER_SERVICE_DEPLOYED = false;
+
+config.services = [
+  { binding: "SELF", service: config.name },
+  ...(RENDER_SERVICE_DEPLOYED ? [{ binding: "RENDER", service: "kilowatto-render" }] : []),
+];
 
 // Cloudflare Email Sending. Declared here rather than in wrangler.jsonc for the same reason as
 // the Workflow and service bindings: it does not exist in local dev and breaks `astro dev`.
