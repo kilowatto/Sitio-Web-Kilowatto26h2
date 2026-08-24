@@ -84,8 +84,8 @@ function toBars(chart: ChartRow): ClipBar[] {
       // displayValue. Investigación 3's German chart has value 22 with displayValue "-22%", so
       // checking the number alone let it through and would have drawn the biggest DROP as the
       // longest bar -- the exact inverse of what it means.
-      const label = String(v?.displayValue ?? "");
-      if (!Number.isFinite(value) || value < 0 || /^[-−]/.test(label.trim()) || /[+]/.test(label)) return [];
+      const shown = String(v?.displayValue ?? "");
+      if (!Number.isFinite(value) || value < 0 || /^[-−]/.test(shown.trim()) || /[+]/.test(shown)) return [];
       // Labels are written for a page, not for a phone held at arm's length. The parenthetical
       // is nearly always the source ("(AV-TEST)"), which sourceNote already carries, and a hard
       // slice cut it mid-word into "AV-Comparativ". Drop the parenthetical, then cut on a word
