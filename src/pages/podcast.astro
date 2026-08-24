@@ -1,0 +1,176 @@
+---
+import Site from "../layouts/Site.astro";
+import PodcastLinks from "../components/PodcastLinks.astro";
+import { env } from "cloudflare:workers";
+import { FEED_LOCALES } from "../lib/podcast-feed";
+import { platformsFor } from "../lib/podcast-links";
+import { audioUrl, isoDuration } from "../lib/media-query";
+
+export const prerender = false;
+
+// The show's own page.
+//
+// It exists for three jobs the investigación pages cannot do. It is somewhere to SEND people --
+// a subscribe CTA needs a destination that is about the show rather than about one piece. It is
+// the only page a search engine or an answer engine can read as "this is a podcast", via
+// PodcastSeries JSON-LD listing every episode. And it is the canonical home when the show is
+// mentioned anywhere else.
+
+const episodes = env?.DB
+  ? (
+      await env.DB.prepare(
+        `SELECT ma.entity_type, ma.entity_id, ma.kind, ma.r2_key, ma.duration_s, ma.episode_number, ma.bytes,
+                COALESCE(c.title, i.title) AS title,
+                COALESCE(c.subtitle, i.subtitle) AS subtitle,
+                COALESCE(c.slug, i.slug) AS slug,
+                COALESCE(c.published_at, i.published_at) AS published_at
+           FROM media_assets ma
+           LEFT JOIN columns c         ON ma.entity_type = 'columna'       AND c.id = ma.entity_id
+           LEFT JOIN investigaciones i ON ma.entity_type = 'investigacion' AND i.id = ma.entity_id
+          WHERE ma.kind IN ('audio_narration','audio_dialogue') AND ma.status = 'ready'
+            AND ma.locale = 'es-MX' AND ma.r2_key IS NOT NULL
+          ORDER BY COALESCE(c.published_at, i.published_at) DESC, ma.kind ASC`
+      ).all<any>()
+    ).results ?? []
+  : [];
+
+const conversations = episodes.filter((e) => e.kind === "audio_dialogue");
+const readings = episodes.filter((e) => e.kind === "audio_narration");
+const totalMinutes = Math.round(episodes.reduce((s, e) => s + (e.duration_s ?? 0), 0) / 60);
+const show = FEED_LOCALES["es-MX"];
+const platforms = platformsFor("es-MX");
+
+function pageOf(e: any): string {
+  return `/${e.entity_type === "columna" ? "columnas" : "a-fondo"}/${e.slug}`;
+}
+function mmss(seconds: number | null): string {
+  if (!seconds) return "";
+  const m = Math.floor(seconds / 60);
+  return `${m} min`;
+}
+
+// PodcastSeries with every episode inline. An answer engine reading this page learns the show
+// exists, where to subscribe, and what is in it -- none of which it can infer from an <audio>
+// tag or from the RSS, which it will never fetch.
+const seriesJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "PodcastSeries",
+  name: show.title,
+  description: show.description,
+  url: "https://kilowatto.com/podcast",
+  webFeed: `https://kilowatto.com${show.path}`,
+  image: "https://kilowatto.com/podcast-cover.jpg?v=2",
+  inLanguage: "es-MX",
+  author: { "@type": "Person", name: "Esteban Rey", alternateName: "Kilowatto", url: "https://kilowatto.com" },
+  ...(platforms.length
+    ? { sameAs: platforms.map((p) => p.url).filter(Boolean) }
+    : {}),
+  numberOfEpisodes: episodes.length,
+  hasPart: episodes.slice(0, 40).map((e) => ({
+    "@type": "PodcastEpisode",
+    name: e.title,
+    ...(e.episode_number ? { episodeNumber: e.episode_number } : {}),
+    url: `https://kilowatto.com${pageOf(e)}`,
+    ...(isoDuration(e.duration_s) ? { timeRequired: isoDuration(e.duration_s) } : {}),
+    associatedMedia: { "@type": "AudioObject", contentUrl: audioUrl(e.r2_key), encodingFormat: "audio/mpeg" },
+  })),
+};
+---
+
+<Site
+  title="Al fondo con Kilowatto — el podcast"
+  description="Conversaciones e investigaciones narradas de Esteban Rey (Kilowatto) sobre tecnología, nube, IA y negocios en México y Latinoamérica. En Spotify, Apple Podcasts y por RSS."
+  active="/podcast"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(seriesJsonLd)} />
+
+  <section class="page-head">
+    <div class="container">
+      <p class="eyebrow">El podcast</p>
+      <h1>Al fondo con Kilowatto</h1>
+      <p class="pod-lead">
+        Kilowatto y Leia conversan sobre cada investigación de <a href="/a-fondo">A fondo</a>, y
+        el mismo feed lleva la lectura completa de cada una y las columnas narradas.
+        {" "}{episodes.length} episodios, {totalMinutes} minutos.
+      </p>
+      <PodcastLinks locale="es-MX" />
+      <p class="pod-note">
+        También en inglés: <a href="/en/podcast.xml">Deep Dive with Kilowatto</a>. Las voces son
+        sintéticas; los textos son de Esteban Rey.
+      </p>
+    </div>
+  </section>
+
+  {conversations.length > 0 && (
+    <section class="chapter">
+      <div class="container">
+        <h2>Conversaciones</h2>
+        <p class="pod-sub">
+          Kilowatto y Leia repasan los hallazgos principales. No es la investigación leída: se
+          salta cosas, y el texto completo está en el sitio.
+        </p>
+        <ul class="pod-list">
+          {conversations.map((e) => (
+            <li>
+              <a href={pageOf(e)}>
+                <span class="pod-ep">{e.episode_number ? `Episodio ${e.episode_number}` : "Episodio"}</span>
+                <span class="pod-title">{e.title}</span>
+                <span class="pod-min">{mmss(e.duration_s)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
+
+  {readings.length > 0 && (
+    <section class="chapter">
+      <div class="container">
+        <h2>Lecturas completas</h2>
+        <p class="pod-sub">Cada columna e investigación, narrada palabra por palabra.</p>
+        <ul class="pod-list pod-list--compact">
+          {readings.map((e) => (
+            <li>
+              <a href={pageOf(e)}>
+                <span class="pod-title">{e.title}</span>
+                <span class="pod-min">{mmss(e.duration_s)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
+</Site>
+
+<style>
+  .pod-lead { max-width: 46rem; font-size: 1.02rem; line-height: 1.55; }
+  .pod-note { font-size: 0.82rem; opacity: 0.72; margin-top: 0.9rem; }
+  .pod-sub { max-width: 44rem; font-size: 0.9rem; opacity: 0.78; margin: 0 0 1rem; line-height: 1.5; }
+  .pod-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+  .pod-list a {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.4rem 1rem;
+    align-items: baseline;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+    border-radius: 0.7rem;
+    text-decoration: none;
+    color: inherit;
+  }
+  .pod-list a:hover { border-color: color-mix(in srgb, currentColor 40%, transparent); }
+  .pod-ep {
+    grid-column: 1 / -1;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: var(--rhino, #d4541e);
+  }
+  .pod-title { font-weight: 600; line-height: 1.35; }
+  .pod-min { font-size: 0.8rem; opacity: 0.65; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pod-list--compact a { padding: 0.55rem 0.9rem; }
+  .pod-list--compact .pod-title { font-weight: 500; font-size: 0.92rem; }
+</style>

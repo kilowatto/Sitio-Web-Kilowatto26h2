@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { FEED_LOCALES } from "./podcast-feed";
+import { sendAlert } from "./alerts";
 
 // Runs the checks that were only ever run by hand, on a schedule.
 //
@@ -192,6 +193,20 @@ export async function runPodcastMonitor(): Promise<MonitorReport> {
     await env.KILOWATTO_KV.put("podcast_monitor_last", JSON.stringify(report));
   } catch {
     /* the report is still returned to the caller */
+  }
+
+  // Mail on real failures only. Warnings -- the Apple lookup that Cloudflare's IPs cannot reach
+  // -- never trigger one: an alert that fires forever is an alert nobody opens.
+  if (!report.ok) {
+    const broken = report.feeds.flatMap((f) =>
+      f.checks.filter((c) => !c.ok && !c.warn).map((c) => `${f.locale}: ${c.name} — ${c.detail}`)
+    );
+    if (broken.length > 0) {
+      await sendAlert(
+        `Podcast: ${broken.length} comprobación${broken.length === 1 ? "" : "es"} fallando`,
+        `El monitor encontró esto a las ${new Date().toISOString()}:\n\n${broken.join("\n")}\n\nDetalle en https://kilowatto.com/admin/audio`
+      );
+    }
   }
   return report;
 }

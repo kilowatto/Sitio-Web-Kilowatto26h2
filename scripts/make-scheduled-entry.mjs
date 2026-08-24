@@ -141,6 +141,12 @@ config.workflows = [
 // service does not exist locally and declaring it there breaks `astro dev`.
 config.services = [{ binding: "SELF", service: config.name }];
 
+// Cloudflare Email Sending. Declared here rather than in wrangler.jsonc for the same reason as
+// the Workflow and service bindings: it does not exist in local dev and breaks `astro dev`.
+// The destination has to be a verified address in Email Routing -- larry@kilowatto.com forwards
+// to Esteban's real inbox, which is what made this possible at all.
+config.send_email = [{ name: "SEND_EMAIL", destination_address: "larry@kilowatto.com" }];
+
 config.triggers = { crons: ["0 */6 * * *", "30 */6 * * *", "*/30 6-23 * * *", "0 8 * * 1", "0 9 * * 1", "0 10 * * 1", "0 11 * * 1"] };
 // Without this, Cloudflare's static-asset layer intercepts requests for paths that don't
 // match a real file BEFORE the Worker ever runs, and falls back to its own redirect-to-"/"

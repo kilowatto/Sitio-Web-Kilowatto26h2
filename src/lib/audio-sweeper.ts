@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { runNarrate } from "./narrate";
 import { runNarrateDialogue } from "./narrate-dialogue";
 import { runAudioPost } from "./audio-post";
+import { sendAlert } from "./alerts";
 
 // Generates whatever audio is missing, a little at a time, on a schedule.
 //
@@ -162,6 +163,14 @@ export async function runAudioSweep(limit = DEFAULT_LIMIT): Promise<SweepResult>
       const posted = await runAudioPost(item.entityType, item.entityId, item.kind);
       if (posted.created) last.detail += ` · ${posted.created} posts en cola`;
     }
+  }
+
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length > 0) {
+    await sendAlert(
+      `Audio: ${failed.length} pieza${failed.length === 1 ? "" : "s"} falló al generarse`,
+      failed.map((f) => `${f.item.kind} · ${f.item.entityType} ${f.item.entityId} (${f.item.locale})\n  ${f.detail}`).join("\n\n")
+    );
   }
 
   await env.KILOWATTO_KV.put(

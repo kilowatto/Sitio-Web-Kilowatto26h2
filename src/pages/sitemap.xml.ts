@@ -6,7 +6,7 @@ import { COLUMNS_PAGE_SIZE } from "../lib/columns-query";
 
 export const prerender = false;
 
-const PAGES = ["", "trayectoria", "empresas", "inversiones", "yucatech", "prensa", "columnas", "curiosidades", "avestruces", "comida", "galeria", "contacto"];
+const PAGES = ["", "trayectoria", "empresas", "inversiones", "yucatech", "prensa", "columnas", "curiosidades", "avestruces", "comida", "galeria", "contacto", "podcast"];
 const PRESS_PAGE_SIZE = 12;
 
 // Static pages have no CMS "updated_at" — bump the date here when a page's content
