@@ -145,7 +145,9 @@ config.services = [{ binding: "SELF", service: config.name }];
 // the Workflow and service bindings: it does not exist in local dev and breaks `astro dev`.
 // The destination has to be a verified address in Email Routing -- larry@kilowatto.com forwards
 // to Esteban's real inbox, which is what made this possible at all.
-config.send_email = [{ name: "SEND_EMAIL", destination_address: "larry@kilowatto.com" }];
+// The Email Sending beta shape: no destination_address allowlist, and `remote: true` so local
+// dev talks to the real service instead of failing.
+config.send_email = [{ name: "EMAIL", remote: true }];
 
 config.triggers = { crons: ["0 */6 * * *", "30 */6 * * *", "*/30 6-23 * * *", "0 8 * * 1", "0 9 * * 1", "0 10 * * 1", "0 11 * * 1"] };
 // Without this, Cloudflare's static-asset layer intercepts requests for paths that don't

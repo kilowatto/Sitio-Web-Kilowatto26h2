@@ -11,24 +11,22 @@ import { env } from "cloudflare:workers";
 // hard part is not sending -- it is sending rarely enough to still be read, which is what the
 // dedupe window below is for.
 
-const FROM = "larry@kilowatto.com";
-const TO = "larry@kilowatto.com"; // forwarded by Email Routing to Esteban's real inbox
+// Cloudflare Email Sending (beta), enabled on mail.kilowatto.com on 2026-08-23. This is a
+// DIFFERENT API from the older send_email binding: a JSON object rather than a MIME message, and
+// the sender must be on the verified sending subdomain -- kilowatto.com itself answers 402
+// "email sending not authorized for subdomain".
+//
+// The recipient is larry@kilowatto.com, which Email Routing forwards to Esteban's real inbox, so
+// the address he reads never has to appear in this repo.
+const FROM = "alertas@mail.kilowatto.com";
+const TO = "larry@kilowatto.com";
 
 // The same failure repeating every six hours would train anyone to ignore these. One mail per
 // distinct subject per day; the dashboard still shows the full picture.
 const DEDUPE_HOURS = 24;
 
-function mime(subject: string, body: string): string {
-  return [
-    `From: Kilowatto <${FROM}>`,
-    `To: <${TO}>`,
-    `Subject: ${subject}`,
-    "MIME-Version: 1.0",
-    "Content-Type: text/plain; charset=utf-8",
-    "",
-    body,
-    "",
-  ].join("\r\n");
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 const PENDING_KEY = "alerts_pending";
@@ -69,10 +67,10 @@ export async function clearPendingAlerts(): Promise<void> {
 }
 
 export async function sendAlert(subject: string, body: string): Promise<{ sent: boolean; reason: string }> {
-  const binding = (env as any).SEND_EMAIL;
+  const binding = (env as any).EMAIL;
   if (!binding) {
-    await queuePending(subject, body, "binding SEND_EMAIL ausente");
-    return { sent: false, reason: "binding SEND_EMAIL ausente (dev)" };
+    await queuePending(subject, body, "binding EMAIL ausente");
+    return { sent: false, reason: "binding EMAIL ausente (dev)" };
   }
 
   const key = `alert_sent:${subject}`;
@@ -86,12 +84,15 @@ export async function sendAlert(subject: string, body: string): Promise<{ sent: 
   }
 
   try {
-    // EmailMessage comes from cloudflare:email, which only exists inside the Worker runtime.
-    const { EmailMessage } = await import("cloudflare:email");
-    const msg = new EmailMessage(FROM, TO, mime(subject, body));
-    await binding.send(msg);
+    const res = await binding.send({
+      to: TO,
+      from: FROM,
+      subject,
+      text: body,
+      html: `<pre style="font:14px/1.5 ui-monospace,monospace;white-space:pre-wrap">${escapeHtml(body)}</pre>`,
+    });
     await env.KILOWATTO_KV.put(key, String(Date.now()), { expirationTtl: DEDUPE_HOURS * 3600 });
-    return { sent: true, reason: "enviado" };
+    return { sent: true, reason: `enviado${res?.messageId ? ` (${res.messageId})` : ""}` };
   } catch (err: any) {
     const reason = String(err?.message ?? err);
     const queued = await queuePending(subject, body, reason);
