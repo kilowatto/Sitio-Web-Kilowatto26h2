@@ -21,9 +21,10 @@ Referencia visual: [este video](https://www.youtube.com/watch?v=0swxMbThNug) (Lo
 | 1 · Audio en español | ✅ **Terminada** | — |
 | 1b · Audio en inglés | ✅ **Terminada** | — |
 | 2 · Gráficas accesibles | ✅ **Terminada** | — |
-| Podcast (feeds) | ✅ **Terminada** | Alta manual en Apple y Spotify — solo Esteban |
-| Podcast conversado | ✅ **Terminada** | Enganche automático al aprobar; JSON-LD; Larry; telemetría |
-| 3 · Clips cortos 60-90s | ⏸️ **En pausa** | Decisión de Esteban 2026-08-23: las investigaciones se quedan en audio |
+| Podcast (feeds + alta) | ✅ **Terminada** | — |
+| Podcast conversado | ✅ **Terminada** | — |
+| Descargas y monitor | ✅ **Terminada** | Llave de Podcast Index para vigilar Apple (opcional) |
+| 3 · Clips cortos 60-90s | 🔍 Infraestructura verificada | Ver "Fase 3" abajo: plan de 7 pasos |
 | 4 · Videocolumna con Larry | ⏳ Riesgo resuelto, sin construir | Cara final, character bible, LoRA, pipeline |
 
 ### Decidido: el audio es solo español e inglés
@@ -379,3 +380,135 @@ acepta audio de ElevenLabs vía `audio_asset_id`. Synthesia y D-ID quedan descar
 | El inglés dura ~10% menos que el español al mismo texto | — |
 | Render HeyGen | ~$0.05/segundo (~$3/min) |
 | API de X | ~$3/mes a 1-2 clips por semana |
+
+---
+
+# Fase 3 — Clips verticales, integrados al sistema de posts
+
+> Replanteada el 2026-08-23 por Esteban: **los videos verticales son un formato más del sistema
+> de posts automáticos, no un módulo aparte.** Y todo —posts, Remotion, investigaciones,
+> columnas, audio— debe ser el gancho para leer más en el sitio.
+
+## El diagnóstico que motivó el replanteo
+
+El sistema de posts existe, funciona y publica solo. No está pausado: publicó en X el
+2026-08-23. Las credenciales de X y LinkedIn **sí existen**, cifradas en `brand_api_settings`,
+no como secretos de Worker (que es por qué parecían ausentes).
+
+Pero los módulos no se hablan, y los números lo dicen:
+
+| tipo de post | enlazan a kilowatto.com |
+|---|---|
+| `idea` | 0 / 289 |
+| `news_reaction` | 0 / 160 |
+| `news_reshare` | 0 / 258 |
+| `investigacion_highlight` | 60 / 60 |
+
+**332 posts publicados y solo los de investigaciones mandan a alguien al sitio.** El resto es
+comentario que no engancha con nada.
+
+Peor: `brand_posts.kind` no tiene `columna_highlight`, no hay `column_id`, y no existe
+`generate-posts.ts` bajo `columns/`. **Las columnas —20 de 23 piezas publicadas— no generan un
+solo post.** Solo se usan como muestras de voz en `brand-voice.ts`.
+
+Y el audio es invisible para el sistema: se publicaron 6 episodios y un podcast en dos
+directorios sin que saliera un solo post anunciándolo.
+
+```
+columnas ──✗── posts        20 piezas que nunca se anuncian
+audio    ──✗── posts        6 episodios, cero posts
+posts    ──✗── descargas    no se sabe qué post trajo qué escucha
+posts    ──✗── remotion     no existe
+```
+
+## Infraestructura: verificada el 2026-08-23
+
+| Comprobación | Resultado |
+|---|---|
+| `wrangler containers list` | responde, sin error de permisos |
+| Permisos del token | `containers (write)`, `cloudchamber (write)` |
+| Registro de imágenes | accesible, vacío |
+| Instancia `standard-3` | 2 vCPU, 8 GiB RAM, 16 GB disco |
+| **Remotion en Containers** | **integración oficial**, con repo de ejemplo |
+| Docker local | ❌ **no instalado** — único bloqueo real |
+
+Que Remotion tenga integración oficial (`remotion.dev/docs/cloudflare-containers` y
+`remotion-dev/cloudflare-containers-demo`) desarma el supuesto más caro del plan original, que
+era construir la imagen desde cero. **Pero el demo es una referencia, no software listo**: no
+trae autenticación, ni cola, ni límite de tasa, ni reporte de progreso o error al cliente, y
+guarda en R2 con nombres aleatorios. Todo eso hay que ponerlo.
+
+**El único bloqueo hoy es que no hay Docker en la máquina de Esteban**, y sin él no se puede
+construir ni subir la imagen.
+
+## Plan, paso a paso
+
+Los pasos 1 a 3 no dependen de Remotion ni de Docker, dan resultado inmediato, y son los que
+convierten los cuatro módulos en un sistema. Hacerlos primero también significa que cuando
+llegue el video, ya tiene dónde encajar.
+
+### Paso 1 — Las columnas generan posts
+`columna_highlight` en el CHECK de `kind`, `column_id` en `brand_posts`, y un
+`columns/[id]/generate-posts.ts` que espeje el de investigaciones. Se dispara en `approve.ts`,
+igual que la traducción. Cierra el hueco más grande: 20 piezas que hoy no se anuncian.
+
+### Paso 2 — El audio genera posts
+Cuando `audio-sweeper.ts` termina un episodio, entra a la cola un post con el enlace. Un tipo
+nuevo, `audio_highlight`. Para las conversaciones, el gancho ya está escrito: la apertura en
+frío es literalmente una pregunta diseñada para que no te puedas ir sin la respuesta.
+
+### Paso 3 — Todo post propio enlaza al sitio, con atribución
+`utm_source`/`utm_campaign` en el `source_url`, y leerlos del lado de las descargas y de
+`kilowatto_page_views`. Sin esto no se puede responder "qué post trajo escuchas", que es la
+pregunta que justifica todo lo demás.
+
+Ojo con el costo: **X cobra $0.015 por post y $0.20 si lleva URL**. El enlace va en una
+respuesta aparte, 13× más barato.
+
+### Paso 4 — Docker y la imagen
+Instalar Docker (Esteban), partir del demo oficial de Remotion, `wrangler containers build` y
+`push`. Aquí se sabe de verdad si la imagen cabe y arranca.
+
+### Paso 5 — Un clip, renderizado y visto
+Workspace `remotion/` aparte —el sitio no tiene React y Remotion lo exige— y **una** composición
+con datos reales. Se ve, se aprueba o se tira. **Antes de construir orquestación.** El orden
+inverso es la trampa: montar Container, cola y publicación para descubrir al final que el clip
+no convence.
+
+Recordar las reglas de determinismo de Remotion: nada de `Math.random()`, `Date.now()`,
+animaciones CSS, GSAP ni Framer Motion. Todo es `f(useCurrentFrame())`.
+
+### Paso 6 — El video es un post más
+`video_r2_key` en `brand_posts` y un `kind` de video. El render alimenta **la misma cola**, pasa
+por **la misma aprobación**, lo agenda **el mismo `post-scheduler.ts`** que ya aprende los
+mejores horarios de la historia real, y lo publica **el mismo `tick`**. No un pipeline paralelo:
+el post de siempre, con video en vez de imagen.
+
+### Paso 7 — Medir y decidir la cadencia
+Con los pasos 3 y 6 juntos, la pregunta "¿el video trae más lectores que la imagen?" tiene
+respuesta con datos, no con intuición. La cadencia de 1-2 por semana se ajusta con eso.
+
+## Materia prima: la decisión pendiente
+
+```
+investigacion_charts   24 datasets verificados
+columnas publicadas    20   (9 con infografía, pero son imágenes ya renderizadas)
+```
+
+Las barras de las infografías de columna están **escritas a mano, una por columna**, dentro de
+`generate-images.ts`. No hay nada consultable detrás.
+
+Esteban pausó el video de investigaciones el 2026-08-23. Eso deja los 24 datasets verificados
+del lado apagado y ninguna fuente de datos del lado encendido. **O se reabren las
+investigaciones para video, o hay que crear datos estructurados para las columnas.** Es decisión
+suya, no un problema técnico.
+
+Lo que sí mejoró desde el plan original: el riesgo de "1-2 h/semana contra diseñar 5-6
+plantillas a mano" bajó mucho, porque el lenguaje visual ya existe — 14 tipos de gráfica
+renderizados en el sitio con un diseño ya aprobado. Las composiciones pueden espejearlas.
+
+## Pregunta abierta: ¿quién narra?
+
+El plan original decía "la voz de Larry". Hoy Larry narra columnas y **Kilowatto** conduce el
+podcast. Un clip social es cara pública de marca, así que probablemente es Kilowatto — pero no
+está decidido.
