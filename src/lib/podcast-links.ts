@@ -21,7 +21,11 @@ export const PODCAST_PLATFORMS: Record<string, PodcastPlatform[]> = {
   ],
   en: [
     // The English show is a separate submission with its own id, not a locale of the Spanish one.
-    { id: "spotify", name: "Spotify", url: null },
+    // URLs are stored without Spotify's ?si= share token: that parameter identifies whoever
+    // copied the link and is meant to travel with a share, not to be baked into a website.
+    { id: "spotify", name: "Spotify", url: "https://open.spotify.com/show/4DyKNoBmRLmfLZUBCKHtYj" },
+    // Added to Podcasts Connect as a draft on 2026-08-23 and awaiting review; it has no public
+    // page until Apple publishes it, and Apple's id is only assigned then.
     { id: "apple", name: "Apple Podcasts", url: null },
   ],
 };
