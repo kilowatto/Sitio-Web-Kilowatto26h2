@@ -204,6 +204,7 @@ const bodyWithImages = column
               vttKey={audio.transcript_vtt_key}
               label={locale.code.startsWith("en") ? "Listen to this column" : "Escucha esta columna"}
               cueMap={audio.cue_map_json}
+              transcriptUrl={`/${locale.code}/columnas/${column.slug}/transcripcion.txt`}
               entityType="columna"
               entityId={column.id}
               locale={locale.code}

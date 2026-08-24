@@ -7,7 +7,8 @@
 import Site from "../../../layouts/Site.astro";
 import InvestigacionList from "../../../components/InvestigacionList.astro";
 import InvestigacionToc from "../../../components/InvestigacionToc.astro";
-import { getAudioAsset, audioObjectJsonLd } from "../../../lib/media-query";
+import { getAudioAsset, audioObjectJsonLd, podcastEpisodeJsonLd } from "../../../lib/media-query";
+import ConversationCard from "../../../components/ConversationCard.astro";
 import InvestigacionShare from "../../../components/InvestigacionShare.astro";
 import CommentSection from "../../../components/CommentSection.astro";
 import ChartCard from "../../../components/charts/ChartCard.astro";
@@ -137,6 +138,23 @@ const BYLINE: Record<string, string> = {
   ja: "著者：Esteban Rey（",
 };
 const audio = investigacion ? await getAudioAsset("investigacion", investigacion.id, locale.code) : null;
+// Only English has conversational episodes today; every other locale returns null here and the
+// card simply does not render.
+const dialogue = investigacion
+  ? await getAudioAsset("investigacion", investigacion.id, locale.code, "audio_dialogue")
+  : null;
+const dialogueLd = investigacion && dialogue
+  ? podcastEpisodeJsonLd(dialogue, {
+      name: investigacion.title,
+      description: investigacion.subtitle,
+      datePublished: investigacion.published_at,
+      transcriptUrl: `https://kilowatto.com/${locale.code}/a-fondo/${investigacion.slug}/conversacion.txt`,
+      pageUrl: `https://kilowatto.com/${locale.code}/a-fondo/${investigacion.slug}`,
+      feedUrl: locale.code === "en" ? "https://kilowatto.com/en/podcast.xml" : "https://kilowatto.com/podcast.xml",
+      showName: locale.code === "en" ? "Deep Dive with Kilowatto" : "Al fondo con Kilowatto",
+    })
+  : null;
+const podcastJsonLd = dialogueLd ? { "@context": "https://schema.org", ...dialogueLd } : null;
 const audioLd = investigacion && audio ? audioObjectJsonLd(audio, {
   name: investigacion.title,
   description: investigacion.subtitle ?? investigacion.summary,
@@ -214,6 +232,7 @@ const datasetJsonLd = investigacion
       <script type="application/ld+json" set:html={JSON.stringify(articleJsonLd)} />
       {faqJsonLd && <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
       {datasetJsonLd.map((d) => <script type="application/ld+json" set:html={JSON.stringify(d)} />)}
+      {podcastJsonLd && <script type="application/ld+json" set:html={JSON.stringify(podcastJsonLd)} />}
 
       {investigacion.cover_r2_key ? (
         <div class="ia-hero">
@@ -259,14 +278,27 @@ const datasetJsonLd = investigacion
             <p>{investigacion.summary}</p>
           </div>
 
+          {dialogue && (
+            <ConversationCard
+              audioKey={dialogue.r2_key!}
+              durationSeconds={dialogue.duration_s}
+              episodeNumber={dialogue.episode_number ?? null}
+              transcriptUrl={`/${locale.code}/a-fondo/${investigacion.slug}/conversacion.txt`}
+              entityId={investigacion.id}
+              locale={locale.code}
+            />
+          )}
+
           <div class="ia-layout">
             <InvestigacionToc
+              locale={locale.code}
               sections={sections}
               readMinutes={investigacion.read_minutes ?? 10}
               audioKey={audio?.r2_key ?? null}
               audioDurationS={audio?.duration_s ?? null}
               audioVttKey={audio?.transcript_vtt_key ?? null}
               audioCueMap={audio?.cue_map_json ?? null}
+              transcriptUrl={`/${locale.code}/a-fondo/${investigacion.slug}/transcripcion.txt`}
               entityId={investigacion.id}
             />
 

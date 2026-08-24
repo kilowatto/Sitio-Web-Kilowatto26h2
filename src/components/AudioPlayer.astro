@@ -50,6 +50,23 @@ const {
   bodySelector = ".column-article, .ia-article",
 } = Astro.props;
 
+// The three strings the player says on its own. They were Spanish literals, which is fine on 11
+// of the 12 locales' worth of pages that never had audio -- and wrong on the English ones, where
+// an English narration sat under "Tu navegador no puede reproducir audio".
+const UI: Record<string, { noAudio: string; download: string; transcript: string }> = {
+  "es-MX": {
+    noAudio: "Tu navegador no puede reproducir audio.",
+    download: "Descarga el archivo",
+    transcript: "Leer la transcripción",
+  },
+  en: {
+    noAudio: "Your browser cannot play audio.",
+    download: "Download the file",
+    transcript: "Read the transcript",
+  },
+};
+const ui = UI[locale] ?? UI[locale.startsWith("en") ? "en" : "es-MX"];
+
 // Served through /media/video/[...key] -- the one route in the repo that answers Range
 // requests with 206, which is what makes seeking work at all. Plain /media/[...key] buffers
 // and never returns 206, so browsers report seekable = [0,0] and the scrubber is dead.
@@ -79,8 +96,8 @@ function fmtDuration(seconds: number): string {
 
   <audio class="kw-audio__el" controls preload="metadata" src={src}>
     {vttSrc ? <track kind="captions" srclang="es" label="Español" src={vttSrc} default /> : null}
-    Tu navegador no puede reproducir audio.
-    <a href={src} download>Descarga el archivo</a>.
+    {ui.noAudio}
+    <a href={src} download>{ui.download}</a>.
   </audio>
 
   {cueMap ? (
@@ -92,7 +109,7 @@ function fmtDuration(seconds: number): string {
     {transcriptUrl ? (
       <>
         {" "}
-        <a href={transcriptUrl}>Leer la transcripción</a>.
+        <a href={transcriptUrl}>{ui.transcript}</a>.
       </>
     ) : null}
   </p>

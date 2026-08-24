@@ -17,6 +17,7 @@ interface Props {
   transcriptUrl?: string | null;
   audioCueMap?: string | null;
   entityId?: number | null;
+  locale?: string;
 }
 const {
   sections,
@@ -27,6 +28,7 @@ const {
   transcriptUrl = null,
   audioCueMap = null,
   entityId = null,
+  locale = "es-MX",
 } = Astro.props;
 ---
 
@@ -44,6 +46,7 @@ const {
           cueMap={audioCueMap}
           entityType="investigacion"
           entityId={entityId}
+          locale={locale}
           bodySelector=".ia-article"
         />
       )}
@@ -71,6 +74,7 @@ const {
             cueMap={audioCueMap}
             entityType="investigacion"
             entityId={entityId}
+            locale={locale}
             bodySelector=".ia-article"
           />
         </div>
