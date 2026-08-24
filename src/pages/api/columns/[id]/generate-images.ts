@@ -5,6 +5,33 @@ import { saveInfographic, type InfographicOptions } from "../../../../lib/column
 
 export const prerender = false;
 
+// Builds the infographic from column_charts rather than from a literal in this file. The chart
+// data_json uses the same shape as investigacion_charts -- items[].values[] -- so the flattening
+// here is the only place that knows the infographic wants a plain bar list.
+async function infographicFor(columnId: number): Promise<string | null> {
+  const row = await env.DB.prepare(
+    `SELECT title, description, data_json FROM column_charts
+      WHERE column_id = ? AND chart_type = 'bar' ORDER BY position ASC LIMIT 1`
+  )
+    .bind(columnId)
+    .first<{ title: string; description: string | null; data_json: string }>();
+  if (!row) return null;
+
+  let bars: InfographicOptions["bars"];
+  try {
+    bars = (JSON.parse(row.data_json)?.items ?? []).map((it: any) => ({
+      label: String(it.label ?? ""),
+      value: Number(it.values?.[0]?.value ?? 0),
+      displayValue: String(it.values?.[0]?.displayValue ?? ""),
+    }));
+  } catch {
+    return null;
+  }
+  if (bars.length === 0) return null;
+
+  return saveInfographic(env, { title: row.title, subtitle: row.description ?? "", bars });
+}
+
 // Editorial illustration style for columns — deliberately NOT Larry/Orange Rhino, which is the
 // social-brand-post mascot register. Columns are long-form opinion pieces, closer to a real
 // publication's art direction than a social post's visual identity.
@@ -12,7 +39,10 @@ const NEGATIVE_PROMPT = "text, letters, words, numbers, watermark, logo, signatu
 
 type Brief = {
   cover: string;
-  second: { type: "infographic"; data: InfographicOptions } | { type: "illustration"; prompt: string };
+  // "infographic" carries no data any more: the numbers live in column_charts (migration
+  // 0079), so the same figures feed the infographic and the clip instead of one copy per
+  // consumer drifting from the other.
+  second: { type: "infographic" } | { type: "illustration"; prompt: string };
 };
 
 // Per-column art-direction briefs — kept explicit rather than auto-derived from body text, since
@@ -23,34 +53,12 @@ const BRIEFS: Record<string, Brief> = {
   "mis-aventuras-con-fable": {
     cover:
       "Editorial illustration for a tech opinion piece: an ornate glowing digital oracle or genie made of light and circuitry, floating above a minimalist modern office desk, warm amber and deep orange color palette, sense of expensive power and mystery, clean professional editorial illustration style, no text",
-    second: {
-      type: "infographic",
-      data: {
-        title: "¿Qué tan caro es Fable?",
-        subtitle: "Costo de su API comparado con otros modelos",
-        bars: [
-          { label: "vs. GPT (gen. anterior)", value: 15, displayValue: "15x" },
-          { label: "vs. Opus 4.8", value: 10, displayValue: "10x" },
-          { label: "vs. Sonnet 5", value: 50, displayValue: "50x" },
-        ],
-      },
-    },
+    second: { type: "infographic" },
   },
   "internet-too-big-to-fail": {
     cover:
       "Editorial illustration: an enormous ornate woven basket holding the entire glowing digital globe/internet inside it, teetering on the edge of a table, dramatic warm amber lighting, sense of fragility and risk, clean professional editorial illustration style, no text",
-    second: {
-      type: "infographic",
-      data: {
-        title: "¿Quién controla la nube?",
-        subtitle: "Participación del mercado global de infraestructura en la nube",
-        bars: [
-          { label: "Google Cloud", value: 13, displayValue: "13%" },
-          { label: "Microsoft Azure", value: 20, displayValue: "20%" },
-          { label: "Amazon AWS", value: 30, displayValue: "30%" },
-        ],
-      },
-    },
+    second: { type: "infographic" },
   },
   "credenciales-fantasma": {
     cover:
@@ -64,17 +72,7 @@ const BRIEFS: Record<string, Brief> = {
   "credencial-salud-boveda-nacional": {
     cover:
       "Editorial illustration: a single ornate glowing digital vault door replacing a messy pile of many different ID cards and wallets, warm amber glow from the vault, clean professional editorial illustration style, no text",
-    second: {
-      type: "infographic",
-      data: {
-        title: "Identidades que carga un mexicano",
-        subtitle: "Documentos distintos hoy vs. la propuesta de una sola identidad digital",
-        bars: [
-          { label: "Propuesta: una identidad digital", value: 1, displayValue: "1" },
-          { label: "Hoy: INE, CURP, RFC, cédula, licencia...", value: 6, displayValue: "6+" },
-        ],
-      },
-    },
+    second: { type: "infographic" },
   },
   "artemis-ii": {
     cover:
@@ -97,33 +95,12 @@ const BRIEFS: Record<string, Brief> = {
   "dr-gpt-te-atendera-ahora": {
     cover:
       "Editorial illustration: a smartphone glowing warmly in a cozy home, showing a gentle caring stethoscope icon on its screen, soft comforting light, sense of accessible care, clean professional editorial illustration style, no text",
-    second: {
-      type: "infographic",
-      data: {
-        title: "¿A quién prefirieron los pacientes?",
-        subtitle: "Estudio UCSD/JAMA: respuestas de IA vs. médicos",
-        bars: [
-          { label: "Médicos", value: 21, displayValue: "21%" },
-          { label: "Respuesta de la IA", value: 79, displayValue: "79%" },
-        ],
-      },
-    },
+    second: { type: "infographic" },
   },
   "padron-del-desastre": {
     cover:
       "Editorial illustration: a shattered smartphone screen with glowing personal data (ID cards, fingerprints, documents) leaking out like light through the cracks into darkness, sense of a data breach, clean professional editorial illustration style, no text",
-    second: {
-      type: "infographic",
-      data: {
-        title: "Historial de padrones telefónicos en México",
-        subtitle: "Intentos del Estado por crear un registro obligatorio de líneas móviles",
-        bars: [
-          { label: "PANAUT (2021, declarado inconstitucional)", value: 1, displayValue: "2021" },
-          { label: "RENAUT (2009, filtrado y cancelado)", value: 1, displayValue: "2009" },
-          { label: "Nuevo registro (2026, vulnerado día 1)", value: 1, displayValue: "2026" },
-        ],
-      },
-    },
+    second: { type: "infographic" },
   },
   "club-vip-hardware": {
     cover:
@@ -146,32 +123,12 @@ const BRIEFS: Record<string, Brief> = {
   "ia-es-real-burbuja-nvidia-no": {
     cover:
       "Editorial illustration: a large green dragon made of circuitry and light waking up and cracking through a golden bubble-shaped computer chip, dramatic tension between East and West tech, clean professional editorial illustration style, no text",
-    second: {
-      type: "infographic",
-      data: {
-        title: "El mercado chino de chips de IA",
-        subtitle: "Participación de NVIDIA en China, 2023 vs. 2025",
-        bars: [
-          { label: "Hoy (2025)", value: 50, displayValue: "~50%" },
-          { label: "Antes (2023)", value: 95, displayValue: "95%" },
-        ],
-      },
-    },
+    second: { type: "infographic" },
   },
   "ia-se-comio-tu-memoria": {
     cover:
       "Editorial illustration: a giant glowing AI chip with a mouth-like opening devouring a stack of RAM memory sticks, warm amber and electric blue tones, clean professional editorial illustration style, no text",
-    second: {
-      type: "infographic",
-      data: {
-        title: "El costo del hardware en 2026",
-        subtitle: "Incremento estimado de precio vs. 2024, por escasez de memoria",
-        bars: [
-          { label: "Precio 2024 (base)", value: 100, displayValue: "base" },
-          { label: "Precio estimado 2026", value: 128, displayValue: "+20-30%" },
-        ],
-      },
-    },
+    second: { type: "infographic" },
   },
   "impuesto-silencioso-de-la-ia": {
     cover:
@@ -185,18 +142,7 @@ const BRIEFS: Record<string, Brief> = {
   "fragilidad-de-la-nube": {
     cover:
       "Editorial illustration: the glowing digital globe held up by only three or four thick glowing cables against a dark background, other thin cables frayed and sparking, sense of systemic fragility, clean professional editorial illustration style, no text",
-    second: {
-      type: "infographic",
-      data: {
-        title: "Quién sostiene la nube global",
-        subtitle: "Participación combinada de los tres mayores proveedores",
-        bars: [
-          { label: "Google Cloud", value: 13, displayValue: "13%" },
-          { label: "Microsoft Azure", value: 20, displayValue: "20%" },
-          { label: "Amazon AWS", value: 30, displayValue: "30%" },
-        ],
-      },
-    },
+    second: { type: "infographic" },
   },
   "frida-cafe": {
     cover:
@@ -210,17 +156,7 @@ const BRIEFS: Record<string, Brief> = {
   "80-horas-a-la-semana": {
     cover:
       "Editorial illustration: a person's silhouette with their head opening up like a screen overflowing with tiny glowing news headlines and TV static, sense of information overload, clean professional editorial illustration style, no text",
-    second: {
-      type: "infographic",
-      data: {
-        title: "La adicción invisible a las noticias",
-        subtitle: "Encuestas Pew Research / Reuters Institute",
-        bars: [
-          { label: "Evitan activamente ciertas noticias", value: 38, displayValue: "38%" },
-          { label: "Conectados constantemente a noticias", value: 30, displayValue: "30%" },
-        ],
-      },
-    },
+    second: { type: "infographic" },
   },
   "follow-the-dots-fable-ios": {
     cover:
@@ -261,7 +197,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   const [coverKey, secondResult] = await Promise.all([
     generateRecraftImage(brief.cover, { style: "digital_illustration", negativePrompt: NEGATIVE_PROMPT }),
     brief.second.type === "infographic"
-      ? saveInfographic(env, brief.second.data).then((key) => ({ infographicKey: key, illustrationKey: null as string | null }))
+      ? infographicFor(id).then((key) => ({ infographicKey: key, illustrationKey: null as string | null }))
       : generateRecraftImage(brief.second.prompt, { style: "digital_illustration", negativePrompt: NEGATIVE_PROMPT }).then((key) => ({
           infographicKey: null as string | null,
           illustrationKey: key,

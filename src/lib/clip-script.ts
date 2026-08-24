@@ -136,10 +136,16 @@ export async function buildClipProps(
   // smallest value -- a chart where everything is 48%, 50%, 51% says nothing at a glance.
   let chart: ChartRow | null = null;
   let bars: ClipBar[] = [];
-  if (entityType === "investigacion") {
+  {
+    // Both tables have the same shape, so one reader serves both. Columns only gained one in
+    // migration 0079 -- before that their numbers lived hardcoded in generate-images.ts and a
+    // column had, structurally, no data at all.
     const rows = await env.DB.prepare(
-      `SELECT chart_key, chart_type, title, description, data_json, source_note
-         FROM investigacion_charts WHERE investigacion_id = ? ORDER BY position ASC`
+      entityType === "investigacion"
+        ? `SELECT chart_key, chart_type, title, description, data_json, source_note
+             FROM investigacion_charts WHERE investigacion_id = ? ORDER BY position ASC`
+        : `SELECT chart_key, chart_type, title, description, data_json, source_note
+             FROM column_charts WHERE column_id = ? ORDER BY position ASC`
     )
       .bind(entityId)
       .all<ChartRow>();
@@ -169,9 +175,8 @@ export async function buildClipProps(
   }
 
   if (bars.length === 0) {
-    // Columns have no structured data at all -- their infographic bars are hardcoded per column
-    // inside generate-images.ts -- so for now they get no chart. The clip still works; it is
-    // just a hook and a pointer. Fixing that is D2 in the sprint.
+    // Not every piece has comparable numbers, and inventing some would be worse than going
+    // without. The clip still works; it is a hook and a pointer.
     warnings.push("sin datos estructurados: el clip sale sin gráfica");
   }
 

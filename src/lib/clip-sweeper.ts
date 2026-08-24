@@ -32,13 +32,18 @@ export interface PendingClip {
   title: string;
 }
 
-// Only pieces that already have a clip-worthy chart. A column has no structured data at all --
-// its infographic bars are hardcoded per column inside generate-images.ts -- so until that is
-// fixed (D2 in the sprint) a column clip would be a hook and a pointer with no numbers, which is
-// not worth a render. Investigaciones are the ones with investigacion_charts.
+// Only pieces that already have a clip-worthy chart. A clip with no numbers is a hook and a
+// pointer, which is not worth a render.
+//
+// Columns are in this list as of migration 0079. Before it their figures lived hardcoded per
+// slug inside generate-images.ts, so a column had structurally no data and could not be
+// considered at all.
+//
+// Investigaciones first: they are longer, they have more charts, and the conversation format
+// already proved they are what people finish.
 export async function findPendingClips(): Promise<PendingClip[]> {
   const rows = await env.DB.prepare(
-    `SELECT i.id, i.title
+    `SELECT 'investigacion' AS kind, i.id, i.title
        FROM investigaciones i
       WHERE i.status = 'published'
         AND EXISTS (
@@ -49,24 +54,45 @@ export async function findPendingClips(): Promise<PendingClip[]> {
           SELECT 1 FROM brand_posts p
            WHERE p.kind = 'clip' AND p.investigacion_id = i.id AND p.variant_style = 'clip:v1'
         )
-      ORDER BY i.id ASC`
-  ).all<{ id: number; title: string }>();
+     UNION ALL
+     SELECT 'columna' AS kind, c.id, c.title
+       FROM columns c
+      WHERE c.status = 'published'
+        AND EXISTS (
+          SELECT 1 FROM column_charts ch
+           WHERE ch.column_id = c.id AND ch.chart_type IN ('bar', 'donut', 'funnel')
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM brand_posts p
+           WHERE p.kind = 'clip' AND p.column_id = c.id AND p.variant_style = 'clip:v1'
+        )
+      ORDER BY kind DESC, id ASC`
+  ).all<{ kind: string; id: number; title: string }>();
 
   const failed: Record<string, string> = JSON.parse((await env.KILOWATTO_KV.get(FAILED_KEY)) ?? "{}");
   const cutoff = Date.now() - FAILED_COOLDOWN_HOURS * 3600 * 1000;
 
   return (rows.results ?? [])
     .filter((r) => {
-      const at = failed[`investigacion:${r.id}`];
+      const at = failed[`${r.kind}:${r.id}`];
       return !at || new Date(at).getTime() < cutoff;
     })
-    .map((r) => ({ entityType: "investigacion" as const, entityId: r.id, title: r.title }));
+    .map((r) => ({
+      entityType: r.kind as PendingClip["entityType"],
+      entityId: r.id,
+      title: r.title,
+    }));
 }
 
 async function madeThisWeek(): Promise<number> {
+  // DISTINCT over the pair, not over investigacion_id: a column clip has investigacion_id NULL,
+  // and counting distinct NULLs would collapse every column clip in the week into one.
   const row = await env.DB.prepare(
-    `SELECT COUNT(DISTINCT investigacion_id) AS n FROM brand_posts
-      WHERE kind = 'clip' AND created_at >= datetime('now', '-7 days')`
+    `SELECT COUNT(*) AS n FROM (
+       SELECT DISTINCT COALESCE(investigacion_id, 0) AS i, COALESCE(column_id, 0) AS c
+         FROM brand_posts
+        WHERE kind = 'clip' AND created_at >= datetime('now', '-7 days')
+     )`
   ).first<{ n: number }>();
   return row?.n ?? 0;
 }
