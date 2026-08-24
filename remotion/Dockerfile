@@ -24,6 +24,11 @@ RUN npx remotion browser ensure
 
 COPY remotion.config.ts ./
 COPY src ./src
+# public/ trae las fuentes de la marca, y `remotion bundle` las mete en el bundle desde aquí.
+# Sin esta línea la imagen se construye sin quejarse y el render muere al arrancar con
+# "NetworkError ... at loadFont" -- que es el comportamiento correcto: mejor que falle a que
+# publique un clip con la tipografía sustituida.
+COPY public ./public
 
 # El bundle también horneado: construirlo por render haría que cada clip espere a webpack.
 RUN npx remotion bundle --out-dir=build

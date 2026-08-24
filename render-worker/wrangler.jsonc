@@ -22,9 +22,11 @@
       // 1080x1920 clip at 30fps is a few thousand frames, so the cores are the thing that
       // matters; the disk is for Chrome plus the bundle plus one MP4.
       "instance_type": "standard-3",
-      // Two at a time. Cadence during the tuning phase is five clips a week, so this is about
-      // never queueing rather than about throughput.
-      "max_instances": 2
+      // Cuatro. No es por rendimiento -- la cadencia es de cinco clips por semana y los renders
+      // van de uno en uno -- sino por margen: una instancia viva NO recoge una imagen nueva, y
+      // con el tope en 2 las dos viejas ocupaban los dos slots y ninguna instancia nueva podía
+      // arrancar. Con margen, la imagen nueva entra sin esperar a que las viejas se reciclen.
+      "max_instances": 4
     }
   ],
 

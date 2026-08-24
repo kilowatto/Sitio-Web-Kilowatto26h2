@@ -46,12 +46,21 @@ export default {
       return new Response("unauthorized", { status: 401 });
     }
 
-    const body = await request.json<{ compositionId?: string; inputProps?: unknown; key?: string }>().catch(() => null);
+    const body = await request
+      .json<{ compositionId?: string; inputProps?: unknown; key?: string; instance?: string }>()
+      .catch(() => null);
     if (!body?.compositionId || !body?.key) {
       return Response.json({ error: "compositionId y key son obligatorios" }, { status: 400 });
     }
 
-    const container = getContainer(env.RENDER_CONTAINER, "renderer");
+    // El nombre elige la instancia. Por omisión, una sola llamada "renderer" -- barato, porque
+    // los renders son secuenciales y de todos modos van uno a la vez.
+    //
+    // Es seleccionable porque una instancia viva NO recoge una imagen nueva: tras desplegar la
+    // imagen con las fuentes correctas, la instancia de siempre siguió rindiendo con la anterior
+    // y siguió viva diez minutos sin trabajo, con sleepAfter en 30 s. Un nombre distinto arranca
+    // una instancia nueva, que sí toma la imagen nueva.
+    const container = getContainer(env.RENDER_CONTAINER, body.instance || "renderer");
     const res = await container.fetch(
       new Request("http://container/render", {
         method: "POST",
