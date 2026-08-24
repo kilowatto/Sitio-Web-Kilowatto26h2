@@ -36,7 +36,9 @@ if (env?.DB) {
       <ol class="rows">
         {
           companies.map((c: any) => (
-            <li class="row">
+            /* id por slug: un post sobre una noticia de esta empresa enlaza directo a ella,
+               en vez de dejar al lector buscándola en la lista. */
+            <li class="row" id={c.slug}>
               <span class="row__range">
                 {c.start_date ?? ""}
                 {c.end_date ? `–${c.end_date}` : c.is_current ? "–hoy" : ""}

@@ -33,7 +33,7 @@ const rest = investments.filter((i: any) => i.slug !== "orange-rhino-investments
       <ul class="cards">
         {
           rest.map((i: any) => (
-            <li class="card">
+            <li class="card" id={i.slug}>
               <p class="eyebrow">{i.category}</p>
               <h3>{i.name}</h3>
               {i.summary && <p>{i.summary}</p>}

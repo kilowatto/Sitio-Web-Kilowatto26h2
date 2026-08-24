@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { buildVoiceContext, voicePromptBlock } from "../../../../lib/brand-voice";
 import { proposeImage, type ImageStyle } from "../../../../lib/brand-image";
 import { assignSmartSchedule } from "../../../../lib/post-scheduler";
+import { createShortLink } from "../../../../lib/short-links";
 
 export const prerender = false;
 
@@ -140,15 +141,33 @@ export async function runGeneratePosts(investigacionId: number, count = 30, styl
   for (let i = 0; i < allPosts.length; i++) {
     const p = allPosts[i];
     const scheduledFor = await assignSmartSchedule(p.platform, reserved);
-    const content = p.platform === "x" ? `${p.content}\n\nSigo leyendo → ${readMoreUrl}` : `${p.content}\n\nLa investigación completa, con fuentes y gráficas: ${readMoreUrl}`;
 
+    // Insert with the plain URL first, then rewrite with the short link: createShortLink needs
+    // the post id so a click can be attributed back to the post that earned it, and the id does
+    // not exist until the row does. Esteban's call 2026-08-23: every link to his own work goes
+    // through kilowatto.com/r/, which keeps the click in our own D1 -- /r/[slug] already records
+    // IP, ASN, city, agent and referrer -- and on X a post carrying a URL costs $0.20 against
+    // $0.015 without one, so a link had better be worth its price.
     const res = await env.DB.prepare(
       `INSERT INTO brand_posts (platform, kind, investigacion_id, language, content, status, hashtags, source_url, image_r2_key, image_style, scheduled_for)
        VALUES (?, 'investigacion_highlight', ?, 'es', ?, 'pending_approval', ?, ?, ?, ?, ?)`
     )
-      .bind(p.platform, investigacionId, content, (p.hashtags ?? []).join(" ") || null, readMoreUrl, images[i] ?? null, images[i] ? stylesUsed[i] : null, scheduledFor)
+      .bind(p.platform, investigacionId, p.content, (p.hashtags ?? []).join(" ") || null, readMoreUrl, images[i] ?? null, images[i] ? stylesUsed[i] : null, scheduledFor)
       .run();
-    inserted.push({ id: res.meta.last_row_id, platform: p.platform, scheduledFor, hasImage: !!images[i] });
+    const postId = res.meta.last_row_id as number;
+
+    let shortUrl = readMoreUrl;
+    try {
+      shortUrl = await createShortLink(readMoreUrl, postId);
+    } catch {
+      // A failed short link must not cost the post; the full URL still works.
+    }
+    const content = p.platform === "x" ? `${p.content}\n\nSigo leyendo → ${shortUrl}` : `${p.content}\n\nLa investigación completa, con fuentes y gráficas: ${shortUrl}`;
+    await env.DB.prepare("UPDATE brand_posts SET content = ?, source_url = ? WHERE id = ?")
+      .bind(content, shortUrl, postId)
+      .run();
+
+    inserted.push({ id: postId, platform: p.platform, scheduledFor, hasImage: !!images[i] });
   }
 
   return { ok: true, investigacion: investigacion.title, count: inserted.length, withImage: inserted.filter((x) => x.hasImage).length, inserted };
