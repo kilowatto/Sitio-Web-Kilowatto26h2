@@ -64,9 +64,14 @@ export default {
       return Response.json({ error: "el render falló", detail: (await res.text()).slice(0, 500) }, { status: 502 });
     }
 
-    // Streamed into R2 rather than buffered: a 75-second 1080x1920 clip is several megabytes and
-    // the isolate has 128 MB shared across every concurrent request.
-    await env.MEDIA.put(body.key, res.body, { httpMetadata: { contentType: "video/mp4" } });
+    // Buffered, not streamed. Streaming was the first attempt and R2 rejected it outright:
+    // "Provided readable stream must have a known length (request/response body or readable half
+    // of FixedLengthStream)". It could be made to work by piping through a FixedLengthStream
+    // built from the container's Content-Length, but the whole benefit would be avoiding a
+    // buffer that is a few megabytes -- a 90-second 1080x1920 clip lands around 5 MB, against an
+    // isolate limit of 128 MB. Not worth the extra moving part.
+    const bytes = await res.arrayBuffer();
+    await env.MEDIA.put(body.key, bytes, { httpMetadata: { contentType: "video/mp4" } });
     const head = await env.MEDIA.head(body.key);
     return Response.json({ key: body.key, bytes: head?.size ?? null });
   },
