@@ -11,15 +11,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY package.json package-lock.json* tsconfig.json remotion.config.ts ./
-COPY src ./src
-
+# El orden importa. `COPY src` iba antes de estas dos capas, así que cualquier cambio en la
+# composición -- lo que más va a cambiar -- invalidaba también la instalación de dependencias y
+# la descarga de Chrome: ocho minutos emulados en vez de uno. Las capas caras primero y lo que
+# cambia seguido al final.
+COPY package.json package-lock.json* tsconfig.json ./
 RUN npm ci --omit=dev || npm install --omit=dev
 
-# Both baked into the image, not fetched at render time: a container that downloads Chrome on
-# first request pays that cost on a cold start, and a bundle built per render would make every
-# clip wait on a webpack build.
+# Chrome horneado en la imagen, no bajado al primer render: si no, ese costo lo paga el primer
+# clip de cada arranque en frío.
 RUN npx remotion browser ensure
+
+COPY remotion.config.ts ./
+COPY src ./src
+
+# El bundle también horneado: construirlo por render haría que cada clip espere a webpack.
 RUN npx remotion bundle --out-dir=build
 
 CMD ["node", "src/server.ts"]

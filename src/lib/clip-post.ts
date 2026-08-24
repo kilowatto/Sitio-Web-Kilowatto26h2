@@ -82,7 +82,10 @@ async function renderClip(props: ClipProps, key: string): Promise<number> {
 
 function toInputProps(props: ClipProps & { audioSrc?: string }) {
   const { narration, warnings, _raw, ...rest } = props as any;
-  return rest;
+  // sourceNote explícito aunque venga vacío. Remotion fusiona sus defaultProps campo por campo,
+  // así que un campo OMITIDO no queda vacío: hereda el del ejemplo. Así se publicó un clip de
+  // una columna sobre precios de Fable citando "Auditoría de 100 apps" como su fuente.
+  return { sourceNote: "", ...rest };
 }
 
 export interface ClipPostOptions {
