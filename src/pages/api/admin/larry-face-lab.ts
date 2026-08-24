@@ -41,7 +41,67 @@ const LARRY_V2_BODY =
 
 // Ordered from "closest to the current look" to "most human facial geometry", so the result
 // tells us how far Larry has to move from the existing design rather than just yes/no.
+// Round 4, 2026-08-23. Esteban chose the podcast cover as Larry's canonical face and it fails
+// HeyGen with "No face detected" -- the long muzzle again, exactly as rounds 1-3 predicted. So
+// these keep everything that MAKES it that Larry (warm orange pebbled skin, bright orange hoodie,
+// no eyewear, dark studio background, three-quarter turn) and change only the one thing the
+// detector cares about. If one passes, the show's face and the video face are the same character
+// instead of two.
+const COVER_LOOK =
+  "Photorealistic anthropomorphic rhinoceros. Warm orange pebbled skin, solid bright orange " +
+  "hoodie with the hood down, NO eyewear of any kind, deep charcoal studio background with a " +
+  "soft vignette, dramatic warm key light. Editorial character portrait, high detail. " +
+  "Absolutely no text, no letters, no numbers, no logos anywhere in the image.";
+
 const VARIANTS: Record<string, string> = {
+  cover_short_muzzle:
+    `${COVER_LOOK} Head-and-shoulders, turned slightly off-axis toward the camera. ` +
+    "GEOMETRY: the muzzle is SHORT and BROAD, not a long animal snout; a wide mouth with " +
+    "visible upper and lower lips sits at the FRONT of the face, clearly separated from the " +
+    "nose; both eyes are large, forward-facing, with visible whites and eyelids at human " +
+    "spacing. One small horn low on the muzzle that never crosses the eyes. The whole head is " +
+    "inside the frame with headroom above it.",
+
+  cover_frontal:
+    `${COVER_LOOK} Head-and-shoulders facing the camera DEAD ON, symmetrical. ` +
+    "GEOMETRY: compact face with human proportions -- forehead, brow, two forward eyes, a short " +
+    "flat nose and a wide expressive mouth with distinct lips, mouth slightly parted as if " +
+    "mid-sentence. The rhino read comes from the skin texture, the ears and one small horn, " +
+    "NOT from a protruding snout.",
+
+  // Round 5, 2026-08-23. Esteban: "Larry nunca sale de frente. Se ve raro con el cuerno."
+  // Frontal is out, and it was the only one of round 4 that HeyGen accepted -- but round 3's
+  // angle sweep had a 30-degree turn PASS while 15 and 45 failed, so a slight turn is possible.
+  // These hold the cover look and the short-muzzle geometry fixed and vary only how far the head
+  // turns, so a failure is attributable to the angle and nothing else.
+  cover_turn20:
+    `${COVER_LOOK} Head-and-shoulders, head turned about 20 degrees off camera -- barely off " +
+    "axis, both eyes still fully visible. ` +
+    "GEOMETRY: SHORT broad muzzle, never a long snout; wide mouth with distinct upper and lower " +
+    "lips at the front of the face, slightly parted; both eyes forward-facing with visible " +
+    "whites. One SMALL horn low on the muzzle, well below the eye line, never crossing the eyes " +
+    "or the centre of the face.",
+
+  cover_turn30:
+    `${COVER_LOOK} Head-and-shoulders, head turned about 30 degrees off camera in a natural " +
+    "three-quarter pose, eyes looking toward the lens. ` +
+    "GEOMETRY: SHORT broad muzzle, never a long snout; wide mouth with distinct lips at the " +
+    "front of the face; both eyes visible with whites and eyelids, the far eye not hidden by " +
+    "the muzzle. One SMALL horn low and modest, never occluding either eye.",
+
+  cover_turn30_nohorn:
+    `${COVER_LOOK} Head-and-shoulders, head turned about 30 degrees off camera, three-quarter " +
+    "pose. ` +
+    "GEOMETRY: SHORT broad muzzle, wide mouth with distinct lips at the front of the face, both " +
+    "eyes clearly visible. NO horn at all -- a smooth brow and muzzle. The rhino read comes from " +
+    "the pebbled skin texture, the ears and the heavy jaw.",
+
+  cover_speaking:
+    `${COVER_LOOK} Tight head-and-shoulders, three-quarter turn, caught mid-sentence. ` +
+    "GEOMETRY: short broad muzzle, wide human-proportioned mouth OPEN mid-word with teeth and " +
+    "lips clearly visible at the front of the face, warm eyes looking just past the camera. " +
+    "One modest horn low and small. Both ears fully in frame.",
+
   frontal_snout: `${BASE_LARRY} Head-and-shoulders portrait facing the camera DEAD ON, perfectly frontal, symmetrical. ` +
     "Both eyes fully visible, open, and looking straight into the lens. His mouth is clearly defined with a " +
     "visible lip line across the front of the muzzle, slightly parted as if beginning to speak. Single short horn. " +

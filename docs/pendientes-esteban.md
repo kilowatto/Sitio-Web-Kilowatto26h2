@@ -43,6 +43,19 @@ En `docs/backfill-columnas.md` está la lista de las 8 que dejé fuera por estar
 momento o a una predicción sobre 2026 que ya va a la mitad. Si alguna te parece que sigue
 vigente, dime y la genero.
 
-## 5 · Docker quedó listo
+## 5 · Decisión: ¿Larry en cámara?
+
+HeyGen **solo** acepta a Larry de frente, y dijiste que de frente no. Probé siete variantes; la
+tabla está en `docs/sprint-fase3-4.md`. No es un problema técnico —el render frontal salió bien,
+3.4 s con tu voz— es que la única cara que su detector acepta no es la que quieres.
+
+ElevenLabs `creatify-aurora` sí anima personajes sin detector de rostro humano, pero **todo su
+endpoint de video exige plan Pro** y estás en Creator. El código ya está escrito y llega hasta el
+402, así que el día que subas es una prueba de cinco minutos, no una construcción.
+
+**O subes a Pro, o Larry no sale en cámara.** Los clips sin él funcionan igual; es una decisión de
+marca, no de ingeniería.
+
+## 6 · Docker quedó listo
 
 Instalaste Docker 29.7.2, así que el bloque D no está bloqueado.

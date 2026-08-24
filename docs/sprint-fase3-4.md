@@ -117,3 +117,42 @@ encajarlo y con qué compararlo.
    sutil y la señal de clics es gruesa. Se afinan a ojo; se dejan en el sistema por completitud.
 4. **IP cruda** obliga a actualizar el aviso de privacidad antes de empezar a guardarla.
 5. **LinkedIn caduca cada 60 días.** Sigue sin alarma. B3 lo resuelve de paso.
+
+---
+
+## Bloque C — resultado: HeyGen no puede dar el Larry que Esteban quiere
+
+Probado el 2026-08-23 durante el sprint autónomo. La detección de cara de HeyGen rechaza antes de
+cobrar, así que todo esto salió gratis.
+
+| variante | ángulo | HeyGen |
+|---|---|---|
+| portada del podcast (la cara elegida) | tres cuartos, hocico largo | ❌ |
+| `cover_short_muzzle` | tres cuartos, hocico corto | ❌ |
+| `cover_speaking` | tres cuartos, boca abierta | ❌ |
+| **`cover_frontal`** | **frontal** | **✅** |
+| `cover_turn20` | ~20° | ❌ |
+| `cover_turn30` | ~30° | ❌ |
+| `cover_turn30_nohorn` | ~30°, sin cuerno | ❌ |
+
+**La única que pasa es la frontal.** Y Esteban la descartó explícitamente: *"Larry nunca sale de
+frente. Se ve raro con el cuerno."*
+
+El render frontal sí se completó —3.4 segundos, con la voz real de Larry desde ElevenLabs— así que
+el pipeline funciona de punta a punta. El problema no es técnico: es que la única cara que HeyGen
+acepta no es la cara que la marca quiere.
+
+### La decisión que queda
+
+**ElevenLabs `creatify-aurora` es el camino**, y no le importaría el ángulo: su documentación dice
+"the image of the character to animate", no "person", y no hay detector de rostro humano de por
+medio.
+
+**Pero todo `/v1/flows/video` exige plan Pro.** Confirmado con dos llamadas: `POST /v1/assets`
+responde 402 `paid_plan_required`, y al esquivarlo con `inline_base64` el propio endpoint de video
+responde 402 igual. La cuenta está en Creator.
+
+O Esteban sube a Pro, o Larry no sale en cámara. No hay tercera opción con lo probado.
+
+El cliente de Flows ya está escrito y funciona hasta el 402 (`src/lib/elevenlabs-video.ts`,
+`/api/admin/larry-video-lab`), así que el día que haya Pro es una prueba, no una construcción.
