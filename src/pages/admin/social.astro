@@ -234,7 +234,7 @@ function formatCountdown(expiresAt: string | null): string | null {
             ))}
           </nav>
           <p class="hint">
-            ¿Buscas uno en concreto? Su número de post es un enlace directo:
+            ¿Buscas uno en concreto? Su número de post es un enlace directo:{" "}
             <code>/admin/social#post-889</code> salta a él y lo resalta.
           </p>
 
@@ -1644,14 +1644,24 @@ function formatCountdown(expiresAt: string | null): string | null {
   }
   .video-block { margin-bottom: 0.6rem; }
   .draft-video {
-    width: 100%;
-    /* 9:16, capped so a vertical clip does not push the approve buttons off the card. */
+    /* El alto manda y el ancho sale del 9:16, no al revés.
+       Con width:100% + max-height, al toparse con el límite de alto el elemento queda más ancho
+       de lo que el video ocupa y el navegador rellena los costados con negro. El MP4 es 1080x1920
+       limpio: las franjas eran del reproductor. max-width recorta el alto si la tarjeta es
+       angosta, y aspect-ratio lo mantiene proporcionado. */
+    display: block;
+    /* Las dos dimensiones automáticas y los dos límites como MÁXIMOS: así manda el que
+       primero se topa y el video conserva su proporción sin franjas por ningún lado.
+       Con `height` fijo (el primer intento) el ancho cedía pero el alto no, y las franjas
+       solo cambiaban de los costados a arriba y abajo -- 92px por lado en una tarjeta de
+       200px. Medido con Playwright a 200/320/560/900px de tarjeta contra el CSS compilado. */
+    width: auto;
+    height: auto;
+    max-width: 100%;
     max-height: 60vh;
     aspect-ratio: 9 / 16;
-    object-fit: contain;
-    background: #000;
+    margin: 0 auto 0.4rem;
     border-radius: 0.5rem;
-    margin-bottom: 0.4rem;
   }
   .image-block { margin-bottom: 0.6rem; }
   .draft-image {
