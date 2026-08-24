@@ -38,6 +38,7 @@ export interface ExperimentReport {
   status: string;
   minSample: number;
   minLift: number;
+  minOutcome: number;
   arms: ArmResult[];
   leader: string | null;
   /** Null while the thresholds are unmet -- which is most of the time, by design. */
@@ -53,13 +54,14 @@ interface ExperimentRow {
   description: string | null;
   min_sample: number;
   min_lift: number;
+  min_outcome: number;
   status: string;
   winner: string | null;
 }
 
 async function loadExperiment(key: string): Promise<ExperimentRow | null> {
   return env.DB.prepare(
-    `SELECT id, key, surface, description, min_sample, min_lift, status, winner FROM experiments WHERE key = ?`
+    `SELECT id, key, surface, description, min_sample, min_lift, min_outcome, status, winner FROM experiments WHERE key = ?`
   )
     .bind(key)
     .first<ExperimentRow>();
@@ -205,12 +207,21 @@ export async function report(key: string): Promise<ExperimentReport | null> {
   let winner: string | null = exp.winner;
   let verdict: string;
   const thin = arms.filter((a) => a.subjects < exp.min_sample);
+  const quiet = arms.filter((a) => a.outcome < exp.min_outcome);
+  const outcomeWord = exp.surface === "audio" ? "descargas" : "clics";
 
   if (exp.winner) {
     verdict = `decidido: ${exp.winner}`;
   } else if (thin.length > 0) {
     verdict = `faltan piezas: ${thin
       .map((a) => `${a.arm} ${a.subjects}/${exp.min_sample}`)
+      .join(", ")}`;
+  } else if (quiet.length > 0) {
+    // The gate that was missing. audio_kind passed the piece count on its first reading and
+    // declared a 50% winner off ten downloads -- five pieces with two downloads each is not
+    // evidence.
+    verdict = `faltan ${outcomeWord}: ${quiet
+      .map((a) => `${a.arm} ${a.outcome}/${exp.min_outcome}`)
       .join(", ")}`;
   } else if (!runnerUp || runnerUp.perSubject <= 0) {
     // Everything else is at zero. A leader with any result at all wins by definition here, but
@@ -237,6 +248,7 @@ export async function report(key: string): Promise<ExperimentReport | null> {
     status: exp.status,
     minSample: exp.min_sample,
     minLift: exp.min_lift,
+    minOutcome: exp.min_outcome,
     arms,
     leader,
     winner,

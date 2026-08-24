@@ -1,0 +1,12 @@
+-- A third threshold, added the moment the first one proved insufficient.
+--
+-- With only min_sample and min_lift, audio_kind declared a winner on its first real reading:
+-- "conversacion gana por 50%" -- off ten downloads against fifty-one, on a podcast that had been
+-- live for one day. Both arms had their five pieces, so the sample gate passed; the gate was
+-- counting the wrong thing. Five pieces with two downloads each is not evidence, it is a rounding
+-- error with a trophy.
+--
+-- min_outcome is the floor on the OUTCOME per arm, not on the number of pieces. Twenty-five
+-- clicks or downloads per arm is still small, but it is past the point where one enthusiastic
+-- listener moves the result.
+ALTER TABLE experiments ADD COLUMN min_outcome INTEGER NOT NULL DEFAULT 25;
