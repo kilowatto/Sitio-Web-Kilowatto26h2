@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
+import { runGenerateColumnPosts } from "./generate-posts";
 import { recordFeedback } from "../../../../lib/brand-learning";
 import { postColumnCarouselToLinkedIn } from "../../../../lib/linkedin-carousel";
 import { runReindex } from "../../reindex";
@@ -79,6 +80,19 @@ export const POST: APIRoute = async ({ params, request }) => {
   //
   // Fire-and-forget behind a binding check: the binding only exists in the real Worker, not in
   // `astro dev`, and a translation failure must never block a publish that already succeeded.
+  // Announce the column. Until 2026-08-23 this never happened: brand_posts had no
+  // columna_highlight kind and no column_id, so 20 published columns generated zero posts while
+  // investigaciones generated 60. Inline rather than fire-and-forget because it is four LLM
+  // calls and four images -- seconds, not minutes -- and because a column that silently fails to
+  // announce itself is exactly the failure mode this is fixing.
+  let posts: string | null = null;
+  try {
+    const generated = await runGenerateColumnPosts(Number(id), 4);
+    posts = "error" in generated ? `falló: ${generated.error}` : `${generated.count} posts en cola`;
+  } catch (err: any) {
+    posts = `falló: ${err?.message ?? "error desconocido"}`;
+  }
+
   let translation: string | null = null;
   try {
     if ((env as any).TRANSLATE_COLUMN_WORKFLOW) {
@@ -91,7 +105,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     translation = `falló al lanzar: ${err?.message ?? "error desconocido"}`;
   }
 
-  return new Response(JSON.stringify({ ok: true, linkedin: carousel, reindexed, reindexError, translation }), {
+  return new Response(JSON.stringify({ ok: true, linkedin: carousel, reindexed, reindexError, translation, posts }), {
     headers: { "content-type": "application/json" },
   });
 };

@@ -78,18 +78,39 @@ export async function assignSmartSchedule(
   const rankedHours = ranked.length > 0 ? ranked : null;
   const cap = DAILY_LIMIT[platform] ?? 1;
 
-  // How many of this platform's posts already occupy each future day (scheduled or
-  // posted), so a freshly-assigned slot doesn't blow past the daily cap.
+  // How many of this platform's posts already occupy each future day, so a freshly-assigned
+  // slot doesn't blow past the daily cap.
+  //
+  // 'pending_approval' counts too, which it did not until 2026-08-23. Without it, two batches
+  // generated minutes apart both saw an empty day and both took the same slot -- confirmed live:
+  // posts #808 and #810 landed on the identical timestamp. A pending post is a slot that WILL be
+  // used the moment it is approved, so reserving it is the honest reading; the cost is that the
+  // queue schedules further into the future, which is true either way.
   const existing = await env.DB.prepare(
     `SELECT date(COALESCE(scheduled_for, posted_at)) AS day, COUNT(*) AS n
      FROM brand_posts
-     WHERE platform = ? AND status IN ('approved', 'posted')
+     WHERE platform = ? AND status IN ('pending_approval', 'approved', 'posted')
        AND COALESCE(scheduled_for, posted_at) > datetime('now')
      GROUP BY day`
   )
     .bind(platform)
     .all<{ day: string; n: number }>();
   const dayCounts = new Map<string, number>((existing.results ?? []).map((r) => [r.day, r.n]));
+
+  // Every exact slot already taken on this platform.
+  //
+  // The day counts alone are not enough to guarantee two posts never share a timestamp: the
+  // counts and the hour ranking can agree across two calls made minutes apart, and days can
+  // already sit OVER the cap from before pending posts were counted at all. Two posts firing in
+  // the same minute read as spam and one is wasted, so this is checked directly rather than
+  // inferred -- confirmed live 2026-08-23 with posts #812 and #814.
+  const takenRows = await env.DB.prepare(
+    `SELECT scheduled_for FROM brand_posts
+      WHERE platform = ? AND scheduled_for IS NOT NULL AND scheduled_for > datetime('now')`
+  )
+    .bind(platform)
+    .all<{ scheduled_for: string }>();
+  const taken = new Set((takenRows.results ?? []).map((r) => r.scheduled_for));
 
   // 400 days: at DAILY_LIMIT.linkedin=1 this comfortably outlasts any realistic
   // approved-post backlog. A 60-day bound previously caused a real bug -- once the
@@ -105,13 +126,37 @@ export async function assignSmartSchedule(
     const dow = new Date(day.getTime() - 6 * 3600 * 1000).getUTCDay(); // MX-local weekday, matches getBestSlots' bucketing
     const hoursForDow = rankedHours
       ? rankedHours.filter((s) => s.dow === dow).map((s) => s.hour)
-      : FALLBACK_HOURS[platform] ?? [10];
-    const hours = hoursForDow.length > 0 ? hoursForDow : FALLBACK_HOURS[platform] ?? [10];
+      : [];
+
+    // Union with the priors, learned hours first, rather than the learned list alone.
+    //
+    // A weekday can easily have ONE well-ranked hour, and `hours[used % hours.length]` then
+    // hands every post that day the same hour -- confirmed live 2026-08-23: two X posts from one
+    // batch both landed on 20:00:00 exactly. Two posts firing in the same minute read as spam
+    // and one of them is wasted. The union keeps the learned hour first (so it is still
+    // preferred) and only reaches for a prior when the day needs a second or third slot.
+    const hours = [...new Set([...hoursForDow, ...(FALLBACK_HOURS[platform] ?? [10])])];
     const hour = hours[used % hours.length];
 
+    // And a minute offset as the last guarantee: with a daily cap above the number of distinct
+    // hours available, two posts can still collide on the hour. Deterministic, spread across the
+    // hour, so the timestamps are never identical.
+    const minute = hours.length >= cap ? 0 : (Math.floor(60 / cap) * used) % 60;
+
     reserved.set(dayKey, (reserved.get(dayKey) ?? 0) + 1);
-    const slot = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), hour + 6, 0, 0)); // +6h: local MX time -> UTC storage
-    return fmt(slot);
+
+    // Walk minutes until the exact slot is free. Seven-minute steps keep the post inside its
+    // chosen hour for the first eight tries, which is always enough in practice.
+    for (let bump = 0; bump < 9; bump++) {
+      const m = (minute + bump * 7) % 60;
+      const slot = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), hour + 6, m, 0)); // +6h: local MX -> UTC
+      const stamp = fmt(slot);
+      if (!taken.has(stamp)) {
+        taken.add(stamp);
+        return stamp;
+      }
+    }
+    continue;
   }
 
   // Extremely unlikely (400 days fully booked at the daily cap) -- fall back to

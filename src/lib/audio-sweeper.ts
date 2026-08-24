@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { runNarrate } from "./narrate";
 import { runNarrateDialogue } from "./narrate-dialogue";
+import { runAudioPost } from "./audio-post";
 
 // Generates whatever audio is missing, a little at a time, on a schedule.
 //
@@ -152,6 +153,14 @@ export async function runAudioSweep(limit = DEFAULT_LIMIT): Promise<SweepResult>
       }
     } catch (err: any) {
       results.push({ item, ok: false, detail: String(err?.message ?? err) });
+    }
+
+    // A finished asset should announce itself. Best-effort and idempotent: a failure here must
+    // never mark the generation itself as failed, and the sweep re-runs every six hours.
+    const last = results[results.length - 1];
+    if (last?.ok && item.locale === "es-MX") {
+      const posted = await runAudioPost(item.entityType, item.entityId, item.kind);
+      if (posted.created) last.detail += ` · ${posted.created} posts en cola`;
     }
   }
 
