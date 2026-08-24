@@ -3,14 +3,25 @@ import Site from "../layouts/Site.astro";
 import Spark from "../components/Spark.astro";
 import PullQuote from "../components/PullQuote.astro";
 import Trayectoria from "../components/Trayectoria.astro";
+import PodcastLinks from "../components/PodcastLinks.astro";
 import { env } from "cloudflare:workers";
 
 let profile = null;
 let companies: any[] = [];
 let projects: any[] = [];
 let heroPhoto: any = null;
+let podcast: any = null;
 
 if (env?.DB) {
+  // Podcast counts for the homepage section. Cheap aggregate, and it keeps the copy honest --
+  // "26 episodios" written by hand would be wrong the week after the next one ships.
+  const podcastRes = await env.DB.prepare(
+    `SELECT COUNT(*) AS n, CAST(SUM(duration_s) / 60 AS INT) AS minutes,
+            SUM(CASE WHEN kind = 'audio_dialogue' THEN 1 ELSE 0 END) AS conversations
+       FROM media_assets
+      WHERE kind IN ('audio_narration','audio_dialogue') AND status = 'ready' AND locale = 'es-MX'`
+  ).first<any>();
+
   const [profileRes, companiesRes, projectsRes, heroPhotoRes] = await Promise.all([
     env.DB.prepare("SELECT * FROM profile WHERE id = 1").first(),
     env.DB.prepare("SELECT * FROM companies ORDER BY sort_order").all(),
@@ -25,6 +36,7 @@ if (env?.DB) {
   companies = companiesRes?.results ?? [];
   projects = projectsRes?.results ?? [];
   heroPhoto = heroPhotoRes;
+  podcast = podcastRes;
 }
 ---
 
@@ -181,6 +193,22 @@ if (env?.DB) {
     </section>
   )}
 
+  {podcast && podcast.n > 0 && (
+    <section class="chapter chapter--mist">
+      <div class="container">
+        <p class="eyebrow">El podcast</p>
+        <h2>Al fondo con Kilowatto</h2>
+        <p class="pod-home">
+          Kilowatto y Leia conversan sobre cada investigación de <a href="/a-fondo">A fondo</a>,
+          y el mismo feed lleva la lectura completa de cada una y las columnas narradas.
+          {" "}{podcast.n} episodios, {podcast.minutes} minutos.
+        </p>
+        <PodcastLinks locale="es-MX" />
+        <p class="see-more"><a href="/podcast">Ver todos los episodios →</a></p>
+      </div>
+    </section>
+  )}
+
   <section class="chapter">
     <div class="container chapter--split">
       <div>
@@ -252,6 +280,8 @@ if (env?.DB) {
 </Site>
 
 <style>
+  .pod-home { max-width: 44rem; line-height: 1.55; }
+
   .faq-list {
     display: flex;
     flex-direction: column;

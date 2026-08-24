@@ -58,6 +58,10 @@ const categories = [
     links: [
       { href: "/prensa", label: nl.prensa },
       { href: "/columnas", label: nl.columnas },
+      // El podcast va en medio de Medios, entre las columnas y las investigaciones: es el
+      // formato que las recorre a las dos. Solo en español, igual que A fondo -- el show en
+      // inglés existe pero su página todavía no.
+      ...(locale === "es-MX" ? [{ href: "/podcast", label: nl.podcast }] : []),
       // Spanish-only for now — full-body translation to the other 11 locales is a follow-up
       // (see docs/investigaciones-spec.md), so only linked from the canonical site.
       ...(locale === "es-MX" ? [{ href: "/a-fondo", label: nl.a_fondo }] : []),
