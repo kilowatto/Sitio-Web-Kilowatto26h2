@@ -94,18 +94,28 @@ encajarlo y con qué compararlo.
 - C4 · Auditoría automática de logos alucinados.
 
 ### Bloque D · Video
-- D1 · Docker (Esteban) y la imagen desde el demo oficial de Remotion.
-- D2 · Datos estructurados para columnas.
-- D3 · Generador de guion de clip.
-- D4 · Una composición de Remotion, renderizada y aprobada **antes** de construir orquestación.
-- D5 · Composición con ffmpeg de Larry + datos en el Container.
-- D6 · `video_r2_key` y tipo de video en `brand_posts`. Misma cola, mismo `tick`.
+- D1 · ⛔ **Bloqueado.** La imagen está escrita (`remotion/Dockerfile`) pero el daemon de Docker
+  de Esteban no llega a Docker Hub. Diagnóstico y qué probar: `docs/pendientes-esteban.md`.
+- D2 · ✅ `column_charts` (migración 0079). Los números de nueve columnas salieron de
+  `generate-images.ts` a la base. La infografía y el clip leen la misma fila.
+- D3 · ✅ `src/lib/clip-script.ts`.
+- D4 · ✅ Clip de 57.8 s renderizado y aprobado por Esteban antes de construir orquestación.
+- D5 · ✅ `remotion/src/server.ts` + `render-worker/`. Verificado: el MP4 del servidor tiene el
+  mismo SHA-256 que el de `npx remotion render` — sirve de prueba del servidor y de determinismo.
+- D6 · ✅ `kind = 'clip'` con `video_r2_key`. Misma cola, misma aprobación, mismo `tick`. Y de
+  paso: `publishPost` **por fin adjunta el medio** — desde julio guardaba cada imagen y publicaba
+  sólo texto.
 
 ### Bloque E · Afinamiento
-- E1 · Tabla de variantes y asignación al crear el post.
-- E2 · Atribución de clics y descargas por variante.
-- E3 · Regla de ganador con umbral y mínimo de muestra.
-- E4 · Tablero, y extensión del mismo sistema al audio.
+- E1 · ✅ `experiments` / `experiment_arms` / `experiment_assignments` (migración 0077).
+  Asignación **balanceada**, no aleatoria: con cinco piezas por semana una moneda justa cae 4-1
+  bastante seguido.
+- E2 · ✅ Clics por post (`link_clicks` → `short_links.brand_post_id`) y descargas por episodio
+  (Analytics Engine → `media_assets`).
+- E3 · ✅ Tres umbrales: piezas por brazo, resultado por brazo, y ventaja sobre el segundo. El
+  tercero se agregó porque el primero no bastó — `audio_kind` declaró ganador con diez descargas.
+- E4 · ✅ Tablero en `/admin/audio`. Tres experimentos sembrados: duración del clip, estilo del
+  gancho, y conversación contra lectura completa.
 
 ## Riesgos vivos
 
