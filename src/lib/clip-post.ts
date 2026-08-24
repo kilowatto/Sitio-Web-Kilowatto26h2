@@ -69,11 +69,25 @@ function toInputProps(props: ClipProps & { audioSrc?: string }) {
   return rest;
 }
 
+export interface ClipPostOptions {
+  chartKey?: string;
+  /**
+   * Skip narration and render, and queue a video that is already in R2.
+   *
+   * Two real uses. Re-queueing a clip after a rejected caption should not pay to synthesize and
+   * render the identical video again -- that is a few dollars for nothing. And while the render
+   * container cannot be built (see docs/pendientes-esteban.md), it is the only way to put a real
+   * clip in front of Esteban through the actual code path instead of hand-written SQL.
+   */
+  preRendered?: { videoKey: string; seconds: number };
+}
+
 export async function runClipPost(
   entityType: "columna" | "investigacion",
   entityId: number,
-  chartKey?: string
+  opts: ClipPostOptions = {}
 ): Promise<ClipPostResult> {
+  const { chartKey, preRendered } = opts;
   try {
     const table = entityType === "columna" ? "columns" : "investigaciones";
     const idColumn = entityType === "columna" ? "column_id" : "investigacion_id";
@@ -102,34 +116,44 @@ export async function runClipPost(
 
     const props = await buildClipProps(entityType, entityId, {
       chartKey,
-      durationSeconds: (durationArm?.config as any)?.durationSeconds,
+      durationSeconds: preRendered?.seconds ?? (durationArm?.config as any)?.durationSeconds,
       hookStyle: (hookArm?.config as any)?.hookStyle,
     });
-    if (!props.narration?.trim()) {
+    if (!preRendered && !props.narration?.trim()) {
       return { ok: false, error: `no salió narración: ${props.warnings.join("; ")}` };
     }
 
-    // Larry narrates. Prosody chaining off: a clip is one breath, and chaining exists to keep
-    // tone across a twenty-minute article -- here it only bleeds energy out of the one chunk
-    // that matters.
-    const narration = await synthesizeScript(props.narration, { stability: 0.35 }, false);
-    const audioKey = `media/clips/${entityType}-${entityId}-narracion.mp3`;
-    const audioBytes = await concatChunksToR2(narration.chunks, audioKey);
-    const seconds = Math.round((audioSeconds(audioBytes) + TAIL_SECONDS) * 10) / 10;
+    let videoKey: string;
+    let seconds: number;
 
-    // The composition's length comes from the audio, not the other way round. clip-script.ts
-    // writes narration to a measured 14.65 chars/sec target, but the model lands near it, not on
-    // it, and a fixed frame count would either cut Larry off or leave dead air.
-    const videoKey = `media/clips/${entityType}-${entityId}.mp4`;
-    const videoBytes = await renderClip(
-      {
-        ...props,
-        durationSeconds: seconds,
-        audioSrc: `https://kilowatto.com/media/video/${audioKey}`,
-      } as any,
-      videoKey
-    );
-    if (!videoBytes) throw new Error("el render no devolvió bytes");
+    if (preRendered) {
+      const head = await env.MEDIA.head(preRendered.videoKey);
+      if (!head) throw new Error(`el video ${preRendered.videoKey} no está en R2`);
+      videoKey = preRendered.videoKey;
+      seconds = preRendered.seconds;
+    } else {
+      // Larry narrates. Prosody chaining off: a clip is one breath, and chaining exists to keep
+      // tone across a twenty-minute article -- here it only bleeds energy out of the one chunk
+      // that matters.
+      const narration = await synthesizeScript(props.narration, { stability: 0.35 }, false);
+      const audioKey = `media/clips/${entityType}-${entityId}-narracion.mp3`;
+      const audioBytes = await concatChunksToR2(narration.chunks, audioKey);
+      seconds = Math.round((audioSeconds(audioBytes) + TAIL_SECONDS) * 10) / 10;
+
+      // The composition's length comes from the audio, not the other way round. clip-script.ts
+      // writes narration to a measured 14.65 chars/sec target, but the model lands near it, not
+      // on it, and a fixed frame count would either cut Larry off or leave dead air.
+      videoKey = `media/clips/${entityType}-${entityId}.mp4`;
+      const videoBytes = await renderClip(
+        {
+          ...props,
+          durationSeconds: seconds,
+          audioSrc: `https://kilowatto.com/media/video/${audioKey}`,
+        } as any,
+        videoKey
+      );
+      if (!videoBytes) throw new Error("el render no devolvió bytes");
+    }
 
     const section = entityType === "columna" ? "columnas" : "a-fondo";
     const targetUrl = `https://kilowatto.com/${section}/${piece.slug}?utm_content=clip`;

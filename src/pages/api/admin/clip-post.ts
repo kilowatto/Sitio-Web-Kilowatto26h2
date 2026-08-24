@@ -14,6 +14,11 @@ export const POST: APIRoute = async ({ url }) => {
   const type = url.searchParams.get("type") === "columna" ? "columna" : "investigacion";
   const id = Number(url.searchParams.get("id") ?? 0);
   if (!id) return new Response("id requerido", { status: 400 });
-  const result = await runClipPost(type, id, url.searchParams.get("chart") ?? undefined);
+  const videoKey = url.searchParams.get("video");
+  const seconds = Number(url.searchParams.get("seconds"));
+  const result = await runClipPost(type, id, {
+    chartKey: url.searchParams.get("chart") ?? undefined,
+    preRendered: videoKey && seconds > 0 ? { videoKey, seconds } : undefined,
+  });
   return Response.json(result, { status: result.ok ? 200 : 500 });
 };
