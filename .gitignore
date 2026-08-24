@@ -33,3 +33,7 @@ pnpm-debug.log*
 # raw/unreviewed personal photo staging - never commit (unprocessed, potential PII, this repo is public)
 fotos temporales/
 fotos temporales 2/
+
+# Remotion: dependencias pesadas y la copia del navegador headless
+remotion/node_modules/
+remotion/out/

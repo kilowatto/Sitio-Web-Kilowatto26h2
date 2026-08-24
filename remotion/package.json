@@ -1,0 +1,16 @@
+{
+  "name": "kilowatto-remotion",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Vertical clips for X and LinkedIn. Separate workspace on purpose: Remotion requires React and the Astro site has none.",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.409",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.409"
+  }
+}
