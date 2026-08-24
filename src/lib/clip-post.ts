@@ -46,21 +46,37 @@ export interface ClipPostResult {
   error?: string;
 }
 
+/** Junto al MP4, con la misma clave más `.props.json`. */
+export function propsKeyFor(videoKey: string): string {
+  return `${videoKey}.props.json`;
+}
+
 async function renderClip(props: ClipProps, key: string): Promise<number> {
   const binding = (env as any).RENDER;
   if (!binding) throw new Error("falta el service binding RENDER (kilowatto-render)");
   const secret = String((env as any).RENDER_SECRET ?? "");
   if (!secret) throw new Error("falta el secreto RENDER_SECRET");
 
+  // narration y warnings son nuestros, no de la composición: mandarlos metería el guion
+  // completo en los props del video sin ninguna razón.
+  const inputProps = toInputProps(props);
+
   const res = await binding.fetch("https://render/render", {
     method: "POST",
     headers: { "content-type": "application/json", "x-render-secret": secret },
-    // narration and warnings are ours, not the composition's -- sending them would put the whole
-    // script into the video's input props for no reason.
-    body: JSON.stringify({ compositionId: "Clip", key, inputProps: toInputProps(props) }),
+    body: JSON.stringify({ compositionId: "Clip", key, inputProps }),
   });
   if (!res.ok) throw new Error(`render ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const body: any = await res.json();
+
+  // Los props exactos quedan junto al video. Sin esto, cualquier cambio de diseño en la
+  // composición obliga a reconstruir el guion con el modelo y a pagar otra vez la narración,
+  // que además saldría distinta -- y entonces no sería el mismo clip rediseñado sino otro.
+  // Se guarda después del render para que un render fallido no deje props huérfanos.
+  await env.MEDIA.put(propsKeyFor(key), JSON.stringify(inputProps, null, 2), {
+    httpMetadata: { contentType: "application/json" },
+  }).catch((err: any) => console.error("no se pudieron guardar los props:", err));
+
   return Number(body?.bytes ?? 0);
 }
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig, interpolate, spring, Audio, staticFile } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring, Audio } from "remotion";
 import { COLORS, FONTS } from "./theme";
 
 // A vertical data clip.
@@ -32,14 +32,6 @@ export interface ClipProps {
 
 const PAD = 90;
 
-function useFadeIn(startFrame: number, durationFrames = 12) {
-  const frame = useCurrentFrame();
-  return interpolate(frame - startFrame, [0, durationFrames], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-}
-
 const Bar: React.FC<{ item: BarItem; max: number; index: number; startFrame: number }> = ({
   item,
   max,
@@ -52,10 +44,14 @@ const Bar: React.FC<{ item: BarItem; max: number; index: number; startFrame: num
   const delay = startFrame + index * 6;
   const grow = spring({ frame: frame - delay, fps, config: { damping: 200 }, durationInFrames: 24 });
   const width = interpolate(grow, [0, 1], [0, (item.value / max) * 100]);
-  const opacity = interpolate(frame - delay, [0, 8], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 
+  // Etiqueta, cifra y riel están desde el cuadro 0; lo único que se anima es el llenado naranja.
+  // Antes la barra entera aparecía con un fundido, así que el primer cuadro -- la miniatura del
+  // feed -- no tenía nada, y al aparecer el bloque crecía y empujaba el título hacia arriba.
+  // Esto es además lo que hace que el reveal signifique algo: se ve el riel vacío y luego cuánto
+  // lo llena cada quién.
   return (
-    <div style={{ marginBottom: 40, opacity }}>
+    <div style={{ marginBottom: 40 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
         <span style={{ font: `500 38px/1.25 ${FONTS.body}`, color: COLORS.ink, maxWidth: "72%" }}>{item.label}</span>
         <span style={{ font: `700 44px/1 ${FONTS.mono}`, color: COLORS.rhino }}>{item.displayValue}</span>
@@ -68,17 +64,17 @@ const Bar: React.FC<{ item: BarItem; max: number; index: number; startFrame: num
 };
 
 export const Clip: React.FC<ClipProps> = ({ eyebrow, hook, chartTitle, items, sourceNote, cta, audioSrc }) => {
-  const { durationInFrames, fps } = useVideoConfig();
-  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
   const max = Math.max(...items.map((i) => i.value), 1);
 
-  const hookOpacity = useFadeIn(0);
+  // El gancho está entero desde el cuadro 0, sin fundido.
+  //
+  // Ese primer cuadro no es un cuadro cualquiera: es la miniatura que X y LinkedIn ponen en el
+  // feed, es lo que se ve antes de dar clic, y es lo que queda en pantalla si alguien pausa al
+  // principio. Con el fundido que había, todo eso era una pantalla color papel y nada más.
+  // Un fundido al arranque tampoco transiciona desde nada -- no hay contenido previo del cual
+  // venir. El movimiento lo pone la gráfica, que sigue animándose.
   const chartStart = Math.round(fps * 2.2);
-  const ctaStart = durationInFrames - Math.round(fps * 2.6);
-  const ctaOpacity = interpolate(frame - ctaStart, [0, 14], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
 
   return (
     // Three bands stacked with space-between rather than absolute offsets. The first version
@@ -97,7 +93,7 @@ export const Clip: React.FC<ClipProps> = ({ eyebrow, hook, chartTitle, items, so
     >
       {audioSrc ? <Audio src={audioSrc} /> : null}
 
-      <div style={{ opacity: hookOpacity }}>
+      <div>
         <div
           style={{
             font: `700 30px/1 ${FONTS.body}`,
@@ -112,25 +108,27 @@ export const Clip: React.FC<ClipProps> = ({ eyebrow, hook, chartTitle, items, so
         <div style={{ font: `700 92px/1.1 ${FONTS.display}`, color: COLORS.ink, letterSpacing: -1 }}>{hook}</div>
       </div>
 
-      {/* layout="none" is load-bearing. A Sequence wraps its children in an AbsoluteFill by
-          default, so without it this block ignores the flex column and the page padding and
-          lands on top of the hook in the corner -- which is exactly what happened the first
-          time this was made non-absolute. */}
-      <Sequence from={chartStart} layout="none">
-        <div>
-          <div style={{ font: `600 32px/1.35 ${FONTS.body}`, color: COLORS.soft, marginBottom: 40 }}>{chartTitle}</div>
-          {items.map((item, i) => (
-            <Bar key={item.label} item={item} max={max} index={i} startFrame={chartStart} />
-          ))}
-          {sourceNote ? (
-            <div style={{ font: `400 24px/1.4 ${FONTS.body}`, color: COLORS.soft, marginTop: 18 }}>{sourceNote}</div>
-          ) : null}
-        </div>
-      </Sequence>
+      {/* El título de la gráfica vive FUERA de la Sequence: se ve desde el cuadro 0 y es lo que
+          llena la banda de en medio en la miniatura. Las barras son lo que entra animado, que es
+          donde el movimiento sirve de algo. Con el título adentro, los primeros 2.2 segundos --
+          y la miniatura -- eran una franja de papel en blanco entre el gancho y el pie. */}
+      <div>
+        <div style={{ font: `600 32px/1.35 ${FONTS.body}`, color: COLORS.soft, marginBottom: 40 }}>{chartTitle}</div>
 
+        {items.map((item, i) => (
+          <Bar key={item.label} item={item} max={max} index={i} startFrame={chartStart} />
+        ))}
+        {sourceNote ? (
+          <div style={{ font: `400 24px/1.4 ${FONTS.body}`, color: COLORS.soft, marginTop: 18 }}>{sourceNote}</div>
+        ) : null}
+      </div>
+
+      {/* El pie está desde el cuadro 0 y no se va nunca. Aparecía sólo en los últimos 2.6
+          segundos, o sea que el destino -- lo único que se le pide al espectador -- no existía
+          durante el 95% del clip ni en la miniatura. También ancla la composición: sin él, el
+          primer cuadro son dos tercios de papel en blanco debajo del gancho. */}
       <div
         style={{
-          opacity: ctaOpacity,
           borderTop: `2px solid ${COLORS.line}`,
           paddingTop: 30,
           display: "flex",
