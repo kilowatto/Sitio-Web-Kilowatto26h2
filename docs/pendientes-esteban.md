@@ -94,3 +94,18 @@ cd render-worker
 npx wrangler secret put RENDER_SECRET     # el mismo valor que en el Worker del sitio
 npx wrangler deploy                        # construye y sube la imagen sola
 ```
+
+
+## El primer clip ya está en la cola esperándote
+
+Posts **889** (X) y **890** (LinkedIn) en `/admin/social`, los dos en `pending_approval` con el
+video de 57.8 s adjunto. Ahí puedes verlo antes de decidir: la tarjeta ahora reproduce el clip.
+
+Dos cosas que vas a notar y que no son fallas del video:
+
+- **El texto que lo acompaña es flojo.** "Descubre qué hay detrás de las promesas de las VPN" es
+  exactamente el tipo de frase que pediste evitar. El video ya cuenta el dato; el texto debería
+  dar la razón para ir a leer. Si rechazas los dos con un comentario, el sistema aprende de eso.
+- **El de LinkedIn quedó programado para el 9 de diciembre.** No es un error de fecha: hay 247
+  posts en cola y LinkedIn admite uno al día, así que el calendario ya está lleno hasta allá. Si
+  quieres que los clips se salten la fila, dímelo y les pongo prioridad.
