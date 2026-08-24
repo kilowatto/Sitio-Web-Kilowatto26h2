@@ -152,18 +152,10 @@ config.workflows = [
 // native binary -- so rendering lives in a container, and a container needs a Worker of its
 // own. Keeping it out of this Worker means a bad image or a runaway render cannot take
 // kilowatto.com with it.
-//
-// FLIP THIS TO true the first time render-worker/ is deployed successfully.
-//
-// It is off because a service binding to a Worker that does not exist yet can be rejected at
-// deploy time, and that would block every deploy of the SITE over a feature the site does not
-// depend on. kilowatto-render cannot be deployed today: its container image needs a `docker
-// pull` that Esteban's Docker cannot currently make (see docs/pendientes-esteban.md).
-//
-// Nothing else needs to change when it flips. clip-sweeper.ts already checks for the binding and
-// reports "sin servicio de render" while it is absent, so the clip pipeline simply starts
-// working.
-const RENDER_SERVICE_DEPLOYED = false;
+// Guards the service binding to kilowatto-render: a binding to a Worker that does not exist can
+// be rejected at deploy time, and that would block every deploy of the SITE over a feature the
+// site does not depend on. Turned on 2026-08-24, when render-worker deployed for the first time.
+const RENDER_SERVICE_DEPLOYED = true;
 
 config.services = [
   { binding: "SELF", service: config.name },

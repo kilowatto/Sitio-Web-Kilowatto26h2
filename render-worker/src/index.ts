@@ -1,12 +1,12 @@
 import { Container, getContainer } from "@cloudflare/containers";
 
 interface Env {
-  RENDER_CONTAINER: DurableObjectNamespace<Container>;
+  RENDER_CONTAINER: DurableObjectNamespace<RenderContainer>;
   MEDIA: R2Bucket;
   RENDER_SECRET: string;
 }
 
-export class RenderContainer extends Container {
+export class RenderContainer extends Container<Env> {
   defaultPort = 8080;
 
   // 30 seconds, not the 10 minutes the demo uses. Containers bill by GiB-hour while awake, and
@@ -15,7 +15,13 @@ export class RenderContainer extends Container {
   // against a render that takes minutes.
   sleepAfter = "30s";
 
-  envVars = { RENDER_SECRET: "" };
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    // The container checks the secret too. It is only reachable through this Worker today, but
+    // "only reachable through" is a claim about topology and topologies change. Set here rather
+    // than as a class field because a field initializer cannot see env.
+    this.envVars = { RENDER_SECRET: env.RENDER_SECRET ?? "" };
+  }
 
   onError(error: unknown): void {
     console.error("render container error:", error);
