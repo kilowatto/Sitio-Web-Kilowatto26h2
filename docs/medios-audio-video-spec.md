@@ -3,7 +3,7 @@
 > Estado vivo del proyecto. Plan original y las 26 decisiones: acordadas con Esteban el
 > 2026-08-21/22. Este archivo es la fuente de verdad — actualízalo al cerrar cada fase.
 >
-> Última actualización: 2026-08-23 (podcast conversado en producción)
+> Última actualización: 2026-08-23 (podcast publicado, telemetría de descargas, monitor)
 
 ## Por qué
 
@@ -26,8 +26,18 @@ Referencia visual: [este video](https://www.youtube.com/watch?v=0swxMbThNug) (Lo
 | 3 · Clips cortos 60-90s | ⏸️ **En pausa** | Decisión de Esteban 2026-08-23: las investigaciones se quedan en audio |
 | 4 · Videocolumna con Larry | ⏳ Riesgo resuelto, sin construir | Cara final, character bible, LoRA, pipeline |
 
+### Decidido: el audio es solo español e inglés
+
+Esteban lo confirmó el 2026-08-23. **No es un pendiente, es una decisión**: los otros 10 locales
+no llevan audio por ahora, aunque las traducciones estén completas y el pipeline funcione.
+
+La razón para no hacerlo es que cuesta ~$220 y no había ninguna evidencia de demanda. Eso ya
+cambió: desde hoy se cuentan las descargas reales por idioma, así que la próxima vez que se
+plantee habrá números en vez de intuición. Si se revierte, el backfill son dos comandos — el
+barrido de `audio-sweeper.ts` toma los locales de su constante `LOCALES` y nada más.
+
 ### Diferido a propósito
-Los otros 10 locales, GIF animado.
+GIF animado.
 
 ### Podcast
 
@@ -46,6 +56,77 @@ Dos cosas que un validador marca en rojo y conviene entender antes de "arreglarl
   episodio más reciente, no de `now()`, o cambiaría en cada petición.
 
 ---
+
+## Publicación en directorios
+
+| | Spotify | Apple |
+|---|---|---|
+| es-MX · Al fondo con Kilowatto | en vivo | `id6804514606` |
+| en · Deep Dive with Kilowatto | en vivo | `id6804533284` |
+
+Enlaces y badges en `src/lib/podcast-links.ts` + `src/components/PodcastLinks.astro`.
+
+**Trampas del alta, todas verificadas en vivo:**
+
+1. **`itunes:email` no está en la lista de tags obligatorios de Apple pero es indispensable.**
+   Spotify manda ahí el código de 8 dígitos y no hay otra forma de probar la propiedad de un feed
+   autohospedado. Sin él, todos los validadores pasan y **la alta falla días después** con un
+   mensaje que no dice por qué.
+2. **`--` dentro de un comentario XML tumba el feed entero.** Pasó en producción al agregar
+   `itunes:owner`. `xmlComment()` lo neutraliza.
+3. **La portada se cachea por URL.** Reemplazar la imagen en R2 es invisible para Apple y Spotify;
+   solo `?v=N` en `itunes:image` fuerza la relectura. Súbelo en cada cambio de portada.
+4. **Los guid son la identidad permanente de un episodio.** Al agregar el tipo conversado pasaron
+   a llevar sufijo, lo que habría republicado los 23 episodios como nuevos. El sufijo va solo en
+   la conversación.
+5. **URLs de Apple en forma corta**, `podcasts.apple.com/podcast/id{N}`. La que Apple entrega
+   lleva el nombre como slug y ese slug se queda viejo al renombrar.
+6. **Un error genérico de Apple al añadir el RSS suele ser de Apple.** "Vuelve a intentarlo más
+   tarde" no es un problema del feed; cuando el feed está mal, Apple dice cuál tag falta.
+
+**Abierto:** Apple mostró 9 de 26 episodios durante horas tras publicar. Si persiste, es ticket
+con soporte — desde aquí los 26 responden 206 a Range.
+
+## Descargas y monitor
+
+**Ninguna plataforma da estadísticas de escucha por API.** Apple documenta que su API de Podcasts
+Connect no da acceso a analíticas; la de Spotify exige cuenta de equipo con permiso de Analytics
+Reader y se reporta devolviendo vacío. Se descartaron las dos.
+
+Se cuentan en nuestro servidor, que es como mide la industria: el conteo IAB es conteo de
+descargas del servidor, y como el audio lo servimos nosotros cubre cualquier app, incluidas
+aquellas donde nunca nos dimos de alta.
+
+| Qué | Dónde |
+|---|---|
+| Escritura por petición | `src/lib/podcast-download-log.ts`, desde `media/video/[...key].ts` |
+| Consultas con deduplicado | `src/lib/podcast-downloads.ts` |
+| Monitor de feeds y directorios | `src/lib/podcast-monitor.ts` → `/api/admin/podcast-check` |
+| Ambas vistas | `src/pages/admin/audio.astro` |
+| Dataset | `kilowatto_podcast_downloads` (binding `DOWNLOAD_ANALYTICS`) |
+
+**La regla de conteo es toda la función.** Una escucha son decenas de peticiones parciales:
+contarlas crudas infla por un orden de magnitud, contar oyentes únicos subestima a quien escucha
+dos veces. Una descarga = un oyente que se llevó ≥1 minuto de audio (1,440,000 bytes a 192 kbps)
+de una pieza en un día. Eso además excluye los pocos KB que cada directorio pide en cada sondeo
+para leer las etiquetas ID3. Medido: 7 peticiones crudas → 3 descargas.
+
+Al oyente lo identifica un hash de IP + user-agent + **el día** + secreto. La regla necesita
+reconocer peticiones repetidas; no necesita una identidad, y salar con la fecha impide ligarlas
+entre días.
+
+### Lo que el monitor enseñó al primer intento
+
+1. **Un `fetch()` a nuestro propio hostname desde el isolate devuelve 522.** Sale al edge y
+   regresa. Es la misma trampa por la que existe `callSelf`. Ahora hay un service binding `SELF`,
+   declarado post-build igual que los Workflows porque en `wrangler.jsonc` rompe `astro dev`.
+2. **Apple responde 403 a los rangos de IP de Cloudflare.** El lookup de iTunes funciona desde una
+   laptop y nunca desde el Worker. Esa comprobación es *aviso*, no falla: un semáforo
+   permanentemente rojo es un semáforo que nadie lee.
+3. **Un validador de feeds certifica transcripciones rotas.** Podbase dio PSP-1 con las 26 URLs de
+   `podcast:transcript` del feed en inglés devolviendo 404, porque comprueba que el tag **esté**,
+   no que la URL **resuelva**. Seguir cada enlace es la única forma de saberlo, y es la razón
+   principal de que el monitor exista.
 
 ## Podcast conversado — "Al fondo con Kilowatto"
 
