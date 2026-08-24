@@ -87,7 +87,12 @@ Responde SOLO un JSON:
   const maxTokens = platform === "x" ? Math.min(8000, 180 * count) : Math.min(8000, 340 * count);
   const generated = await callAI(prompt, maxTokens);
   const posts: { content: string; hashtags?: string[] }[] = generated?.posts ?? [];
-  return posts.filter((p) => !!p?.content);
+
+  // Sliced to `count`, because the model treats "EXACTAMENTE N" as a suggestion: a backfill run
+  // asking for 2 per column returned between 1 and 4 (2026-08-23). Every extra post costs an
+  // image generation and a queue slot, so the cap has to be enforced here rather than requested
+  // in the prompt.
+  return posts.filter((p) => !!p?.content).slice(0, count);
 }
 
 export async function runGeneratePosts(investigacionId: number, count = 30, styleOverride?: ImageStyle[]) {
