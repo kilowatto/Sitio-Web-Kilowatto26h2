@@ -60,41 +60,23 @@ marca, no de ingeniería.
 
 Instalaste Docker 29.7.2, así que el bloque D no está bloqueado.
 
-## Docker en tu Mac no llega a Docker Hub (bloquea el render en producción)
+## El render en producción ya existe
 
-Todo el servicio de render está escrito y verificado localmente: `remotion/Dockerfile`,
-`remotion/src/server.ts` (el servidor HTTP que corre dentro del contenedor) y `render-worker/`
-(el Worker que lo maneja). El servidor produjo un MP4 **byte por byte idéntico** al que genera
-`npx remotion render` — mismo SHA-256 — así que el código está bien.
+Se resolvió solo: el `docker pull` que llevaba horas agotando el tiempo pasó sin cambiarle nada.
+La imagen se construyó, se subió, y `kilowatto-render` está desplegado con su contenedor.
 
-Lo único que falta es construir y subir la imagen, y ahí se atora:
+Verificado antes de subirla: el contenedor renderiza el clip de VPN a h264 1080×1920 con AAC en
+57.81 s, y dos corridas de los mismos props dentro del contenedor salieron idénticas byte por
+byte. Contra el render de macOS los bytes difieren (3.22 MB contra 3.29 MB) — otra plataforma,
+otra compilación de libx264. El determinismo se sostiene dentro de una misma plataforma, que es
+lo que de verdad necesita un re-render.
 
-```
-#2 [internal] load metadata for docker.io/library/node:24-bookworm-slim
-#2 ERROR: DeadlineExceeded: context deadline exceeded
-```
+El barrido de clips corre cada seis horas, hace **uno** por corrida y respeta el límite de cinco
+por semana que pediste. Nada se publica: todo cae en `pending_approval`.
 
-El diagnóstico: desde la terminal, `curl https://registry-1.docker.io/v2/` responde en 0.3 s. El
-**daemon** de Docker no. Docker Desktop manda todo su tráfico por su proxy interno
-(`http.docker.internal:3128`) y esa ruta no está saliendo. No hay proxy de sistema ni variable de
-entorno que lo explique, y reiniciar Docker Desktop no lo arregló.
-
-Qué probar, en orden:
-
-1. Docker Desktop → Settings → Resources → Network: cambia el modo a **"Manual"** con DNS
-   `8.8.8.8`, o activa/desactiva "Use kernel networking for UDP".
-2. Settings → Resources → Proxies: deja **"Use system proxy settings"** apagado y sin proxy manual.
-3. Si estás en una VPN, apágala y prueba `docker pull node:24-bookworm-slim`.
-4. Como último recurso, Troubleshoot → **Reset to factory defaults**.
-
-Cuando `docker pull node:24-bookworm-slim` funcione, avísame o corre tú:
-
-```
-cd render-worker
-npx wrangler secret put RENDER_SECRET     # el mismo valor que en el Worker del sitio
-npx wrangler deploy                        # construye y sube la imagen sola
-```
-
+Si alguna vez vuelve a atorarse la construcción en "load metadata", el primer interruptor que
+apagaría es **Settings → General → "Use containerd for pulling and storing images"**, que lo
+tienes encendido.
 
 ## El primer clip ya está en la cola esperándote
 
