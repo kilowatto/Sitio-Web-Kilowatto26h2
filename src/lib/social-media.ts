@@ -54,21 +54,39 @@ export async function readMedia(env: any, key: string): Promise<{ bytes: Uint8Ar
 // X
 // ---------------------------------------------------------------------------------------------
 
-const X_UPLOAD_URL = "https://api.x.com/2/media/upload";
+const X_UPLOAD_BASE = "https://api.x.com/2/media/upload";
 
-// OAuth 1.0a signs the query string but NOT a multipart body -- so every command below travels in
-// the body and the signature covers the bare URL. Putting the same parameters in the query
-// instead would need them folded into the signature base string, which is exactly the class of
-// mismatch that produces an opaque 401 with no indication of which parameter was wrong.
-async function xUploadFetch(creds: OAuth1Credentials, form: FormData): Promise<any> {
-  const authorization = await buildOAuth1Header("POST", X_UPLOAD_URL, creds);
-  const res = await fetch(X_UPLOAD_URL, { method: "POST", headers: { authorization }, body: form });
+// v2 tiene rutas propias por paso, no un parámetro `command` en una sola ruta.
+//
+// La primera versión mandaba command=INIT en un multipart a /2/media/upload, que es la forma
+// heredada de v1.1 y la que sigue describiendo la guía de "chunked media upload". La API viva
+// responde a eso con 400 "Missing media field in JSON": esa ruta sin sufijo es la subida de un
+// solo tiro y espera JSON. Los pasos por trozos viven en /initialize, /{id}/append y
+// /{id}/finalize.
+//
+// initialize y finalize van en JSON; append va en multipart porque lleva bytes crudos. OAuth 1.0a
+// no firma el cuerpo en ninguno de los dos casos -- ni JSON ni multipart entran en la base de la
+// firma -- así que la firma cubre sólo la URL.
+async function xUploadJson(creds: OAuth1Credentials, url: string, body: unknown): Promise<any> {
+  const authorization = await buildOAuth1Header("POST", url, creds);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { authorization, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (!res.ok) throw new Error(`X media ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  return res.json();
+  return res.status === 204 ? {} : res.json();
+}
+
+async function xUploadForm(creds: OAuth1Credentials, url: string, form: FormData): Promise<any> {
+  const authorization = await buildOAuth1Header("POST", url, creds);
+  const res = await fetch(url, { method: "POST", headers: { authorization }, body: form });
+  if (!res.ok) throw new Error(`X media ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  return res.status === 204 ? {} : res.json();
 }
 
 async function xUploadStatus(creds: OAuth1Credentials, mediaId: string): Promise<any> {
-  const url = `${X_UPLOAD_URL}?command=STATUS&media_id=${encodeURIComponent(mediaId)}`;
+  const url = `${X_UPLOAD_BASE}?command=STATUS&media_id=${encodeURIComponent(mediaId)}`;
   const authorization = await buildOAuth1Header("GET", url, creds);
   const res = await fetch(url, { headers: { authorization } });
   if (!res.ok) throw new Error(`X media STATUS ${res.status}: ${(await res.text()).slice(0, 300)}`);
@@ -82,31 +100,25 @@ export async function uploadMediaToX(
 ): Promise<MediaRef | null> {
   const isVideo = contentType.startsWith("video/");
   try {
-    const init = new FormData();
-    init.set("command", "INIT");
-    init.set("media_type", contentType);
-    init.set("total_bytes", String(bytes.byteLength));
-    init.set("media_category", isVideo ? "tweet_video" : "tweet_image");
-    const initRes = await xUploadFetch(creds, init);
-    // v2 nests the id under `data`; v1.1 returned it flat. Accept both rather than break on a
-    // response-shape change we would only discover in production.
+    const initRes = await xUploadJson(creds, `${X_UPLOAD_BASE}/initialize`, {
+      media_type: contentType,
+      total_bytes: bytes.byteLength,
+      media_category: isVideo ? "tweet_video" : "tweet_image",
+    });
+    // v2 anida el id bajo `data`; v1.1 lo devolvía plano. Se aceptan ambas formas en vez de
+    // romperse ante un cambio de respuesta que sólo se descubriría en producción.
     const mediaId = String(initRes?.data?.id ?? initRes?.media_id_string ?? initRes?.id ?? "");
-    if (!mediaId) throw new Error(`INIT no devolvió media_id: ${JSON.stringify(initRes).slice(0, 200)}`);
+    if (!mediaId) throw new Error(`initialize no devolvió media_id: ${JSON.stringify(initRes).slice(0, 200)}`);
 
     for (let offset = 0, segment = 0; offset < bytes.byteLength; offset += CHUNK_BYTES, segment++) {
       const chunk = bytes.subarray(offset, Math.min(offset + CHUNK_BYTES, bytes.byteLength));
       const append = new FormData();
-      append.set("command", "APPEND");
-      append.set("media_id", mediaId);
       append.set("segment_index", String(segment));
       append.set("media", new Blob([chunk], { type: "application/octet-stream" }), "chunk");
-      await xUploadFetch(creds, append);
+      await xUploadForm(creds, `${X_UPLOAD_BASE}/${mediaId}/append`, append);
     }
 
-    const finalize = new FormData();
-    finalize.set("command", "FINALIZE");
-    finalize.set("media_id", mediaId);
-    const finalizeRes = await xUploadFetch(creds, finalize);
+    const finalizeRes = await xUploadJson(creds, `${X_UPLOAD_BASE}/${mediaId}/finalize`, {});
 
     // Video is transcoded asynchronously and a post referencing a still-processing media_id is
     // rejected. Images finalize with no processing_info at all, so this loop simply never runs
