@@ -14,6 +14,11 @@ let topics: any[] = [];
 let paused = false;
 let fixedHashtags = "";
 let totalDraftsCount = 0;
+
+// Filtro por tipo. Sin esto, encontrar un post concreto entre doscientos pendientes es
+// desplazarse a ojo -- que es exactamente lo que pasó con el primer clip.
+const kindFilter = Astro.url.searchParams.get("kind") ?? "";
+let kindCounts: any[] = [];
 let newsSources: any[] = [];
 let newsTrust: any[] = [];
 let newsAutopilotPaused = false;
@@ -34,10 +39,17 @@ if (authorized && env?.DB) {
     newsAutopilotPauseState,
     autoPublishedRes,
     expiredRes,
+    kindCountsRes,
   ] = await Promise.all([
-    env.DB.prepare(
-      `SELECT * FROM brand_posts WHERE status = 'pending_approval' ORDER BY variant_group, created_at`
-    ).all(),
+    kindFilter
+      ? env.DB.prepare(
+          `SELECT * FROM brand_posts WHERE status = 'pending_approval' AND kind = ? ORDER BY variant_group, created_at`
+        )
+          .bind(kindFilter)
+          .all()
+      : env.DB.prepare(
+          `SELECT * FROM brand_posts WHERE status = 'pending_approval' ORDER BY variant_group, created_at`
+        ).all(),
     env.DB.prepare(
       `SELECT * FROM brand_posts WHERE status = 'posted' ORDER BY posted_at DESC LIMIT 15`
     ).all(),
@@ -48,6 +60,9 @@ if (authorized && env?.DB) {
     env.DB.prepare(`SELECT * FROM brand_topics ORDER BY sort_order`).all(),
     env.KILOWATTO_KV.get("brand_fixed_hashtags"),
     env.DB.prepare(`SELECT COUNT(*) AS n FROM brand_posts WHERE status = 'pending_approval'`).first(),
+    env.DB.prepare(
+      `SELECT kind, COUNT(*) AS n FROM brand_posts WHERE status = 'pending_approval' GROUP BY kind ORDER BY n DESC`
+    ).all(),
     env.DB.prepare(`SELECT * FROM news_sources ORDER BY trusted DESC, name`).all(),
     env.DB.prepare(`SELECT * FROM news_reaction_trust`).all(),
     env.KILOWATTO_KV.get("news_autopilot_paused"),
@@ -69,6 +84,7 @@ if (authorized && env?.DB) {
   newsAutopilotPaused = newsAutopilotPauseState === "true";
   recentAutoPublished = autoPublishedRes?.results ?? [];
   recentExpired = expiredRes?.results ?? [];
+  kindCounts = (kindCountsRes?.results ?? []) as any[];
 
   const rows = pending?.results ?? [];
   const groups = new Map<string, any[]>();
@@ -81,6 +97,17 @@ if (authorized && env?.DB) {
 }
 
 const trustByPlatform: Record<string, any> = Object.fromEntries(newsTrust.map((t: any) => [t.platform, t]));
+
+const KIND_LABELS: Record<string, string> = {
+  idea: "💡 Ideas",
+  news_reaction: "📰 Noticias",
+  news_reshare: "🔁 Reshares",
+  investigacion_highlight: "🔎 A fondo",
+  columna_highlight: "✍️ Columnas",
+  audio_highlight: "🎧 Audio",
+  subscription_cta: "📣 Suscripción",
+  clip: "🎬 Clips",
+};
 
 const IMAGE_STYLE_LABELS: Record<string, string> = {
   illustration: "🎨 Ilustración",
@@ -198,6 +225,19 @@ function formatCountdown(expiresAt: string | null): string | null {
           <h1>Pendientes de aprobar <span class="count-badge">{pendingGroups.length}</span></h1>
           <p class="hint">Posts de "idea" — nunca se publican solos. Reshares de prensa se auto-publican y solo aparecen en el historial.</p>
 
+          <nav class="kind-filter">
+            <a href="/admin/social" class={kindFilter ? "" : "is-on"}>Todos <span>{totalDraftsCount}</span></a>
+            {kindCounts.map((k: any) => (
+              <a href={`/admin/social?kind=${k.kind}`} class={kindFilter === k.kind ? "is-on" : ""}>
+                {KIND_LABELS[k.kind] ?? k.kind} <span>{k.n}</span>
+              </a>
+            ))}
+          </nav>
+          <p class="hint">
+            ¿Buscas uno en concreto? Su número de post es un enlace directo:
+            <code>/admin/social#post-889</code> salta a él y lo resalta.
+          </p>
+
           {pendingGroups.length === 0 && (
             <div class="empty-state">
               <p>No hay borradores esperando aprobación ahora mismo.</p>
@@ -216,12 +256,14 @@ function formatCountdown(expiresAt: string | null): string | null {
               <div class="group">
                 {g.items.length > 1 && <p class="group-label">Variantes A/B — misma imagen, distinto gancho</p>}
                 {g.items.map((p: any) => (
-                  <div class={`draft ${p.rejection_reason ? "draft--flagged" : ""}`} data-id={p.id}>
+                  <div id={`post-${p.id}`} class={`draft ${p.rejection_reason ? "draft--flagged" : ""}`} data-id={p.id}>
                     <p class="meta">
+                      <a class="post-id" href={`/admin/social#post-${p.id}`} title="Enlace directo a este post">#{p.id}</a>
                       <span class="platform-badge">{p.platform.toUpperCase()}</span>
                       <span class="variant-badge">{p.variant_style ?? "único"}</span>
                       {p.kind === "news_reaction" && <span class="news-badge">📰 Noticia</span>}
                       {p.kind === "investigacion_highlight" && <span class="news-badge">🔎 A Fondo</span>}
+                      {p.kind === "clip" && <span class="news-badge">🎬 Clip</span>}
                       {p.kind === "news_reaction" && p.expires_at && (
                         <span class="expiry-badge">⏱️ {formatCountdown(p.expires_at)}</span>
                       )}
@@ -1580,6 +1622,26 @@ function formatCountdown(expiresAt: string | null): string | null {
   }
   .warn { color: #b91c1c; font-size: 0.82rem; margin: 0 0 0.5rem; }
 
+  .kind-filter { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0 0 0.6rem; }
+  .kind-filter a {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    font-size: 0.72rem; text-decoration: none;
+    padding: 0.25rem 0.55rem; border-radius: 999px;
+    border: 1px solid var(--admin-border); color: var(--admin-text-soft);
+  }
+  .kind-filter a span { font-variant-numeric: tabular-nums; opacity: 0.65; }
+  .kind-filter a.is-on { border-color: var(--rhino); color: var(--rhino); font-weight: 600; }
+  .post-id {
+    font-size: 0.7rem; font-variant-numeric: tabular-nums;
+    color: var(--admin-text-soft); text-decoration: none; margin-right: 0.15rem;
+  }
+  /* El resaltado al llegar por #post-889: sin esto el salto deja el post en pantalla pero
+     indistinguible de sus vecinos, que es justo el problema que esto resuelve. */
+  .draft:target {
+    outline: 2px solid var(--rhino);
+    outline-offset: 3px;
+    scroll-margin-top: 1rem;
+  }
   .video-block { margin-bottom: 0.6rem; }
   .draft-video {
     width: 100%;
