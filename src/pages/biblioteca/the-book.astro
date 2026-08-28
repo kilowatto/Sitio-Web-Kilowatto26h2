@@ -1,0 +1,655 @@
+---
+// Secret showcase page for "The Book" (Hungry Minds) -- unlike the Harry Potter/Riordanverse/
+// Arrakis themed pages, there is NO portal card pointing here: the only way in is clicking the
+// book's own cover thumbnail in the normal /biblioteca list (see BookList.astro's `b.id === 91`
+// branch). Esteban asked for this to be secret, and for a visual language that shares NOTHING
+// with the other three pages -- so instead of a themed "world" (magic school, myth, desert),
+// this is staged as a physical moment: opening the book itself in a dark room, one lamplit page
+// at a time. Real photos of Esteban's own copy throughout (rotated/cleaned in this same
+// session), not stock art -- see migrations/0075 and 0076 for the researched facts this draws on.
+import Site from "../../layouts/Site.astro";
+import { env } from "cloudflare:workers";
+
+interface BookRow {
+  id: number;
+  title: string;
+  cover_r2_key: string | null;
+  price_current: number | null;
+  price_paid: number | null;
+}
+
+let book: BookRow | null = null;
+if (env?.DB) {
+  book = await env.DB.prepare(
+    `SELECT id, title, cover_r2_key, price_current, price_paid FROM books WHERE id = 91`
+  ).first<BookRow>();
+}
+
+const ILLUS = "biblioteca/the-book-illustrations";
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Book",
+  name: "The Book",
+  alternateName: "The Book: La Guía Definitiva para Reconstruir la Civilización",
+  author: { "@type": "Organization", name: "Hungry Minds", url: "https://hungryminds.com" },
+  illustrator: { "@type": "Person", name: "Lev Kaplan" },
+  publisher: { "@type": "Organization", name: "Duomo Ediciones" },
+  isbn: "9791387574079",
+  numberOfPages: 410,
+  bookFormat: "https://schema.org/Hardcover",
+  inLanguage: ["es", "en", "de", "it", "fr", "ja"],
+  datePublished: "2025-11-03",
+  image: book?.cover_r2_key ? `https://kilowatto.com/media/${book.cover_r2_key}?w=1200` : undefined,
+  description:
+    "Enciclopedia ilustrada de 410 páginas y más de 700 ilustraciones originales que enseña, capítulo a capítulo, cómo reconstruir la civilización desde cero. Nacida de una campaña de Kickstarter/Indiegogo en 2020 del colectivo Hungry Minds, con Lev Kaplan como ilustrador principal.",
+  mainEntityOfPage: "https://kilowatto.com/biblioteca/the-book",
+};
+---
+
+<Site
+  title="Un libro para reconstruir la civilización — Esteban Rey"
+  description="Por qué Esteban Rey tiene The Book (Hungry Minds) en su biblioteca: su historia, su ilustrador, y las páginas reales del ejemplar."
+  active="/biblioteca"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+  <div class="tb-gate" id="tb-gate">
+    <svg viewBox="0 0 24 24" width="52" height="52" aria-hidden="true" class="tb-gate__icon">
+      <rect x="6" y="2" width="12" height="20" rx="2" fill="none" stroke="currentColor" stroke-width="1.4" />
+      <line x1="10" y1="19" x2="14" y2="19" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+    </svg>
+    <p class="tb-gate__text">Gira tu teléfono.<br />Este libro se lee apaisado.</p>
+  </div>
+
+  <div class="tb-page" id="tb-page">
+    <canvas id="tb-motes" class="tb-motes" aria-hidden="true"></canvas>
+    <div class="tb-lamp" id="tb-lamp" aria-hidden="true"></div>
+
+    <section class="tb-hero">
+      {book?.cover_r2_key && (
+        <img
+          src={`/media/${book.cover_r2_key}?w=900`}
+          srcset={`/media/${book.cover_r2_key}?w=600 600w, /media/${book.cover_r2_key}?w=900 900w`}
+          sizes="(max-width: 700px) 60vw, 26rem"
+          alt="Portada de The Book, de Hungry Minds"
+          class="tb-hero__cover"
+          data-plate
+          loading="eager"
+        />
+      )}
+      <div class="tb-hero__text">
+        <p class="tb-eyebrow">Biblioteca · fuera de catálogo</p>
+        <h1>Cómo reconstruir<br />la civilización</h1>
+        <p class="tb-hero__sub">
+          410 páginas, más de 700 ilustraciones originales, y un plan completo — del fuego a la aviación — por si
+          algún día hay que empezar de nuevo. Esto es lo que hay dentro del ejemplar de Esteban.
+        </p>
+        <p class="tb-hero__scroll">Desliza hacia abajo ↓</p>
+      </div>
+    </section>
+
+    <section class="tb-block">
+      <div class="tb-block__text">
+        <p class="tb-eyebrow">Origen</p>
+        <h2>Nació de una campaña, no de una editorial</h2>
+        <p>
+          En diciembre de 2020, tres personas con una idea rara —un libro grueso, ilustrado a mano, que enseñara a
+          reconstruir la civilización desde el fuego hasta la aviación— la publicaron en Kickstarter e Indiegogo. No
+          tenían editorial. Recaudaron más de <strong>3 millones de dólares</strong>, uno de los proyectos
+          editoriales más financiados en la historia de Kickstarter. El colectivo se llama <strong>Hungry Minds</strong>,
+          fundado por Vsevolod "Seva" Batichev y Timur Kadyrov.
+        </p>
+      </div>
+      <img
+        src={`/media/${ILLUS}/postage-stamps.webp?w=900`}
+        srcset={`/media/${ILLUS}/postage-stamps.webp?w=600 600w, /media/${ILLUS}/postage-stamps.webp?w=900 900w`}
+        sizes="(max-width: 700px) 80vw, 30rem"
+        alt="Estampillas de fantasía en el empaque original, con el sello EST. 2020"
+        class="tb-block__img"
+        data-plate
+        loading="lazy"
+      />
+    </section>
+
+    <section class="tb-block tb-block--reverse">
+      <div class="tb-block__text">
+        <p class="tb-eyebrow">El ilustrador</p>
+        <h2>Una mano, miles de líneas</h2>
+        <p>
+          <strong>Lev Kaplan</strong>, nacido en Ucrania en 1967 y radicado hoy en Stuttgart, lideró al equipo de
+          artistas y dibujó buena parte de las piezas él mismo: lápiz, luego plumilla con tinta acrílica, acuarela y
+          gouache, sobre papel de algodón — entre uno y cuatro días por ilustración. Sus referencias declaradas:
+          Brueghel el Viejo, Durero, Klimt, Norman Rockwell. El equipo escondió a propósito guiños visuales por todo
+          el libro, premiando a quien mira dos veces.
+        </p>
+      </div>
+      <div class="tb-block__pair">
+        <img
+          src={`/media/${ILLUS}/astrolabe-tools.webp?w=700`}
+          srcset={`/media/${ILLUS}/astrolabe-tools.webp?w=500 500w, /media/${ILLUS}/astrolabe-tools.webp?w=700 700w`}
+          sizes="(max-width: 700px) 44vw, 15rem"
+          alt="Medallón circular con herramientas de precisión, estilo astrolabio"
+          class="tb-block__img tb-block__img--pair"
+          data-plate
+          loading="lazy"
+        />
+        <img
+          src={`/media/${ILLUS}/sword-torch-handles.webp?w=700`}
+          srcset={`/media/${ILLUS}/sword-torch-handles.webp?w=500 500w, /media/${ILLUS}/sword-torch-handles.webp?w=700 700w`}
+          sizes="(max-width: 700px) 44vw, 15rem"
+          alt="Detalle ornamentado de una espada y una antorcha"
+          class="tb-block__img tb-block__img--pair"
+          data-plate
+          loading="lazy"
+        />
+      </div>
+    </section>
+
+    <section class="tb-gallery">
+      <div class="container">
+        <p class="tb-eyebrow">Página por página</p>
+        <h2>Un vistazo adentro del ejemplar de Esteban</h2>
+      </div>
+
+      <div class="tb-plate-group">
+        <p class="tb-plate-group__label">Oficios y herramientas</p>
+        <figure class="tb-plate">
+          <img src={`/media/${ILLUS}/welding-torch.webp?w=1100`} srcset={`/media/${ILLUS}/welding-torch.webp?w=700 700w, /media/${ILLUS}/welding-torch.webp?w=1100 1100w`} sizes="(max-width: 700px) 90vw, 40rem" alt="Soldador con máscara y antorcha de soldadura por inducción" class="tb-plate__img" data-plate loading="lazy" />
+          <figcaption>Soldadura por inducción — el capítulo de oficios no se anda con rodeos.</figcaption>
+        </figure>
+      </div>
+
+      <div class="tb-plate-group">
+        <p class="tb-plate-group__label">Mecanismos que de verdad funcionarían</p>
+        <figure class="tb-plate">
+          <img src={`/media/${ILLUS}/bicycle-mechanism.webp?w=1100`} srcset={`/media/${ILLUS}/bicycle-mechanism.webp?w=700 700w, /media/${ILLUS}/bicycle-mechanism.webp?w=1100 1100w`} sizes="(max-width: 700px) 90vw, 40rem" alt="Diagrama numerado de la transmisión de una bicicleta" class="tb-plate__img" data-plate loading="lazy" />
+          <figcaption>Cada pieza de la transmisión, numerada como un plano de patente.</figcaption>
+        </figure>
+        <figure class="tb-plate">
+          <img src={`/media/${ILLUS}/bicycle-full.webp?w=1100`} srcset={`/media/${ILLUS}/bicycle-full.webp?w=700 700w, /media/${ILLUS}/bicycle-full.webp?w=1100 1100w`} sizes="(max-width: 700px) 90vw, 40rem" alt="Bicicleta completa de cuadro alado, vista de perfil" class="tb-plate__img" data-plate loading="lazy" />
+          <figcaption>La misma bicicleta, completa — el marco alado es puro Kaplan.</figcaption>
+        </figure>
+        <figure class="tb-plate">
+          <img src={`/media/${ILLUS}/combustion-engine.webp?w=1100`} srcset={`/media/${ILLUS}/combustion-engine.webp?w=700 700w, /media/${ILLUS}/combustion-engine.webp?w=1100 1100w`} sizes="(max-width: 700px) 90vw, 40rem" alt="Corte de un motor de combustión interna, con once piezas numeradas" class="tb-plate__img" data-plate loading="lazy" />
+          <figcaption>Del motor de vapor al de combustión interna, pieza por pieza.</figcaption>
+        </figure>
+        <figure class="tb-plate">
+          <img src={`/media/${ILLUS}/organ-column.webp?w=1100`} srcset={`/media/${ILLUS}/organ-column.webp?w=700 700w, /media/${ILLUS}/organ-column.webp?w=1100 1100w`} sizes="(max-width: 700px) 90vw, 40rem" alt="Corte de una columna arquitectónica con mecanismo de tubos, estilo órgano" class="tb-plate__img" data-plate loading="lazy" />
+          <figcaption>Arquitectura como mecanismo — ni una columna es solo decorativa aquí.</figcaption>
+        </figure>
+      </div>
+
+      <div class="tb-plate-group">
+        <p class="tb-plate-group__label">El bestiario y la naturaleza</p>
+        <figure class="tb-plate">
+          <img src={`/media/${ILLUS}/bee-smoker.webp?w=1100`} srcset={`/media/${ILLUS}/bee-smoker.webp?w=700 700w, /media/${ILLUS}/bee-smoker.webp?w=1100 1100w`} sizes="(max-width: 700px) 90vw, 40rem" alt="Apicultor abriendo una colmena con humo, rodeado de abejas" class="tb-plate__img" data-plate loading="lazy" />
+          <figcaption>Apicultura, con el humo dibujado casi como una criatura aparte.</figcaption>
+        </figure>
+        <figure class="tb-plate">
+          <img src={`/media/${ILLUS}/bee-anatomy.webp?w=1100`} srcset={`/media/${ILLUS}/bee-anatomy.webp?w=700 700w, /media/${ILLUS}/bee-anatomy.webp?w=1100 1100w`} sizes="(max-width: 700px) 90vw, 40rem" alt="Anatomía de la cabeza y probóscide de una abeja, numerada" class="tb-plate__img" data-plate loading="lazy" />
+          <figcaption>Y luego la abeja misma, disecada en tinta hasta la probóscide.</figcaption>
+        </figure>
+        <figure class="tb-plate">
+          <img src={`/media/${ILLUS}/tree-root-creature.webp?w=1100`} srcset={`/media/${ILLUS}/tree-root-creature.webp?w=700 700w, /media/${ILLUS}/tree-root-creature.webp?w=1100 1100w`} sizes="(max-width: 700px) 90vw, 40rem" alt="Bonsái fusionado con una criatura de raíces y ojos" class="tb-plate__img" data-plate loading="lazy" />
+          <figcaption>Y uno de esos guiños de Kaplan: un bonsái que también es otra cosa.</figcaption>
+        </figure>
+      </div>
+
+      <div class="tb-plate-group">
+        <p class="tb-plate-group__label">Cuerpo, espíritu y absurdo</p>
+        <figure class="tb-plate">
+          <img src={`/media/${ILLUS}/shiva-yoga.webp?w=1100`} srcset={`/media/${ILLUS}/shiva-yoga.webp?w=700 700w, /media/${ILLUS}/shiva-yoga.webp?w=1100 1100w`} sizes="(max-width: 700px) 90vw, 40rem" alt="Deidad azul de seis brazos, en el capítulo dedicado al yoga" class="tb-plate__img" data-plate loading="lazy" />
+          <figcaption>El capítulo de yoga no explica solo la postura — explica la mitología detrás.</figcaption>
+        </figure>
+        <figure class="tb-plate">
+          <img src={`/media/${ILLUS}/pedal-carriage.webp?w=1100`} srcset={`/media/${ILLUS}/pedal-carriage.webp?w=700 700w, /media/${ILLUS}/pedal-carriage.webp?w=1100 1100w`} sizes="(max-width: 700px) 90vw, 40rem" alt="Carruaje de pedales con tres caballeros de sombrero de copa" class="tb-plate__img" data-plate loading="lazy" />
+          <figcaption>Un carruaje a pedales para caballeros que no piensan bajarse a caminar.</figcaption>
+        </figure>
+        <figure class="tb-plate">
+          <img src={`/media/${ILLUS}/santa-parachute.webp?w=1100`} srcset={`/media/${ILLUS}/santa-parachute.webp?w=700 700w, /media/${ILLUS}/santa-parachute.webp?w=1100 1100w`} sizes="(max-width: 700px) 90vw, 40rem" alt="Santa Claus descendiendo en paracaídas con su costal" class="tb-plate__img" data-plate loading="lazy" />
+          <figcaption>Hasta la logística de Santa Claus se resuelve con la física del libro.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="tb-block tb-block--quote">
+      <div class="tb-block__text">
+        <p class="tb-eyebrow">Sin atajos</p>
+        <blockquote class="tb-quote">
+          "The thing you've been expecting. Hefty, in a good way. Hand-illustrated by real artists. No AI involved."
+        </blockquote>
+        <p class="tb-quote__note">
+          Así lo describe la propia etiqueta de envío de Hungry Minds — a mano, en una hoja de papel kraft, no en
+          letra de imprenta. Pesa 2.3 kg y se nota cada gramo: cada una de las más de 700 ilustraciones salió de una
+          mano real sosteniendo una plumilla.
+        </p>
+      </div>
+    </section>
+
+    <section class="tb-closing">
+      <div class="container">
+        <p class="tb-eyebrow">Si lo quieres para ti</p>
+        <h2>Existe en seis idiomas</h2>
+        <p class="tb-closing__text">
+          Español, inglés, alemán, italiano, francés y japonés — más una edición especial en caja. El ejemplar de
+          Esteban es la edición en español, publicada por Duomo Ediciones. Se consigue directo con
+          <a href="https://hungryminds.com" target="_blank" rel="noopener">Hungry Minds</a> o en librerías que
+          importan la edición de Duomo.
+        </p>
+      </div>
+    </section>
+  </div>
+</Site>
+
+<style>
+  :root {
+    --tb-void: #0b0a08;
+    --tb-void-deep: #050403;
+    --tb-lamp: #d9a84e;
+    --tb-lamp-soft: #f0c878;
+    --tb-parchment: #ece2c6;
+    --tb-ink: #2b2013;
+    --tb-ink-soft: #6b5a3a;
+    --tb-silver: #b8bcc4;
+  }
+
+  .tb-page {
+    position: relative;
+    background: var(--tb-void);
+    color: var(--tb-parchment);
+    margin: calc(-1 * var(--space-3)) 0 0;
+    overflow: hidden;
+  }
+
+  .tb-motes {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  /* The signature element: a warm radial glow that tracks scroll progress down a fixed
+     vertical path, as if a lamp were being carried deeper into the book. Driven by
+     --tb-scroll (0..1) set from the script below. */
+  .tb-lamp {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: radial-gradient(
+      38rem 38rem at 50% calc(10% + var(--tb-scroll, 0) * 70%),
+      rgba(217, 168, 78, 0.16) 0%,
+      rgba(217, 168, 78, 0.05) 40%,
+      transparent 70%
+    );
+    transition: background 0.2s linear;
+  }
+
+  .tb-page > section {
+    position: relative;
+    z-index: 2;
+  }
+
+  .tb-eyebrow {
+    font-family: var(--font-mono);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-size: 0.76rem;
+    color: var(--tb-lamp);
+    margin: 0 0 0.5rem;
+  }
+
+  /* Hero */
+  .tb-hero {
+    min-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: var(--space-4) var(--space-2);
+    gap: var(--space-3);
+  }
+  .tb-hero__cover {
+    width: min(60vw, 22rem);
+    border-radius: 0.3rem;
+    box-shadow: 0 2rem 6rem -1.5rem rgba(217, 168, 78, 0.35), 0 1rem 3rem rgba(0, 0, 0, 0.6);
+  }
+  .tb-hero__text h1 {
+    font-family: "Fraunces", var(--font-display), Georgia, serif;
+    font-size: clamp(2.2rem, 6vw, 4rem);
+    line-height: 1.05;
+    margin: 0 0 0.8rem;
+    color: var(--tb-parchment);
+    text-wrap: balance;
+  }
+  .tb-hero__sub {
+    max-width: 34rem;
+    margin: 0 auto;
+    color: #cbb98f;
+    font-size: 1.02rem;
+    line-height: 1.55;
+  }
+  .tb-hero__scroll {
+    margin: var(--space-3) 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
+    color: var(--tb-ink-soft);
+    animation: tb-bob 2.4s ease-in-out infinite;
+  }
+  @keyframes tb-bob {
+    0%, 100% { transform: translateY(0); opacity: 0.6; }
+    50% { transform: translateY(0.4rem); opacity: 1; }
+  }
+
+  /* Origin / illustrator blocks */
+  .tb-block {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    align-items: center;
+    max-width: 68rem;
+    margin: 0 auto;
+    padding: var(--space-5) var(--space-2);
+  }
+  .tb-block__text h2 {
+    font-family: "Fraunces", var(--font-display), Georgia, serif;
+    font-size: clamp(1.6rem, 3.2vw, 2.3rem);
+    margin: 0 0 0.9rem;
+    color: var(--tb-parchment);
+    text-wrap: balance;
+  }
+  .tb-block__text p {
+    color: #cbb98f;
+    line-height: 1.65;
+    max-width: 34rem;
+  }
+  .tb-block__text strong {
+    color: var(--tb-lamp-soft);
+    font-weight: 600;
+  }
+  .tb-block__img {
+    justify-self: center;
+    max-width: 100%;
+    border-radius: 0.25rem;
+    box-shadow: 0 1.5rem 4rem -1rem rgba(0, 0, 0, 0.7);
+  }
+  .tb-block__pair {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .tb-block__img--pair {
+    width: 13rem;
+  }
+  @media (min-width: 860px) {
+    .tb-block {
+      grid-template-columns: 1.1fr 0.9fr;
+      text-align: left;
+    }
+    .tb-block--reverse {
+      grid-template-columns: 0.9fr 1.1fr;
+    }
+    .tb-block--reverse .tb-block__text {
+      order: 2;
+    }
+  }
+
+  .tb-block--quote {
+    max-width: 46rem;
+    text-align: center;
+    grid-template-columns: 1fr;
+  }
+  .tb-quote {
+    font-family: "Fraunces", var(--font-display), Georgia, serif;
+    font-style: italic;
+    font-size: clamp(1.15rem, 2.4vw, 1.5rem);
+    line-height: 1.5;
+    color: var(--tb-lamp-soft);
+    margin: 0 0 1rem;
+  }
+  .tb-quote__note {
+    color: #cbb98f;
+    font-size: 0.92rem;
+    line-height: 1.6;
+  }
+
+  /* Gallery */
+  .tb-gallery {
+    padding: var(--space-5) 0 var(--space-6);
+  }
+  .tb-gallery .container {
+    text-align: center;
+    margin-bottom: var(--space-4);
+  }
+  .tb-gallery h2 {
+    font-family: "Fraunces", var(--font-display), Georgia, serif;
+    font-size: clamp(1.6rem, 3.2vw, 2.3rem);
+    color: var(--tb-parchment);
+    margin: 0;
+    text-wrap: balance;
+  }
+  .tb-plate-group {
+    max-width: 58rem;
+    margin: 0 auto var(--space-5);
+    padding: 0 var(--space-2);
+  }
+  .tb-plate-group__label {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--tb-silver);
+    text-align: center;
+    margin: 0 0 var(--space-3);
+  }
+  .tb-plate {
+    margin: 0 0 var(--space-5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .tb-plate__img {
+    max-width: 100%;
+    border-radius: 0.3rem;
+    background: var(--tb-parchment);
+    padding: 0.4rem;
+    box-shadow: 0 2rem 5rem -1.5rem rgba(217, 168, 78, 0.25), 0 1rem 3rem rgba(0, 0, 0, 0.65);
+  }
+  .tb-plate figcaption {
+    margin-top: 0.9rem;
+    max-width: 30rem;
+    color: #cbb98f;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  /* Reveal-on-scroll: plates start dim/small and light up as they enter view. */
+  [data-plate] {
+    opacity: 0.15;
+    transform: scale(0.94) translateY(1.2rem);
+    filter: brightness(0.55);
+    transition: opacity 0.9s ease, transform 0.9s ease, filter 0.9s ease;
+    will-change: transform, opacity;
+  }
+  [data-plate].tb-is-visible {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: brightness(1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-plate],
+    [data-plate].tb-is-visible {
+      transition: opacity 0.3s ease;
+      transform: none;
+      filter: none;
+      opacity: 1;
+    }
+    .tb-hero__scroll {
+      animation: none;
+    }
+  }
+
+  .tb-closing {
+    padding: var(--space-5) 0 var(--space-6);
+    text-align: center;
+    border-top: 1px solid rgba(217, 168, 78, 0.15);
+  }
+  .tb-closing h2 {
+    font-family: "Fraunces", var(--font-display), Georgia, serif;
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    color: var(--tb-parchment);
+    margin: 0 0 0.8rem;
+  }
+  .tb-closing__text {
+    max-width: 32rem;
+    margin: 0 auto;
+    color: #cbb98f;
+    line-height: 1.6;
+  }
+  .tb-closing__text a {
+    color: var(--tb-lamp);
+  }
+
+  /* Forced-landscape gate on small portrait screens -- Esteban's own instruction: this page
+     reads apaisado (landscape), so make the visitor rotate rather than degrade the layout. */
+  .tb-gate {
+    display: none;
+  }
+  @media (max-width: 900px) and (orientation: portrait) {
+    .tb-gate {
+      display: flex;
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      background: var(--tb-void-deep);
+      color: var(--tb-parchment);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1.2rem;
+      text-align: center;
+      padding: 2rem;
+    }
+    .tb-gate__icon {
+      color: var(--tb-lamp);
+      animation: tb-rotate-hint 2.2s ease-in-out infinite;
+    }
+    .tb-gate__text {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      line-height: 1.5;
+      max-width: 18rem;
+    }
+    .tb-page {
+      display: none;
+    }
+  }
+  @keyframes tb-rotate-hint {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tb-gate__icon {
+      animation: none;
+    }
+  }
+</style>
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&display=swap"
+  rel="stylesheet"
+/>
+
+<script>
+  // Reveal-on-scroll for every illustration plate.
+  const plates = document.querySelectorAll<HTMLElement>("[data-plate]");
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            e.target.classList.add("tb-is-visible");
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { threshold: 0.15, rootMargin: "0px 0px -10% 0px" }
+    );
+    plates.forEach((p) => io.observe(p));
+  } else {
+    plates.forEach((p) => p.classList.add("tb-is-visible"));
+  }
+
+  // The traveling lamp: --tb-scroll tracks 0..1 progress through the page, rAF-throttled.
+  const page = document.getElementById("tb-page");
+  let ticking = false;
+  function updateScroll() {
+    ticking = false;
+    const doc = document.documentElement;
+    const max = doc.scrollHeight - doc.clientHeight;
+    const frac = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+    page?.style.setProperty("--tb-scroll", String(frac));
+  }
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(updateScroll);
+      }
+    },
+    { passive: true }
+  );
+  updateScroll();
+
+  // Ambient dust motes drifting in the dark -- cheap canvas particles, paused for
+  // reduced-motion visitors.
+  const canvas = document.getElementById("tb-motes") as HTMLCanvasElement | null;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (canvas && !reduceMotion) {
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      function resize() {
+        canvas!.width = window.innerWidth;
+        canvas!.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener("resize", resize);
+      const COUNT = 46;
+      const motes = Array.from({ length: COUNT }, () => ({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        r: Math.random() * 1.4 + 0.4,
+        vy: Math.random() * -0.15 - 0.03,
+        vx: (Math.random() - 0.5) * 0.08,
+        a: Math.random() * 0.5 + 0.15,
+      }));
+      function frame() {
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas!.width, canvas!.height);
+        for (const m of motes) {
+          m.x += m.vx;
+          m.y += m.vy;
+          if (m.y < -5) m.y = canvas!.height + 5;
+          if (m.x < -5) m.x = canvas!.width + 5;
+          if (m.x > canvas!.width + 5) m.x = -5;
+          ctx.beginPath();
+          ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(217, 168, 78, ${m.a})`;
+          ctx.fill();
+        }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+  }
+</script>

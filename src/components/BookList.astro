@@ -89,14 +89,20 @@ if (currentPage === 1 && quotes.length > 0) {
           <tr class="book-row">
             <td class="bt-col-cover">
               {b.cover_r2_key ? (
-                <img
-                  src={`/media/${b.cover_r2_key}?w=150`}
-                  alt={`Portada de ${b.title}`}
-                  class="bt-cover"
-                  data-cover-trigger
-                  data-full={`/media/${b.cover_r2_key}?w=800`}
-                  data-caption={`${b.title} — ${b.author ?? ""}`}
-                />
+                b.id === 91 ? (
+                  <a href="/biblioteca/the-book">
+                    <img src={`/media/${b.cover_r2_key}?w=150`} alt={`Portada de ${b.title}`} class="bt-cover" />
+                  </a>
+                ) : (
+                  <img
+                    src={`/media/${b.cover_r2_key}?w=150`}
+                    alt={`Portada de ${b.title}`}
+                    class="bt-cover"
+                    data-cover-trigger
+                    data-full={`/media/${b.cover_r2_key}?w=800`}
+                    data-caption={`${b.title} — ${b.author ?? ""}`}
+                  />
+                )
               ) : (
                 <span class="bt-cover bt-cover--placeholder" aria-hidden="true">📕</span>
               )}
