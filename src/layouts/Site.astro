@@ -62,9 +62,12 @@ const categories = [
       // formato que las recorre a las dos. Solo en español, igual que A fondo -- el show en
       // inglés existe pero su página todavía no.
       ...(locale === "es-MX" ? [{ href: "/podcast", label: nl.podcast }] : []),
-      // Spanish-only for now — full-body translation to the other 11 locales is a follow-up
-      // (see docs/investigaciones-spec.md), so only linked from the canonical site.
-      ...(locale === "es-MX" ? [{ href: "/a-fondo", label: nl.a_fondo }] : []),
+      // Enlazado en los 12 locales desde 2026-08-29. El gate a es-MX se puso cuando las
+      // traducciones eran un pendiente; llevaban semanas hechas -- 295 campos por locale, once
+      // locales, y las páginas responden 200 en todos -- pero el menú seguía escondiéndolas, así
+      // que nadie fuera del español mexicano podía llegar a ellas navegando. Comprobado uno por
+      // uno antes de quitarlo: índice y pieza, los once.
+      { href: "/a-fondo", label: nl.a_fondo },
     ],
   },
 ];
