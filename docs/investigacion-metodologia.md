@@ -160,6 +160,14 @@ siempre al final.
 
 ## 6. Gráficas
 
+- **Densidad: una gráfica o imagen por cada ~500 palabras.** Es la regla que
+  más se olvida porque hasta hoy no estaba escrita aquí: las tres piezas
+  publicadas van de una cada 604 a una cada 1,236, ninguna cumple. En una
+  investigación de 14,000 palabras eso significa ~28 gráficas, no 10. Cuando
+  el tema trae series históricas (precios de memoria, cuota trimestral,
+  consumo eléctrico año por año), la gráfica no es decoración: es la forma
+  correcta de presentar el dato, y el párrafo que la acompaña puede ser más
+  corto por existir ella.
 - Siempre intentar al menos una gráfica de radar de 5+ dimensiones.
 - Dimensiones variables según el tema, decididas por el agente investigador,
   justificadas brevemente.
