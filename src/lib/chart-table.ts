@@ -144,7 +144,12 @@ export function chartToTable(chartType: ChartType, data: any): ChartTable | null
       }
 
       case "funnel": {
-        const steps = data.steps ?? data.items ?? [];
+        // `stages` primero: es la llave que FunnelChart.astro lee para dibujar. Este lector
+        // aceptaba solo `steps` e `items`, así que TODA gráfica de embudo bien formada para el
+        // componente devolvía null aquí y se quedaba sin su tabla accesible -- la alternativa
+        // que WCAG 1.1.1 exige para una imagen compleja, y la única forma del dato que sobrevive
+        // a un lector de pantalla, a un RSS o a un motor de respuestas.
+        const steps = data.stages ?? data.steps ?? data.items ?? [];
         if (steps.length === 0) return null;
         return {
           headers: ["Etapa", "Valor"],
