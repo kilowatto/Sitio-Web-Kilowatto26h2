@@ -52,6 +52,26 @@ export const KNOWN_WORD_COUNTS: Record<string, number> = {
   // Sin conteo real publicado encontrado — estimado por conteo de páginas de la edición física
   // (752 páginas × ~375 palabras/página, densidad típica de novela histórica en tapa dura).
   "Roma soy yo: La verdadera historia de Julio César": 282000,
+
+  // Star Wars — real count (readinglength.com, checked 2026-08-29)
+  "Star Wars: Catalyst — Una Historia de Rogue One": 124000,
+
+  // J. K. Rowling, El Ickabog — real count (teachingbooks.net, checked 2026-08-29)
+  "El Ickabog": 60867,
+
+  // Michael Ende, La Historia Interminable — real count is for the English translation
+  // (readinglength.com, checked 2026-08-29); no Spanish-specific count found, used as the
+  // closest available proxy rather than guessing from page count.
+  "La Historia Interminable": 111803,
+
+  // Sin conteo real publicado — estimado por conteo de páginas (176) a una densidad baja,
+  // propia de un libro ilustrado infantil de lectura fácil (no la de una novela adulta).
+  "Star Wars Rebels: Luchar hasta el Final": 26000,
+
+  // Sin conteo real publicado — estimado por conteo de páginas (224) a una densidad baja,
+  // propia de una guía ilustrada de bolsillo (mucha imagen, poco texto por página), no la
+  // de una novela de mitología juvenil (por eso no se usa el promedio de género "mitología").
+  "Greek Mythology and Religion": 44000,
 };
 
 // Genre-based fallback averages (words) for books with no individual figure available —
