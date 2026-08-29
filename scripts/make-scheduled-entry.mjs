@@ -68,6 +68,21 @@ export default {
           .then((t) => console.log("Scheduled audio sweep:", t))
           .catch((e) => console.error("Scheduled audio sweep failed:", e))
       );
+      // Same fire: vincular los posts que no tienen enlace propio, y decidir si toca invitar al
+      // podcast. Los dos existían desde el sprint y ninguno estaba en un cron -- relate-posts
+      // solo lo llamaba un endpoint de admin, y subscription_cta tiene exactamente UN post en
+      // toda su historia, hecho a mano. La regla de "pico de descargas o cada doce posts" estaba
+      // escrita y nunca se evaluaba.
+      ctx.waitUntil(
+        callSelf("/api/admin/relate-posts?token=" + env.ADMIN_TOKEN, env, ctx)
+          .then((t) => console.log("Scheduled relate-posts:", t))
+          .catch((e) => console.error("Scheduled relate-posts failed:", e))
+      );
+      ctx.waitUntil(
+        callSelf("/api/admin/subscription-cta?token=" + env.ADMIN_TOKEN, env, ctx)
+          .then((t) => console.log("Scheduled subscription CTA:", t))
+          .catch((e) => console.error("Scheduled subscription CTA failed:", e))
+      );
       // Same fire, third job: one clip, at most. The cadence limit (five a week) lives in the
       // sweeper, and it does nothing at all until the render service is deployed -- so this can
       // be wired now and simply starts working the day the container image exists.
