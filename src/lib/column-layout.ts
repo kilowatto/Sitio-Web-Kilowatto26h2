@@ -18,6 +18,16 @@ function breakFigure(url: string, alt: string): string {
 }
 
 export interface ColumnBreakImages {
+  /**
+   * Marcador que la página sustituye por un <ChartCard> real.
+   *
+   * Cuando existe, ocupa el lugar de la infografía en vez de su PNG: son los mismos números,
+   * pero el componente los dibuja como SVG y les cuelga debajo su tabla accesible en <details>.
+   * El PNG no la tiene, y hasta hoy era lo único que veía quien lee una columna con lector de
+   * pantalla, con RSS o desde un motor de respuestas -- pese a que los datos llevan desde la
+   * migración 0079 estructurados en column_charts.
+   */
+  chartMarker?: string | null;
   infographicUrl?: string | null;
   illustrationUrl?: string | null;
   alt?: string;
@@ -51,11 +61,14 @@ export function renderColumnBody(bodyHtml: string, images: ColumnBreakImages): s
   };
 
   const alt = images.alt ?? "";
-  if (images.infographicUrl && images.illustrationUrl) {
+  // El marcador de gráfica sustituye a la infografía cuando la columna tiene datos en
+  // column_charts; si no los tiene, todo sigue exactamente como antes.
+  const infographic = images.chartMarker ?? (images.infographicUrl ? breakFigure(images.infographicUrl, alt) : null);
+  if (infographic && images.illustrationUrl) {
     const first = nearest(Math.round(n / 3), used);
     if (first !== null) {
       used.add(first);
-      addInsert(first, breakFigure(images.infographicUrl, alt));
+      addInsert(first, infographic);
     }
     const second = nearest(Math.round((2 * n) / 3), used);
     if (second !== null) {
@@ -63,10 +76,10 @@ export function renderColumnBody(bodyHtml: string, images: ColumnBreakImages): s
       addInsert(second, breakFigure(images.illustrationUrl, alt));
     }
   } else {
-    const only = images.infographicUrl || images.illustrationUrl;
+    const only = infographic ?? (images.illustrationUrl ? breakFigure(images.illustrationUrl, alt) : null);
     if (only) {
       const mid = nearest(Math.round(n / 2), used);
-      if (mid !== null) addInsert(mid, breakFigure(only, alt));
+      if (mid !== null) addInsert(mid, only);
     }
   }
 
