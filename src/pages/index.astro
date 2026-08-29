@@ -12,6 +12,14 @@ let projects: any[] = [];
 let heroPhoto: any = null;
 let podcast: any = null;
 
+// Temporary personal highlight (Esteban's "me rapé" clip, 2026-08-30) -- hides itself after 30
+// days but the video/section markup stays in the codebase (not deleted), per Esteban's own call:
+// hide, don't destroy. No DB row for a single one-off like this -- see src/lib/rapado-clip.ts's
+// own comment on why this isn't generalized into a system.
+const RAPADO_PUBLISHED_AT = new Date("2026-08-30T00:00:00Z");
+const RAPADO_EXPIRES_AT = new Date(RAPADO_PUBLISHED_AT.getTime() + 30 * 24 * 60 * 60 * 1000);
+const showRapado = new Date() < RAPADO_EXPIRES_AT;
+
 if (env?.DB) {
   // Podcast counts for the homepage section. Cheap aggregate, and it keeps the copy honest --
   // "26 episodios" written by hand would be wrong the week after the next one ships.
@@ -264,6 +272,24 @@ if (env?.DB) {
     </div>
   </section>
 
+  {showRapado && (
+    <section class="chapter rapado-section" id="rapado">
+      <div class="container rapado-section__inner">
+        <p class="eyebrow">Por si te lo perdiste</p>
+        <h2>Me rapé. Larry no se guardó su opinión.</h2>
+        <p class="hero__sub">El proceso completo de hoy, narrado con todo el sarcasmo que se merece.</p>
+        <video
+          class="rapado-section__video"
+          controls
+          playsinline
+          preload="metadata"
+          poster="/media/personal/rapado-2026-08/rapado-38.webp?w=700"
+          src="/media/video/media/clips/rapado-2026-08-30.mp4"
+        ></video>
+      </div>
+    </section>
+  )}
+
   <section class="chapter chapter--mist larry-intro">
     <div class="container larry-intro__inner">
       <img src="/larry/larry-gym.webp" alt="" width="220" height="220" loading="lazy" />
@@ -361,6 +387,29 @@ if (env?.DB) {
     color: var(--ember);
     font-weight: 600;
     text-decoration: none;
+  }
+
+  .rapado-section__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-2);
+  }
+  .rapado-section h2 {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    margin: 0.1em 0;
+    max-width: 28rem;
+  }
+  .rapado-section__video {
+    width: 100%;
+    max-width: 22rem;
+    aspect-ratio: 9 / 16;
+    border-radius: 0.5rem;
+    background: #141414;
+    margin-top: var(--space-2);
+    box-shadow: 0 1.5rem 3rem -1rem rgba(0, 0, 0, 0.35);
   }
 
   .larry-intro__inner {
