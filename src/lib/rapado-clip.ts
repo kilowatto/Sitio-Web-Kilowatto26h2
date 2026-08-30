@@ -10,17 +10,21 @@ import type { MontageBeat } from "../../remotion/src/PhotoMontage";
 // columna/investigación): this is a single hardcoded video, built once. If a "narrate a photo set"
 // feature becomes a recurring need, generalize then -- not before.
 //
-// Larry's two on-screen lines use his podcast-cover portrait as a static placeholder, not a real
-// video appearance: HeyGen only accepts his face from the front (Esteban rejected that angle) and
-// ElevenLabs Flows (any angle) needs a Pro plan Esteban hasn't upgraded to yet. See
-// docs/sprint-fase3-4.md's "Bloque C" for the full history. Swap these two imageSrc values for a
-// real rendered Larry clip once that's unblocked -- everything else here is unaffected.
+// Larry's two on-screen lines now use real animated clips from ElevenLabs Flows
+// (creatify-aurora), generated once Esteban upgraded to ElevenLabs Pro on 2026-08-30 -- Pro is
+// what unlocks the Flows API for any camera angle, needed since HeyGen only accepts Larry facing
+// the camera and Esteban rejected that angle ("Larry nunca sale de frente"). See
+// docs/sprint-fase3-4.md's "Bloque C" for the full history. imageSrc still doubles as each clip's
+// poster/first-frame fallback.
 const LARRY_PORTRAIT = "https://kilowatto.com/podcast-cover.jpg?v=2";
+const LARRY_VIDEO_OPEN = "https://kilowatto.com/media/video/media/video/larry-lab/yJrQGVJXNCsyjjKk4uLi.mp4";
+const LARRY_VIDEO_CLOSE = "https://kilowatto.com/media/video/media/video/larry-lab/WDmfUGsYwAJxCZjx0DsZ.mp4";
 const PHOTOS = "https://kilowatto.com/media/personal/rapado-2026-08";
 
 interface ScriptLine {
   text: string;
   imageSrc: string;
+  videoSrc?: string;
   fit?: "cover" | "contain";
 }
 
@@ -28,6 +32,7 @@ export const RAPADO_SCRIPT_LINES: ScriptLine[] = [
   {
     text: "Tenemos que hablar de una decisión de vida muy importante que tomó Esteban Rey hoy.",
     imageSrc: LARRY_PORTRAIT,
+    videoSrc: LARRY_VIDEO_OPEN,
     fit: "contain",
   },
   { text: "Miren nada más. Con pelo. Como toda su vida.", imageSrc: `${PHOTOS}/rapado-01.webp` },
@@ -66,6 +71,7 @@ export const RAPADO_SCRIPT_LINES: ScriptLine[] = [
   {
     text: "Felicidades, Esteban. Que la calvicie te sea leve... ¡jajajaja, pelón!",
     imageSrc: LARRY_PORTRAIT,
+    videoSrc: LARRY_VIDEO_CLOSE,
     fit: "contain",
   },
 ];
@@ -137,6 +143,7 @@ export async function runRapadoClip(): Promise<RapadoClipResult> {
       const nextStart = isLast ? timings[i].end + TAIL_SECONDS : timings[i + 1].start;
       return {
         imageSrc: line.imageSrc,
+        videoSrc: line.videoSrc,
         caption: line.text,
         durationSeconds: Math.max(0.6, nextStart - timings[i].start),
         fit: line.fit,
@@ -157,9 +164,19 @@ export async function runRapadoClip(): Promise<RapadoClipResult> {
       // does NOT pick up a freshly-deployed image on its own (see render-worker/src/index.ts's
       // own comment on this) -- this is the first render of a brand-new composition, so it must
       // land on a fresh instance that actually has PhotoMontage in its bundle.
-      body: JSON.stringify({ compositionId: "PhotoMontage", key: VIDEO_KEY, inputProps, instance: "renderer-photomontage" }),
+      body: JSON.stringify({ compositionId: "PhotoMontage", key: VIDEO_KEY, inputProps, instance: "renderer-photomontage-v2" }),
     });
     if (!res.ok) throw new Error(`render ${res.status}: ${(await res.text()).slice(0, 300)}`);
+
+    // This clip's video lives at a single fixed R2 key -- re-running this (e.g. to bake in the
+    // real Larry clips after a first render) overwrites that same key, not a new one. Only make
+    // the LinkedIn post the first time; a re-render must not insert a second brand_posts row.
+    const existing = await env.DB.prepare("SELECT id FROM brand_posts WHERE video_r2_key = ? LIMIT 1")
+      .bind(VIDEO_KEY)
+      .first<{ id: number }>();
+    if (existing) {
+      return { ok: true, postId: existing.id, videoKey: VIDEO_KEY, seconds: totalSeconds, usedAlignment: !!aligned };
+    }
 
     // One LinkedIn post, per Esteban's explicit ask -- not X, not both. Same queue/approval/tick
     // as every other post: nothing here publishes on its own.
