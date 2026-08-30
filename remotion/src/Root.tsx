@@ -1,6 +1,7 @@
 import React from "react";
 import { Composition } from "remotion";
 import { Clip, type ClipProps } from "./Clip";
+import { Infografia, type InfografiaProps } from "./Infografia";
 import { PhotoMontage, type PhotoMontageProps } from "./PhotoMontage";
 import { FPS, WIDTH, HEIGHT } from "./theme";
 import "./fonts";
@@ -58,6 +59,28 @@ export const Root: React.FC = () => (
     calculateMetadata={({ props }) => ({
       durationInFrames: Math.round((props.durationSeconds ?? 30) * FPS),
     })}
+  />
+
+  {/* Cuadrada para el feed: una sola cifra, un cuadro, sin video.
+      El formato nace de bajar el texto del post a 120 caracteres en X y 220 en LinkedIn: si el
+      pie ya no puede cargar el dato, la imagen tiene que hacerlo sola. Se renderiza en el mismo
+      contenedor y con las mismas fuentes que los clips, así que el video y la imagen se ven de
+      la misma casa. */}
+  <Composition
+    id="Infografia"
+    component={Infografia}
+    durationInFrames={1}
+    fps={FPS}
+    width={1080}
+    height={1080}
+    defaultProps={
+      {
+        figure: "50x",
+        eyebrow: "Ejemplo",
+        caption: "Texto de ejemplo, se reemplaza siempre por props reales.",
+        sourceNote: "",
+      } satisfies InfografiaProps
+    }
   />
   </>
 );

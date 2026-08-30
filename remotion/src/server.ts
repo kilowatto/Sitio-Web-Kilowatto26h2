@@ -1,4 +1,4 @@
-import { renderMedia, selectComposition } from "@remotion/renderer";
+import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
 import express from "express";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -54,6 +54,31 @@ app.post("/render", async (req, res) => {
   } finally {
     // The container's disk is 16 GB and it survives between requests, so a leaked file per
     // render adds up long before anyone notices.
+    await fs.unlink(outputLocation).catch(() => {});
+  }
+});
+
+// Un solo cuadro, sin codificar video. Es lo que produce las infografías cuadradas del feed:
+// selectComposition + renderStill tarda segundos, contra los minutos de un clip.
+app.post("/still", async (req, res) => {
+  if (SECRET && req.header("x-render-secret") !== SECRET) {
+    res.status(401).json({ message: "unauthorized" });
+    return;
+  }
+  const { compositionId, inputProps } = req.body ?? {};
+  if (!compositionId) {
+    res.status(400).json({ message: "compositionId es obligatorio" });
+    return;
+  }
+  const outputLocation = path.join("/tmp", `still-${process.hrtime.bigint()}.png`);
+  try {
+    const composition = await selectComposition({ serveUrl: "./build", id: compositionId, inputProps });
+    await renderStill({ composition, inputProps, output: outputLocation, serveUrl: "./build" });
+    res.status(200).type("image/png").send(await fs.readFile(outputLocation));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "el still falló", error: (err as Error).message });
+  } finally {
     await fs.unlink(outputLocation).catch(() => {});
   }
 });

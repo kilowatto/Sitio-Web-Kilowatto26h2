@@ -36,8 +36,9 @@ export default {
       return Response.json({ ok: true });
     }
 
-    if (url.pathname !== "/render" || request.method !== "POST") {
-      return new Response("POST /render", { status: 404 });
+    const isStill = url.pathname === "/still";
+    if ((url.pathname !== "/render" && !isStill) || request.method !== "POST") {
+      return new Response("POST /render o /still", { status: 404 });
     }
 
     // Shared secret rather than an open endpoint: this Worker has no other authentication and a
@@ -62,7 +63,7 @@ export default {
     // una instancia nueva, que sí toma la imagen nueva.
     const container = getContainer(env.RENDER_CONTAINER, body.instance || "renderer");
     const res = await container.fetch(
-      new Request("http://container/render", {
+      new Request(`http://container${isStill ? "/still" : "/render"}`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-render-secret": env.RENDER_SECRET },
         body: JSON.stringify({ compositionId: body.compositionId, inputProps: body.inputProps }),
@@ -80,7 +81,9 @@ export default {
     // buffer that is a few megabytes -- a 90-second 1080x1920 clip lands around 5 MB, against an
     // isolate limit of 128 MB. Not worth the extra moving part.
     const bytes = await res.arrayBuffer();
-    await env.MEDIA.put(body.key, bytes, { httpMetadata: { contentType: "video/mp4" } });
+    await env.MEDIA.put(body.key, bytes, {
+      httpMetadata: { contentType: isStill ? "image/png" : "video/mp4" },
+    });
     const head = await env.MEDIA.head(body.key);
     return Response.json({ key: body.key, bytes: head?.size ?? null });
   },
