@@ -91,3 +91,19 @@ Dos cosas que vas a notar y que no son fallas del video:
 - **El de LinkedIn quedó programado para el 9 de diciembre.** No es un error de fecha: hay 247
   posts en cola y LinkedIn admite uno al día, así que el calendario ya está lleno hasta allá. Si
   quieres que los clips se salten la fila, dímelo y les pongo prioridad.
+
+
+## ElevenLabs ya está en Pro — Larry en cámara deja de estar bloqueado
+
+Esteban subió la cuenta el 2026-08-30. Las dos APIs que respondían `402 paid_plan_required`
+—`/v1/assets` y `/v1/flows/video` con `creatify-aurora`— deberían pasar ahora. El código para
+hablarles ya existe: `src/lib/elevenlabs-video.ts` y `/api/admin/larry-video-lab`.
+
+Era la única pieza del plan detenida por dinero y no por código.
+
+Lo que sigue faltando es construir, no pagar: el turnaround de Larry desde la portada del
+podcast, el LoRA en Replicate con su gate de calidad (el `REPLICATE_API_TOKEN` ya está puesto
+como secreto del Worker) y la auditoría automática de logos alucinados.
+
+Y una restricción que no cambia: **HeyGen queda descartado.** Falló con "No face detected" en seis
+de siete variantes y la única que pasó era de frente, que Esteban rechazó por el cuerno.
