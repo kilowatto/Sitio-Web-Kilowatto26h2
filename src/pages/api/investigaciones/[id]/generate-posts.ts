@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { bloqueDeReglas, revisarPost, MAX_CHARS } from "../../../../lib/post-reglas";
 import { env } from "cloudflare:workers";
 import { buildVoiceContext, voicePromptBlock } from "../../../../lib/brand-voice";
 import { proposeImage, type ImageStyle } from "../../../../lib/brand-image";
@@ -34,10 +35,9 @@ async function withConcurrency<T, R>(items: T[], limit: number, fn: (item: T, in
 // api/brand/generate.ts) -- keep it consistent rather than picking a second one.
 const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
-const GUIDANCE: Record<string, string> = {
-  x: "Máximo ~230 caracteres (se le agregará después un link corto de 'sigue leyendo', deja espacio). Directo, un solo dato o idea por post, sin relleno.",
-  linkedin: "Entre 400 y 900 caracteres. 2-3 párrafos cortos, gancho fuerte en la primera línea, cierra con una reflexión o pregunta.",
-};
+// La guía de longitud vivía aquí con "~230 caracteres" y "entre 400 y 900". Ahora la forma del
+// post la define src/lib/post-reglas.ts, que además la VERIFICA después de generar -- el modelo
+// trataba el largo como sugerencia y salían 291 caracteres de promedio en LinkedIn.
 
 async function callAI(prompt: string, maxTokens: number) {
   const result: any = await env.AI.run(MODEL, { messages: [{ role: "user", content: prompt }], max_tokens: maxTokens });
@@ -62,7 +62,8 @@ async function generateBatch(
   investigacion: any,
   sourcesBlock: string,
   bodyPlain: string,
-  voiceBlock: string
+  voiceBlock: string,
+  idioma: "es" | "en"
 ) {
   if (count <= 0) return [];
   const prompt = `${voiceBlock}
@@ -76,7 +77,7 @@ ${bodyPlain}
 Fuentes citadas en la pieza (para dar contexto, no las repitas literalmente en cada post):
 ${sourcesBlock}
 
-Plataforma: ${platform}. ${GUIDANCE[platform]}
+Plataforma: ${platform}.\n${bloqueDeReglas(platform, idioma)}
 Idioma: español.
 
 Genera EXACTAMENTE ${count} posts DISTINTOS entre sí (cada uno sacando un dato, cifra o idea puntual diferente de la investigación -- no repitas el mismo gancho ni la misma cifra dos veces), pensados para publicarse repartidos a lo largo de más de un mes, no todos el mismo día. NO incluyas ningún link en "content" -- el link de "sigue leyendo" se agrega aparte automáticamente después. NO incluyas hashtags dentro de "content", van solo en "hashtags" (máximo ${platform === "x" ? 2 : 3}, contextuales al dato específico de ese post, nunca genéricos).
@@ -92,7 +93,14 @@ Responde SOLO un JSON:
   // asking for 2 per column returned between 1 and 4 (2026-08-23). Every extra post costs an
   // image generation and a queue slot, so the cap has to be enforced here rather than requested
   // in the prompt.
-  return posts.filter((p) => !!p?.content).slice(0, count);
+  // Se verifica lo que el prompt pidió. Un post que rompe el tope o usa una palabra vetada se
+  // descarta aquí en vez de llegar a la cola: el modelo trata las instrucciones de forma como
+  // sugerencias, y así salieron "¡Genial! AWS resolvió..." y párrafos de 291 caracteres.
+  const limpios = posts.filter((p) => !!p?.content && revisarPost(p.content, platform).ok);
+  if (limpios.length < posts.length) {
+    console.log(`descartados ${posts.length - limpios.length} posts de ${platform} por forma (tope ${MAX_CHARS[platform]})`);
+  }
+  return limpios.slice(0, count);
 }
 
 export async function runGeneratePosts(investigacionId: number, count = 30, styleOverride?: ImageStyle[]) {
@@ -115,14 +123,29 @@ export async function runGeneratePosts(investigacionId: number, count = 30, styl
   const xCount = Math.ceil(count / 2);
   const linkedinCount = count - xCount;
 
-  const [xPosts, linkedinPosts] = await Promise.all([
-    generateBatch("x", xCount, investigacion, sourcesBlock, bodyPlain, voiceBlock),
-    generateBatch("linkedin", linkedinCount, investigacion, sourcesBlock, bodyPlain, voiceBlock),
+  const [xEs, xEn, liEs, liEn] = await Promise.all([
+    // Español e inglés alternando: la pieza ya está traducida a los once locales y el enlace
+    // manda a /en/a-fondo, que responde. Se generan dos tandas por plataforma, la mitad en cada
+    // idioma, para que el feed alterne en vez de agrupar.
+    generateBatch("x", Math.ceil(xCount / 2), investigacion, sourcesBlock, bodyPlain, voiceBlock, "es"),
+    generateBatch("x", Math.floor(xCount / 2), investigacion, sourcesBlock, bodyPlain, voiceBlock, "en"),
+    generateBatch("linkedin", Math.ceil(linkedinCount / 2), investigacion, sourcesBlock, bodyPlain, voiceBlock, "es"),
+    generateBatch("linkedin", Math.floor(linkedinCount / 2), investigacion, sourcesBlock, bodyPlain, voiceBlock, "en"),
   ]);
 
+  // Intercalados, no concatenados: si se pegan las tandas, el feed publica una racha en español
+  // y luego otra en inglés en vez de alternar.
+  const zip = <T,>(a: T[], b: T[]): T[] => {
+    const out: T[] = [];
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      if (a[i]) out.push(a[i]);
+      if (b[i]) out.push(b[i]);
+    }
+    return out;
+  };
   const allPosts = [
-    ...xPosts.map((p) => ({ ...p, platform: "x" as const })),
-    ...linkedinPosts.map((p) => ({ ...p, platform: "linkedin" as const })),
+    ...zip(xEs, xEn).map((p) => ({ ...p, platform: "x" as const })),
+    ...zip(liEs, liEn).map((p) => ({ ...p, platform: "linkedin" as const })),
   ];
   if (allPosts.length === 0) return { error: "generation failed, no posts produced" };
 
