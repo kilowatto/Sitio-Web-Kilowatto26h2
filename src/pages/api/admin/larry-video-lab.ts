@@ -8,9 +8,18 @@ export const prerender = false;
 // Bench for Larry on camera, before any of it touches the post pipeline.
 //
 // Same shape as larry-face-lab did for HeyGen and dialogue-lab did for the two-voice format: the
-// risky assumption gets tested on its own and cheaply. Here the assumption is that
-// creatify-aurora will animate a rhinoceros at all -- HeyGen would only do it with a shortened
+// risky assumption gets tested on its own and cheaply. Here the assumption was that
+// creatify-aurora would animate a rhinoceros at all -- HeyGen would only do it with a shortened
 // muzzle, and the whole point of this provider is that its docs say "character", not "person".
+//
+// Verdict (2026-08-30): it doesn't. Tried default settings, audio_guidance_scale up to 4, and a
+// tight face-only crop -- zero mouth movement in all three, confirmed frame-by-frame. The
+// endpoint's pydantic schema (probed directly by sending deliberately-invalid extra fields) only
+// accepts model_id/image/audio/resolution/guidance_scale/audio_guidance_scale for creatify-aurora
+// -- no `prompt` field, which is what Creatify's own docs say drives a character performance. The
+// model that DOES lip-sync (Flows' "Lipsync Generation" node, OmniHuman/Veed) isn't in this
+// endpoint's model_id list at all -- still canvas-only, matching Flows' docs saying API access is
+// "planned for a future release". Kept as a bench in case that changes.
 
 function authed(url: URL): boolean {
   const t = url.searchParams.get("token");

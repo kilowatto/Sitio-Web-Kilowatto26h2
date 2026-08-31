@@ -10,30 +10,26 @@ import type { MontageBeat } from "../../remotion/src/PhotoMontage";
 // columna/investigación): this is a single hardcoded video, built once. If a "narrate a photo set"
 // feature becomes a recurring need, generalize then -- not before.
 //
-// Larry's two on-screen lines now use real animated clips from ElevenLabs Flows
-// (creatify-aurora), generated once Esteban upgraded to ElevenLabs Pro on 2026-08-30 -- Pro is
-// what unlocks the Flows API for any camera angle, needed since HeyGen only accepts Larry facing
-// the camera and Esteban rejected that angle ("Larry nunca sale de frente"). See
-// docs/sprint-fase3-4.md's "Bloque C" for the full history. imageSrc still doubles as each clip's
-// poster/first-frame fallback.
-const LARRY_PORTRAIT = "https://kilowatto.com/podcast-cover.jpg?v=2";
-const LARRY_VIDEO_OPEN = "https://kilowatto.com/media/video/media/video/larry-lab/yJrQGVJXNCsyjjKk4uLi.mp4";
-const LARRY_VIDEO_CLOSE = "https://kilowatto.com/media/video/media/video/larry-lab/WDmfUGsYwAJxCZjx0DsZ.mp4";
+// Larry never appears on screen here -- ElevenLabs Flows' only image+audio model
+// (creatify-aurora) doesn't animate his face at all (confirmed directly against the live API:
+// no mouth movement at any guidance_scale/audio_guidance_scale, no prompt field exists to drive
+// a performance, and the dedicated Lipsync Generation node (OmniHuman/Veed) that DOES lip-sync
+// isn't exposed via API yet -- Flows' own docs still say "planned for a future release"). He
+// stays the narrator throughout (it's his voice on the single master track); the two bookend
+// lines just play over real photos instead of his portrait. See docs/sprint-fase3-4.md's
+// "Bloque C" for the HeyGen/ElevenLabs history that led here.
 const PHOTOS = "https://kilowatto.com/media/personal/rapado-2026-08";
 
 interface ScriptLine {
   text: string;
   imageSrc: string;
-  videoSrc?: string;
   fit?: "cover" | "contain";
 }
 
 export const RAPADO_SCRIPT_LINES: ScriptLine[] = [
   {
     text: "Tenemos que hablar de una decisión de vida muy importante que tomó Esteban Rey hoy.",
-    imageSrc: LARRY_PORTRAIT,
-    videoSrc: LARRY_VIDEO_OPEN,
-    fit: "contain",
+    imageSrc: `${PHOTOS}/rapado-01.webp`,
   },
   { text: "Miren nada más. Con pelo. Como toda su vida.", imageSrc: `${PHOTOS}/rapado-01.webp` },
   {
@@ -70,9 +66,7 @@ export const RAPADO_SCRIPT_LINES: ScriptLine[] = [
   },
   {
     text: "Felicidades, Esteban. Que la calvicie te sea leve... ¡jajajaja, pelón!",
-    imageSrc: LARRY_PORTRAIT,
-    videoSrc: LARRY_VIDEO_CLOSE,
-    fit: "contain",
+    imageSrc: `${PHOTOS}/rapado-35.webp`,
   },
 ];
 
@@ -143,7 +137,6 @@ export async function runRapadoClip(): Promise<RapadoClipResult> {
       const nextStart = isLast ? timings[i].end + TAIL_SECONDS : timings[i + 1].start;
       return {
         imageSrc: line.imageSrc,
-        videoSrc: line.videoSrc,
         caption: line.text,
         durationSeconds: Math.max(0.6, nextStart - timings[i].start),
         fit: line.fit,
@@ -162,15 +155,15 @@ export async function runRapadoClip(): Promise<RapadoClipResult> {
       headers: { "content-type": "application/json", "x-render-secret": secret },
       // A distinct instance name, not the shared "renderer" default: a live container instance
       // does NOT pick up a freshly-deployed image on its own (see render-worker/src/index.ts's
-      // own comment on this) -- this is the first render of a brand-new composition, so it must
-      // land on a fresh instance that actually has PhotoMontage in its bundle.
-      body: JSON.stringify({ compositionId: "PhotoMontage", key: VIDEO_KEY, inputProps, instance: "renderer-photomontage-v2" }),
+      // own comment on this) -- bump the suffix whenever PhotoMontage.tsx changes, so the render
+      // lands on a fresh instance that actually has the latest bundle.
+      body: JSON.stringify({ compositionId: "PhotoMontage", key: VIDEO_KEY, inputProps, instance: "renderer-photomontage-v3" }),
     });
     if (!res.ok) throw new Error(`render ${res.status}: ${(await res.text()).slice(0, 300)}`);
 
-    // This clip's video lives at a single fixed R2 key -- re-running this (e.g. to bake in the
-    // real Larry clips after a first render) overwrites that same key, not a new one. Only make
-    // the LinkedIn post the first time; a re-render must not insert a second brand_posts row.
+    // This clip's video lives at a single fixed R2 key -- re-running this (e.g. after a script or
+    // photo change) overwrites that same key, not a new one. Only make the LinkedIn post the
+    // first time; a re-render must not insert a second brand_posts row.
     const existing = await env.DB.prepare("SELECT id FROM brand_posts WHERE video_r2_key = ? LIMIT 1")
       .bind(VIDEO_KEY)
       .first<{ id: number }>();

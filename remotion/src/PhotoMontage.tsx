@@ -1,32 +1,22 @@
 import React from "react";
-import { AbsoluteFill, Audio, Img, OffthreadVideo, Series, interpolate, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Audio, Img, Series, interpolate, useCurrentFrame } from "remotion";
 import { COLORS, FONTS } from "./theme";
 
-// A vertical photo-montage clip: real photos (or a static Larry portrait for the two beats where
-// he narrates directly) cut to a script, one <Series.Sequence> per beat so each beat's own
-// duration comes straight from how long its slice of the narration actually took to say --
-// nothing here is guessed or hand-timed.
+// A vertical photo-montage clip: real photos cut to a script, one <Series.Sequence> per beat so
+// each beat's own duration comes straight from how long its slice of the narration actually took
+// to say -- nothing here is guessed or hand-timed.
 //
 // Everything is f(useCurrentFrame()), same rule as Clip.tsx: no Math.random, no Date.now, no CSS
 // animation -- Remotion renders frames out of order, so anything else flickers between takes.
 
 export interface MontageBeat {
-  /** Full https URL -- a real photo in R2, or the Larry portrait for his two narrated beats. */
+  /** Full https URL -- a real photo in R2. */
   imageSrc: string;
-  /**
-   * A real Larry-on-camera clip (ElevenLabs Flows/creatify-aurora), shown instead of imageSrc
-   * when present. Always rendered muted -- the single master `audioSrc` track below is the only
-   * audio for the whole piece, so the two tracks never fight or drift out of sync with each
-   * other; the tradeoff is the clip's own lip-sync is timed to ITS OWN TTS pass, not the master
-   * narration's, so it may be a touch off rather than frame-perfect. imageSrc still doubles as
-   * this beat's poster/first-frame fallback if the video fails to decode.
-   */
-  videoSrc?: string;
   /** The line being spoken during this beat, burned in as a caption. */
   caption: string;
   /** How long this beat is on screen, in seconds -- derived from its slice of the narration. */
   durationSeconds: number;
-  /** "contain" for Larry's portrait (never crop his face); "cover" (default) for real photos. */
+  /** "cover" (default) crops to fill; "contain" letterboxes to show the whole photo. */
   fit?: "cover" | "contain";
 }
 
@@ -46,28 +36,16 @@ const Beat: React.FC<{ beat: MontageBeat }> = ({ beat }) => {
 
   return (
     <AbsoluteFill style={{ background: COLORS.ink, overflow: "hidden" }}>
-      {beat.videoSrc ? (
-        // No Ken Burns here -- the clip already has its own motion, and holds its last frame
-        // for any remainder if this beat's window runs a touch longer than the clip itself.
-        <AbsoluteFill>
-          <OffthreadVideo
-            src={beat.videoSrc}
-            muted
-            style={{ width: "100%", height: "100%", objectFit: beat.fit ?? "cover" }}
-          />
-        </AbsoluteFill>
-      ) : (
-        <AbsoluteFill style={{ transform: `scale(${scale})` }}>
-          <Img
-            src={beat.imageSrc}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: beat.fit ?? "cover",
-            }}
-          />
-        </AbsoluteFill>
-      )}
+      <AbsoluteFill style={{ transform: `scale(${scale})` }}>
+        <Img
+          src={beat.imageSrc}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: beat.fit ?? "cover",
+          }}
+        />
+      </AbsoluteFill>
 
       {/* Scrim + caption, bottom-anchored so it reads the same regardless of photo content. */}
       <AbsoluteFill

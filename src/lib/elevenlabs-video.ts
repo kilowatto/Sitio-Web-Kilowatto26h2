@@ -87,7 +87,7 @@ export async function createVideo(body: VideoRequest): Promise<{ id: string; sta
     headers: { "xi-api-key": apiKey(), "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`flows/video falló (${res.status}): ${(await res.text()).slice(0, 400)}`);
+  if (!res.ok) throw new Error(`flows/video falló (${res.status}): ${(await res.text()).slice(0, 4000)}`);
   return res.json();
 }
 
