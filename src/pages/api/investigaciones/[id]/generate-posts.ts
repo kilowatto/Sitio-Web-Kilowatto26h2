@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { bloqueDeReglas, revisarPost, MAX_CHARS } from "../../../../lib/post-reglas";
+import { bloqueDeReglas, revisarPost, mismaApertura, pieDeEnlace, idiomaDe, MAX_CHARS } from "../../../../lib/post-reglas";
 import { env } from "cloudflare:workers";
 import { buildVoiceContext, voicePromptBlock } from "../../../../lib/brand-voice";
 import { proposeImage, type ImageStyle } from "../../../../lib/brand-image";
@@ -66,6 +66,11 @@ async function generateBatch(
   idioma: "es" | "en"
 ) {
   if (count <= 0) return [];
+  // Se pide el doble de lo que se necesita porque el filtro de forma descarta mucho: en la
+  // primera corrida real con los topes nuevos, de 8 posts pedidos para una columna sobrevivieron
+  // 3. El modelo trata el largo como sugerencia, así que el margen es la única forma de llegar
+  // al número sin bajar la vara.
+  const pedidos = Math.min(count * 2, count + 12);
   const prompt = `${voiceBlock}
 
 Ya publiqué esta investigación completa en kilowatto.com/a-fondo: "${investigacion.title}"
@@ -80,12 +85,12 @@ ${sourcesBlock}
 Plataforma: ${platform}.\n${bloqueDeReglas(platform, idioma)}
 Idioma: español.
 
-Genera EXACTAMENTE ${count} posts DISTINTOS entre sí (cada uno sacando un dato, cifra o idea puntual diferente de la investigación -- no repitas el mismo gancho ni la misma cifra dos veces), pensados para publicarse repartidos a lo largo de más de un mes, no todos el mismo día. NO incluyas ningún link en "content" -- el link de "sigue leyendo" se agrega aparte automáticamente después. NO incluyas hashtags dentro de "content", van solo en "hashtags" (máximo ${platform === "x" ? 2 : 3}, contextuales al dato específico de ese post, nunca genéricos).
+Genera EXACTAMENTE ${pedidos} posts DISTINTOS entre sí (cada uno sacando un dato, cifra o idea puntual diferente de la investigación -- no repitas el mismo gancho ni la misma cifra dos veces), pensados para publicarse repartidos a lo largo de más de un mes, no todos el mismo día. NO incluyas ningún link en "content" -- el link de "sigue leyendo" se agrega aparte automáticamente después. NO incluyas hashtags dentro de "content", van solo en "hashtags" (máximo ${platform === "x" ? 2 : 3}, contextuales al dato específico de ese post, nunca genéricos).
 
 Responde SOLO un JSON:
 {"posts": [{"content": "texto del post, sin link, sin hashtags", "hashtags": ["#Ejemplo"]}, ...]}`;
 
-  const maxTokens = platform === "x" ? Math.min(8000, 180 * count) : Math.min(8000, 340 * count);
+  const maxTokens = platform === "x" ? Math.min(8000, 180 * pedidos) : Math.min(8000, 340 * pedidos);
   const generated = await callAI(prompt, maxTokens);
   const posts: { content: string; hashtags?: string[] }[] = generated?.posts ?? [];
 
@@ -96,7 +101,11 @@ Responde SOLO un JSON:
   // Se verifica lo que el prompt pidió. Un post que rompe el tope o usa una palabra vetada se
   // descarta aquí en vez de llegar a la cola: el modelo trata las instrucciones de forma como
   // sugerencias, y así salieron "¡Genial! AWS resolvió..." y párrafos de 291 caracteres.
-  const limpios = posts.filter((p) => !!p?.content && revisarPost(p.content, platform).ok);
+  const limpios: typeof posts = [];
+  for (const p of posts) {
+    if (!p?.content || !revisarPost(p.content, platform).ok) continue;
+    limpios.push(p);
+  }
   if (limpios.length < posts.length) {
     console.log(`descartados ${posts.length - limpios.length} posts de ${platform} por forma (tope ${MAX_CHARS[platform]})`);
   }
@@ -143,11 +152,22 @@ export async function runGeneratePosts(investigacionId: number, count = 30, styl
     }
     return out;
   };
-  const allPosts = [
+  const todos = [
     ...zip(xEs, xEn).map((p) => ({ ...p, platform: "x" as const })),
     ...zip(liEs, liEn).map((p) => ({ ...p, platform: "linkedin" as const })),
   ];
-  if (allPosts.length === 0) return { error: "generation failed, no posts produced" };
+  // Deduplicar por apertura AQUÍ y no dentro de cada tanda: español e inglés se generan por
+  // separado y no se ven entre sí, así que "¿Qué pasa cuando..." pasaba dos veces, una por tanda.
+  const vistos: string[] = [];
+  const unicos = todos.filter((p) => {
+    if (vistos.some((v) => mismaApertura(v, p.content))) return false;
+    vistos.push(p.content);
+    return true;
+  });
+  if (unicos.length < todos.length) {
+    console.log(`descartados ${todos.length - unicos.length} posts por repetir apertura`);
+  }
+  if (unicos.length === 0) return { error: "generation failed, no posts produced" };
 
   const readMoreUrl = `https://kilowatto.com/a-fondo/${investigacion.slug}`;
 
@@ -156,8 +176,8 @@ export async function runGeneratePosts(investigacionId: number, count = 30, styl
   // wall time reasonable (sequential Gemini/SDXL calls would take several
   // minutes) without hammering the image APIs harder than proposeImage's own
   // single-topic usage elsewhere ever does.
-  const stylesUsed = allPosts.map((_, i) => styleOverride?.[i % styleOverride.length] ?? DEFAULT_STYLE_ROTATION[i % DEFAULT_STYLE_ROTATION.length]);
-  const images = await withConcurrency(allPosts, 4, (p, i) => proposeImage(investigacion.title, p.content, undefined, stylesUsed[i]));
+  const stylesUsed = unicos.map((_, i) => styleOverride?.[i % styleOverride.length] ?? DEFAULT_STYLE_ROTATION[i % DEFAULT_STYLE_ROTATION.length]);
+  const images = await withConcurrency(unicos, 4, (p, i) => proposeImage(investigacion.title, p.content, undefined, stylesUsed[i]));
 
   // One slot per post via the same learned scheduler used for manual approvals --
   // this naturally spreads posts across future days (it never double-books past each
@@ -166,8 +186,8 @@ export async function runGeneratePosts(investigacionId: number, count = 30, styl
   // random-jitter spread.
   const reserved = new Map<string, number>();
   const inserted: any[] = [];
-  for (let i = 0; i < allPosts.length; i++) {
-    const p = allPosts[i];
+  for (let i = 0; i < unicos.length; i++) {
+    const p = unicos[i];
     const scheduledFor = await assignSmartSchedule(p.platform, reserved);
 
     // Insert with the plain URL first, then rewrite with the short link: createShortLink needs
@@ -190,7 +210,7 @@ export async function runGeneratePosts(investigacionId: number, count = 30, styl
     } catch {
       // A failed short link must not cost the post; the full URL still works.
     }
-    const content = p.platform === "x" ? `${p.content}\n\nSigo leyendo → ${shortUrl}` : `${p.content}\n\nLa investigación completa, con fuentes y gráficas: ${shortUrl}`;
+    const content = `${p.content}\n\n${pieDeEnlace(p.platform, idiomaDe(p.content), "investigacion")} ${shortUrl}`;
     await env.DB.prepare("UPDATE brand_posts SET content = ?, source_url = ? WHERE id = ?")
       .bind(content, shortUrl, postId)
       .run();
